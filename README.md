@@ -3,6 +3,7 @@ I2PTunnel for Go
 
 Implementation of I2PTunnel for go which includes equivalents of all I2PTunnel functionality.
 Implements middleware in libraries to handle filtering, rate-limiting, and encrypted leaseSets.
+Everything is backed by SAMv3.
 
 I2PTunnel Services
 ------------------
