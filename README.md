@@ -8,7 +8,7 @@ Everything is backed by SAMv3.
 I2PTunnel Services
 ------------------
 
- - [] Standard Server
+ - [] TCP Server
  - [] HTTP Server
  - [] IRC Server
  - [] UDP Server(Not in I2PTunnel Java)
@@ -16,7 +16,7 @@ I2PTunnel Services
 I2PTunnel Client
 ----------------
 
- - [] Standard Server
+ - [] TCP Server
  - [] HTTP Proxy Client
  - [] SOCKS Proxy Client
  - [] SOCKS IRC Client
@@ -30,7 +30,7 @@ Omitted:
 
 ### Usage
 
-```Go
+```shell
 TODO: example usage from shell
 ```
 
