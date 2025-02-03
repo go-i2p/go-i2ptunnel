@@ -24,6 +24,7 @@ Key features:
 
 import (
 	"net"
+	"strconv"
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
@@ -38,7 +39,7 @@ type HTTPServer struct {
 	*onramp.Garlic
 	// The I2P Tunnel config itself
 	i2pconv.TunnelConfig
-	// The local TCP service address
+	// The local HTTP service address
 	net.Addr
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
@@ -46,31 +47,41 @@ type HTTPServer struct {
 	limitedlistener.LimitedConfig
 	// Channel for shutdown signaling
 	done chan struct{}
+
+	// Error history of the tunnel
+	Errors []i2ptunnel.I2PTunnelError
+}
+
+func (h *HTTPServer) recordError(err error) {
+	h.Errors = append(h.Errors, i2ptunnel.NewError(h, err))
 }
 
 // Get the tunnel's I2P address
 func (h *HTTPServer) Address() string {
-	panic("unimplemented")
+	return h.Garlic.B32()
 }
 
 // Get the tunnel's error message
 func (h *HTTPServer) Error() error {
-	panic("unimplemented")
+	if len(h.Errors) > 0 {
+		return h.Errors[len(h.Errors)-1]
+	}
+	return nil
 }
 
 // Get the tunnel's local host:port
 func (h *HTTPServer) LocalAddress() (string, string, error) {
-	panic("unimplemented")
+	return h.TunnelConfig.Interface, strconv.Itoa(h.TunnelConfig.Port), nil
 }
 
 // Get the tunnel's name
 func (h *HTTPServer) Name() string {
-	panic("unimplemented")
+	return h.TunnelConfig.Name
 }
 
 // Get the tunnel's options
 func (h *HTTPServer) Options() map[string]string {
-	panic("unimplemented")
+	return h.TunnelConfig.Options()
 }
 
 // Start the tunnel
@@ -80,7 +91,7 @@ func (h *HTTPServer) Start() error {
 
 // Get the tunnel's status
 func (h *HTTPServer) Status() i2ptunnel.I2PTunnelStatus {
-	panic("unimplemented")
+	return h.I2PTunnelStatus
 }
 
 // Stop the tunnel
@@ -90,10 +101,10 @@ func (h *HTTPServer) Stop() error {
 
 // Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
 func (h *HTTPServer) Target() string {
-	panic("unimplemented")
+	return h.Addr.String()
 }
 
 // Get the tunnel's type
 func (h *HTTPServer) Type() string {
-	panic("unimplemented")
+	return h.TunnelConfig.Type
 }

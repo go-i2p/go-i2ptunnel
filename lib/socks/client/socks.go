@@ -40,6 +40,8 @@ When a client connects to this SOCKS5 proxy:
 **/
 
 import (
+	"strconv"
+
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/onramp"
@@ -56,31 +58,41 @@ type SOCKS struct {
 	i2ptunnel.I2PTunnelStatus
 	// Channel for shutdown signaling
 	done chan struct{}
+
+	// Error history of the tunnel
+	Errors []i2ptunnel.I2PTunnelError
+}
+
+func (s *SOCKS) recordError(err error) {
+	s.Errors = append(s.Errors, i2ptunnel.NewError(s, err))
 }
 
 // Get the tunnel's I2P address
 func (s *SOCKS) Address() string {
-	panic("unimplemented")
+	return s.Garlic.B32()
 }
 
 // Get the tunnel's error message
 func (s *SOCKS) Error() error {
-	panic("unimplemented")
+	if len(s.Errors) > 0 {
+		return s.Errors[len(s.Errors)-1]
+	}
+	return nil
 }
 
 // Get the tunnel's local host:port
 func (s *SOCKS) LocalAddress() (string, string, error) {
-	panic("unimplemented")
+	return s.TunnelConfig.Interface, strconv.Itoa(s.TunnelConfig.Port), nil
 }
 
 // Get the tunnel's name
 func (s *SOCKS) Name() string {
-	panic("unimplemented")
+	return s.TunnelConfig.Name
 }
 
 // Get the tunnel's options
 func (s *SOCKS) Options() map[string]string {
-	panic("unimplemented")
+	return s.TunnelConfig.Options()
 }
 
 // Start the tunnel
@@ -90,7 +102,7 @@ func (s *SOCKS) Start() error {
 
 // Get the tunnel's status
 func (s *SOCKS) Status() i2ptunnel.I2PTunnelStatus {
-	panic("unimplemented")
+	return s.I2PTunnelStatus
 }
 
 // Stop the tunnel
@@ -100,10 +112,10 @@ func (s *SOCKS) Stop() error {
 
 // Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
 func (s *SOCKS) Target() string {
-	panic("unimplemented")
+	return ""
 }
 
 // Get the tunnel's type
 func (s *SOCKS) Type() string {
-	panic("unimplemented")
+	return s.TunnelConfig.Type
 }

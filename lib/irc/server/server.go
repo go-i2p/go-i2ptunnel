@@ -12,35 +12,66 @@ The IRC Server implements a reverse proxy that enables IRC servers hosted on the
 - Bandwidth and resource monitoring
 **/
 
-import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+import (
+	"net"
+	"strconv"
+
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	limitedlistener "github.com/go-i2p/go-limit"
+	"github.com/go-i2p/onramp"
+)
 
 var implementIRCServer i2ptunnel.I2PTunnel = &IRCServer{}
 
-type IRCServer struct{}
+type IRCServer struct {
+	// I2P Connection to listen to the I2P network
+	*onramp.Garlic
+	// The I2P Tunnel config itself
+	i2pconv.TunnelConfig
+	// The local IRC service address
+	net.Addr
+	// The tunnel status
+	i2ptunnel.I2PTunnelStatus
+	// The rate-limiting configuration
+	limitedlistener.LimitedConfig
+	// Channel for shutdown signaling
+	done chan struct{}
+
+	// Error history of the tunnel
+	Errors []i2ptunnel.I2PTunnelError
+}
+
+func (t *IRCServer) recordError(err error) {
+	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
+}
 
 // Get the tunnel's I2P address
 func (i *IRCServer) Address() string {
-	panic("unimplemented")
+	return i.Garlic.B32()
 }
 
 // Get the tunnel's error message
 func (i *IRCServer) Error() error {
-	panic("unimplemented")
+	if len(i.Errors) > 0 {
+		return i.Errors[len(i.Errors)-1]
+	}
+	return nil
 }
 
 // Get the tunnel's local host:port
 func (i *IRCServer) LocalAddress() (string, string, error) {
-	panic("unimplemented")
+	return i.TunnelConfig.Interface, strconv.Itoa(i.TunnelConfig.Port), nil
 }
 
 // Get the tunnel's name
 func (i *IRCServer) Name() string {
-	panic("unimplemented")
+	return i.TunnelConfig.Name
 }
 
 // Get the tunnel's options
 func (i *IRCServer) Options() map[string]string {
-	panic("unimplemented")
+	return i.TunnelConfig.Options()
 }
 
 // Start the tunnel
@@ -50,7 +81,7 @@ func (i *IRCServer) Start() error {
 
 // Get the tunnel's status
 func (i *IRCServer) Status() i2ptunnel.I2PTunnelStatus {
-	panic("unimplemented")
+	return i.I2PTunnelStatus
 }
 
 // Stop the tunnel
@@ -60,10 +91,10 @@ func (i *IRCServer) Stop() error {
 
 // Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
 func (i *IRCServer) Target() string {
-	panic("unimplemented")
+	return i.Addr.String()
 }
 
 // Get the tunnel's type
 func (i *IRCServer) Type() string {
-	panic("unimplemented")
+	return i.TunnelConfig.Type
 }
