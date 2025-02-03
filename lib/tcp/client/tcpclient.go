@@ -89,13 +89,18 @@ func (t *TCPClient) Start() error {
 	defer listener.Close()
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
 	for {
-		con, err := listener.Accept()
-		if err != nil {
-			continue
+		select {
+		case <-t.done:
+			return nil
+		default:
+			con, err := listener.Accept()
+			if err != nil {
+				continue
+			}
+			defer con.Close()
+			ctx := context.Background()
+			stream.Forward(ctx, con, i2pConn, config.DefaultConfig())
 		}
-		defer con.Close()
-		ctx := context.Background()
-		stream.Forward(ctx, con, i2pConn, config.DefaultConfig())
 	}
 }
 

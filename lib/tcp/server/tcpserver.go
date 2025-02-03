@@ -79,19 +79,24 @@ func (t *TCPServer) Start() error {
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(t.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(t.LimitedConfig.RateLimit))
 	for {
-		con, err := limitedI2PListener.Accept()
-		if err != nil {
-			continue
-		}
+		select {
+		case <-t.done:
+			return nil
+		default:
+			con, err := limitedI2PListener.Accept()
+			if err != nil {
+				continue
+			}
 
-		defer con.Close()
-		lCon, err := net.Dial("tcp", t.Target())
-		if err != nil {
-			continue
+			defer con.Close()
+			lCon, err := net.Dial("tcp", t.Target())
+			if err != nil {
+				continue
+			}
+			defer lCon.Close()
+			ctx := context.Background()
+			stream.Forward(ctx, con, lCon, config.DefaultConfig())
 		}
-		defer lCon.Close()
-		ctx := context.Background()
-		stream.Forward(ctx, con, lCon, config.DefaultConfig())
 	}
 }
 
