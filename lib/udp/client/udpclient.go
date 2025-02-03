@@ -27,12 +27,12 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/packet"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
-	"github.com/go-i2p/go-forward/config"
 )
 
 var implementUDPClient i2ptunnel.I2PTunnel = &UDPClient{}
@@ -89,7 +89,7 @@ func (u *UDPClient) Start() error {
 		case <-u.done:
 			return nil
 		default:
-			raddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port))
+			raddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port)))
 			if err != nil {
 				continue
 			}
