@@ -52,27 +52,27 @@ func (t *TCPClient) Address() string {
 	return t.Garlic.B32()
 }
 
-// Error implements i2ptunnel.I2PTunnel.
+// Get the tunnel's error message
 func (t *TCPClient) Error() error {
 	panic("unimplemented")
 }
 
-// LocalAddress implements i2ptunnel.I2PTunnel.
+// Get the tunnel's local host:port
 func (t *TCPClient) LocalAddress() (string, string, error) {
 	return t.TunnelConfig.Interface, strconv.Itoa(t.TunnelConfig.Port), nil
 }
 
-// Name implements i2ptunnel.I2PTunnel.
+// Get the tunnel's name
 func (t *TCPClient) Name() string {
 	return t.TunnelConfig.Name
 }
 
-// Options implements i2ptunnel.I2PTunnel.
+// Get the tunnel's options
 func (t *TCPClient) Options() map[string]string {
 	return t.TunnelConfig.Options()
 }
 
-// Start implements i2ptunnel.I2PTunnel.
+// Start the tunnel
 func (t *TCPClient) Start() error {
 	i2pConn, err := t.Garlic.Dial("tcp", t.Target())
 	if err != nil {
@@ -98,23 +98,23 @@ func (t *TCPClient) Start() error {
 	}
 }
 
-// Status implements i2ptunnel.I2PTunnel.
+// Get the tunnel's status
 func (t *TCPClient) Status() i2ptunnel.I2PTunnelStatus {
 	return t.I2PTunnelStatus
 }
 
-// Stop implements i2ptunnel.I2PTunnel.
+// Stop the tunnel
 func (t *TCPClient) Stop() error {
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }
 
-// Target implements i2ptunnel.I2PTunnel.
+// Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
 func (t *TCPClient) Target() string {
 	return t.I2PAddr.Base32()
 }
 
-// Type implements i2ptunnel.I2PTunnel.
+// Get the tunnel's type
 func (t *TCPClient) Type() string {
 	return t.TunnelConfig.Type
 }

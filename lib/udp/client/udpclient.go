@@ -36,47 +36,47 @@ func (u *UDPClient) Address() string {
 	panic("unimplemented")
 }
 
-// Error implements i2ptunnel.I2PTunnel.
+// Get the tunnel's error message
 func (u *UDPClient) Error() error {
 	panic("unimplemented")
 }
 
-// LocalAddress implements i2ptunnel.I2PTunnel.
+// Get the tunnel's local host:port
 func (u *UDPClient) LocalAddress() (string, string, error) {
 	panic("unimplemented")
 }
 
-// Name implements i2ptunnel.I2PTunnel.
+// Get the tunnel's name
 func (u *UDPClient) Name() string {
 	panic("unimplemented")
 }
 
-// Options implements i2ptunnel.I2PTunnel.
+// Get the tunnel's options
 func (u *UDPClient) Options() map[string]string {
 	panic("unimplemented")
 }
 
-// Start implements i2ptunnel.I2PTunnel.
+// Start the tunnel
 func (u *UDPClient) Start() error {
 	panic("unimplemented")
 }
 
-// Status implements i2ptunnel.I2PTunnel.
+// Get the tunnel's status
 func (u *UDPClient) Status() i2ptunnel.I2PTunnelStatus {
 	panic("unimplemented")
 }
 
-// Stop implements i2ptunnel.I2PTunnel.
+// Stop the tunnel
 func (u *UDPClient) Stop() error {
 	panic("unimplemented")
 }
 
-// Target implements i2ptunnel.I2PTunnel.
+// Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
 func (u *UDPClient) Target() string {
 	panic("unimplemented")
 }
 
-// Type implements i2ptunnel.I2PTunnel.
+// Get the tunnel's type
 func (u *UDPClient) Type() string {
 	panic("unimplemented")
 }

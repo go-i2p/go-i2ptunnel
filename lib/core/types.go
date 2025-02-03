@@ -26,7 +26,7 @@ type I2PTunnel interface {
 	Name() string
 	// Get the tunnel's type
 	Type() string
-	// Get the tunnel's I2P address
+	// Address implements i2ptunnel.I2PTunnel.
 	Address() string
 	// Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
 	Target() string

@@ -33,47 +33,47 @@ func (h *HTTPServer) Address() string {
 	panic("unimplemented")
 }
 
-// Error implements i2ptunnel.I2PTunnel.
+// Get the tunnel's error message
 func (h *HTTPServer) Error() error {
 	panic("unimplemented")
 }
 
-// LocalAddress implements i2ptunnel.I2PTunnel.
+// Get the tunnel's local host:port
 func (h *HTTPServer) LocalAddress() (string, string, error) {
 	panic("unimplemented")
 }
 
-// Name implements i2ptunnel.I2PTunnel.
+// Get the tunnel's name
 func (h *HTTPServer) Name() string {
 	panic("unimplemented")
 }
 
-// Options implements i2ptunnel.I2PTunnel.
+// Get the tunnel's options
 func (h *HTTPServer) Options() map[string]string {
 	panic("unimplemented")
 }
 
-// Start implements i2ptunnel.I2PTunnel.
+// Start the tunnel
 func (h *HTTPServer) Start() error {
 	panic("unimplemented")
 }
 
-// Status implements i2ptunnel.I2PTunnel.
+// Get the tunnel's status
 func (h *HTTPServer) Status() i2ptunnel.I2PTunnelStatus {
 	panic("unimplemented")
 }
 
-// Stop implements i2ptunnel.I2PTunnel.
+// Stop the tunnel
 func (h *HTTPServer) Stop() error {
 	panic("unimplemented")
 }
 
-// Target implements i2ptunnel.I2PTunnel.
+// Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
 func (h *HTTPServer) Target() string {
 	panic("unimplemented")
 }
 
-// Type implements i2ptunnel.I2PTunnel.
+// Get the tunnel's type
 func (h *HTTPServer) Type() string {
 	panic("unimplemented")
 }

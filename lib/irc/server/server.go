@@ -23,47 +23,47 @@ func (i *IRCServer) Address() string {
 	panic("unimplemented")
 }
 
-// Error implements i2ptunnel.I2PTunnel.
+// Get the tunnel's error message
 func (i *IRCServer) Error() error {
 	panic("unimplemented")
 }
 
-// LocalAddress implements i2ptunnel.I2PTunnel.
+// Get the tunnel's local host:port
 func (i *IRCServer) LocalAddress() (string, string, error) {
 	panic("unimplemented")
 }
 
-// Name implements i2ptunnel.I2PTunnel.
+// Get the tunnel's name
 func (i *IRCServer) Name() string {
 	panic("unimplemented")
 }
 
-// Options implements i2ptunnel.I2PTunnel.
+// Get the tunnel's options
 func (i *IRCServer) Options() map[string]string {
 	panic("unimplemented")
 }
 
-// Start implements i2ptunnel.I2PTunnel.
+// Start the tunnel
 func (i *IRCServer) Start() error {
 	panic("unimplemented")
 }
 
-// Status implements i2ptunnel.I2PTunnel.
+// Get the tunnel's status
 func (i *IRCServer) Status() i2ptunnel.I2PTunnelStatus {
 	panic("unimplemented")
 }
 
-// Stop implements i2ptunnel.I2PTunnel.
+// Stop the tunnel
 func (i *IRCServer) Stop() error {
 	panic("unimplemented")
 }
 
-// Target implements i2ptunnel.I2PTunnel.
+// Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
 func (i *IRCServer) Target() string {
 	panic("unimplemented")
 }
 
-// Type implements i2ptunnel.I2PTunnel.
+// Get the tunnel's type
 func (i *IRCServer) Type() string {
 	panic("unimplemented")
 }
