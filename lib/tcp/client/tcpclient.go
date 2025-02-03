@@ -21,8 +21,12 @@ When a local client connects to the I2P tunnel's destination, the traffic flows:
 **/
 
 import (
+	"context"
 	"net"
+	"strconv"
 
+	"github.com/go-i2p/go-forward/config"
+	"github.com/go-i2p/go-forward/stream"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/i2pkeys"
@@ -35,12 +39,12 @@ var implementTCPClient i2ptunnel.I2PTunnel = &TCPClient{}
 type TCPClient struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic
-	// TCP Connection to the local service
-	net.Listener
 	// The I2P Tunnel config itself
 	i2pconv.TunnelConfig
 	// The remote I2P destination target
 	*i2pkeys.I2PAddr
+	// The tunnel status
+	i2ptunnel.I2PTunnelStatus
 }
 
 // Address implements i2ptunnel.I2PTunnel.
@@ -55,8 +59,7 @@ func (t *TCPClient) Error() error {
 
 // LocalAddress implements i2ptunnel.I2PTunnel.
 func (t *TCPClient) LocalAddress() (string, string, error) {
-	addr := t.Listener.Addr().String()
-	return net.SplitHostPort(addr)
+	return t.TunnelConfig.Interface, strconv.Itoa(t.TunnelConfig.Port), nil
 }
 
 // Name implements i2ptunnel.I2PTunnel.
@@ -71,17 +74,39 @@ func (t *TCPClient) Options() map[string]string {
 
 // Start implements i2ptunnel.I2PTunnel.
 func (t *TCPClient) Start() error {
-	return nil
+	i2pConn, err := t.Garlic.Dial("tcp", t.Target())
+	if err != nil {
+		return err
+	}
+	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
+	defer i2pConn.Close()
+	defer t.Stop()
+	listener, err := net.Listen("tcp", net.JoinHostPort(t.Interface, strconv.Itoa(t.Port)))
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	for {
+		con, err := listener.Accept()
+		if err != nil {
+			continue
+		}
+		defer con.Close()
+		ctx := context.Background()
+		stream.Forward(ctx, con, i2pConn, config.DefaultConfig())
+	}
 }
 
 // Status implements i2ptunnel.I2PTunnel.
 func (t *TCPClient) Status() i2ptunnel.I2PTunnelStatus {
-	panic("unimplemented")
+	return t.I2PTunnelStatus
 }
 
 // Stop implements i2ptunnel.I2PTunnel.
 func (t *TCPClient) Stop() error {
-	panic("unimplemented")
+	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
+	return nil
 }
 
 // Target implements i2ptunnel.I2PTunnel.

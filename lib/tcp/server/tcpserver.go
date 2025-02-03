@@ -77,16 +77,15 @@ func (t *TCPServer) Start() error {
 		if err != nil {
 			continue
 		}
-		go func() {
-			defer con.Close()
-			lCon, err := net.Dial("tcp", t.Target())
-			if err != nil {
-				return
-			}
-			defer lCon.Close()
-			ctx := context.Background()
-			stream.Forward(ctx, con, lCon, config.DefaultConfig())
-		}()
+
+		defer con.Close()
+		lCon, err := net.Dial("tcp", t.Target())
+		if err != nil {
+			continue
+		}
+		defer lCon.Close()
+		ctx := context.Background()
+		stream.Forward(ctx, con, lCon, config.DefaultConfig())
 	}
 }
 
