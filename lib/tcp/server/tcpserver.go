@@ -31,11 +31,13 @@ type TCPServer struct {
 	net.Conn
 	// The I2P Tunnel config itself
 	i2pconv.TunnelConfig
+	// The local TCP service address
+	net.Addr
 }
 
 // Address implements i2ptunnel.I2PTunnel.
 func (t *TCPServer) Address() string {
-	panic("unimplemented")
+	return t.Garlic.B32()
 }
 
 // Error implements i2ptunnel.I2PTunnel.
@@ -45,17 +47,18 @@ func (t *TCPServer) Error() error {
 
 // LocalAddress implements i2ptunnel.I2PTunnel.
 func (t *TCPServer) LocalAddress() (string, string, error) {
-	panic("unimplemented")
+	addr := t.Conn.LocalAddr().String()
+	return net.SplitHostPort(addr)
 }
 
 // Name implements i2ptunnel.I2PTunnel.
 func (t *TCPServer) Name() string {
-	panic("unimplemented")
+	return t.TunnelConfig.Name
 }
 
 // Options implements i2ptunnel.I2PTunnel.
 func (t *TCPServer) Options() map[string]string {
-	panic("unimplemented")
+	return t.Options()
 }
 
 // Start implements i2ptunnel.I2PTunnel.
@@ -75,10 +78,10 @@ func (t *TCPServer) Stop() error {
 
 // Target implements i2ptunnel.I2PTunnel.
 func (t *TCPServer) Target() string {
-	panic("unimplemented")
+	return t.Addr.String()
 }
 
 // Type implements i2ptunnel.I2PTunnel.
 func (t *TCPServer) Type() string {
-	panic("unimplemented")
+	return t.TunnelConfig.Type
 }
