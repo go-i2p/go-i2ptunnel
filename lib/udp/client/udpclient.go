@@ -48,6 +48,13 @@ type UDPClient struct {
 	i2ptunnel.I2PTunnelStatus
 	// Channel for shutdown signaling
 	done chan struct{}
+
+	// Error history of the tunnel
+	Errors []i2ptunnel.I2PTunnelError
+}
+
+func (u *UDPClient) recordError(err error) {
+	u.Errors = append(u.Errors, i2ptunnel.NewError(u, err))
 }
 
 // Get the tunnel's I2P address
@@ -57,7 +64,10 @@ func (u *UDPClient) Address() string {
 
 // Get the tunnel's error message
 func (u *UDPClient) Error() error {
-	panic("unimplemented")
+	if len(u.Errors) > 0 {
+		return u.Errors[len(u.Errors)-1]
+	}
+	return nil
 }
 
 // Get the tunnel's local host:port

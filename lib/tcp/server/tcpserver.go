@@ -40,6 +40,13 @@ type TCPServer struct {
 	limitedlistener.LimitedConfig
 	// Channel for shutdown signaling
 	done chan struct{}
+
+	// Error history of the tunnel
+	Errors []i2ptunnel.I2PTunnelError
+}
+
+func (t *TCPServer) recordError(err error) {
+	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
 }
 
 // Get the tunnel's I2P address
@@ -49,7 +56,10 @@ func (t *TCPServer) Address() string {
 
 // Get the tunnel's error message
 func (t *TCPServer) Error() error {
-	panic("unimplemented")
+	if len(t.Errors) > 0 {
+		return t.Errors[len(t.Errors)-1]
+	}
+	return nil
 }
 
 // Get the tunnel's local host:port

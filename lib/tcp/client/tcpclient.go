@@ -46,6 +46,13 @@ type TCPClient struct {
 	i2ptunnel.I2PTunnelStatus
 	// Channel for shutdown signaling
 	done chan struct{}
+
+	// Error history of the tunnel
+	Errors []i2ptunnel.I2PTunnelError
+}
+
+func (t *TCPClient) recordError(err error) {
+	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
 }
 
 // Get the tunnel's I2P address
@@ -55,7 +62,10 @@ func (t *TCPClient) Address() string {
 
 // Get the tunnel's error message
 func (t *TCPClient) Error() error {
-	panic("unimplemented")
+	if len(t.Errors) > 0 {
+		return t.Errors[len(t.Errors)-1]
+	}
+	return nil
 }
 
 // Get the tunnel's local host:port
