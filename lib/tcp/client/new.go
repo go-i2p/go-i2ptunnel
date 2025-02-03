@@ -7,8 +7,8 @@ import (
 	"github.com/go-i2p/onramp"
 )
 
-// NewTCPServer creates a new TCP Server tunnel with the given configuration
-func NewTCPServer(config i2pconv.TunnelConfig, samAddr string) (*TCPClient, error) {
+// NewTCPClient creates a new TCP Client tunnel with the given configuration
+func NewTCPClient(config i2pconv.TunnelConfig, samAddr string) (*TCPClient, error) {
 	keys, options, err := config.SAMTunnel()
 	if err != nil {
 		return nil, err
@@ -19,8 +19,10 @@ func NewTCPServer(config i2pconv.TunnelConfig, samAddr string) (*TCPClient, erro
 		return nil, err
 	}
 	garlic.ServiceKeys = keys
+	// addr := config.
 	return &TCPClient{
 		TunnelConfig: config,
 		Garlic:       garlic,
+		I2PAddr:      addr,
 	}, nil
 }

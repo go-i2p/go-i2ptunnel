@@ -1,6 +1,7 @@
 package tcpserver
 
 import (
+	"net"
 	"strings"
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
@@ -19,8 +20,15 @@ func NewTCPServer(config i2pconv.TunnelConfig, samAddr string) (*TCPServer, erro
 		return nil, err
 	}
 	garlic.ServiceKeys = keys
+	localPort, _ := strconv.Atoi(config.Port)
+	localAddr := net.JoinHostPort(config.Interface, localPort)
+	addr, err := net.ResolveTCPAddr("tcp", localAddr)
+	if err != nil {
+		return nil, err
+	}
 	return &TCPServer{
 		TunnelConfig: config,
 		Garlic:       garlic,
+		Addr:         addr,
 	}, nil
 }

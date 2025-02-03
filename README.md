@@ -24,46 +24,6 @@ A Go implementation of I2P tunneling services with support for TCP, HTTP, UDP, a
 go get github.com/go-i2p/go-i2ptunnel
 ```
 
-## Usage
-
-### TCP Server Example
-```go
-import "github.com/go-i2p/go-i2ptunnel/lib/tcp/server"
-
-tunnel := tcpserver.NewTCPServer(map[string]string{
-    "name": "my-service",
-    "port": "8080",
-})
-
-if err := tunnel.Start(); err != nil {
-    log.Fatal(err)
-}
-```
-
-### HTTP Proxy Example
-```go
-import "github.com/go-i2p/go-i2ptunnel/lib/http/client"
-
-proxy := httpclient.NewHTTPProxy(map[string]string{
-    "name": "http-proxy",
-    "port": "8118",
-})
-
-if err := proxy.Start(); err != nil {
-    log.Fatal(err)
-}
-```
-
-## Configuration
-
-Each tunnel type supports these common options:
-- `name` - Tunnel identifier
-- `type` - Tunnel type (server/client)
-- `port` - Local port to bind
-- `host` - Local host to bind (default: 127.0.0.1)
-- `keys` - Path to key file
-- `destination` - Target I2P address (clients only)
-
 ## Contributing
 
 1. Check our [CONTRIBUTING.md](CONTRIBUTING.md)

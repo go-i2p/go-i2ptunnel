@@ -27,8 +27,6 @@ var implementTCPServer i2ptunnel.I2PTunnel = &TCPServer{}
 type TCPServer struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic
-	// TCP Connection to the local service
-	net.Conn
 	// The I2P Tunnel config itself
 	i2pconv.TunnelConfig
 	// The local TCP service address
@@ -63,7 +61,18 @@ func (t *TCPServer) Options() map[string]string {
 
 // Start implements i2ptunnel.I2PTunnel.
 func (t *TCPServer) Start() error {
-	panic("unimplemented")
+	i2pListener, err := t.Garlic.Listen()
+	if err != nil {
+		return err
+	}
+	defer i2pListener.Close()
+	for {
+		con, err := i2pListener.Accept()
+		if err != nil {
+			continue
+		}
+		
+	}
 }
 
 // Status implements i2ptunnel.I2PTunnel.
