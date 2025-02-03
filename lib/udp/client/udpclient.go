@@ -32,8 +32,7 @@ import (
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
-	"honnef.co/go/tools/config"
-	// github.com/go-i2p/go-forward/packet
+	"github.com/go-i2p/go-forward/config"
 )
 
 var implementUDPClient i2ptunnel.I2PTunnel = &UDPClient{}
