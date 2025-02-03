@@ -1,7 +1,12 @@
 TCP "Standard" Tunnels:
 =======================
 
-TCP Tunnels provide a transparent bridge between TCP applications and I2P networks. These "Standard" tunnels enable secure, anonymous communication by creating direct connections between TCP endpoints and I2P destinations.
+The TCP tunnels proxy suite provides transparent bridging between TCP applications and I2P networks. It implements two core tunnel types:
+
+1. TCP Server tunnels - Allow I2P clients to connect to local TCP services
+2. TCP Client tunnels - Enable local TCP clients to access I2P services
+
+These "Standard" tunnels create secure, anonymous communication channels by establishing direct connections between TCP endpoints and I2P destinations, while maintaining full TCP protocol compatibility.
 
 TCP Server Tunnel
 -----------------

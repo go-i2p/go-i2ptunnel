@@ -1,7 +1,11 @@
 HTTP Tunnels
 ============
+The go-i2ptunnel HTTP suite provides bidirectional HTTP tunneling capabilities between the I2P network and local services. It consists of two main components:
 
-HTTP Tunnels are designed for HTTP Services (httpserver) and HTTP User-Agents (httpclient).
+1. An HTTP client proxy for connecting local applications to I2P web services
+2. An HTTP server proxy for exposing local web services to I2P clients
+
+The tunnels handle protocol negotiation, header management, and encrypted routing through the I2P network while maintaining compatibility with standard HTTP implementations.
 
 HTTP Client
 -----------
