@@ -3,6 +3,7 @@ package tcpclient
 import (
 	"strings"
 
+	"github.com/go-i2p/i2pkeys"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	"github.com/go-i2p/onramp"
 )
@@ -19,7 +20,10 @@ func NewTCPClient(config i2pconv.TunnelConfig, samAddr string) (*TCPClient, erro
 		return nil, err
 	}
 	garlic.ServiceKeys = keys
-	// addr := config.
+	addr, err := i2pkeys.Lookup(config.Target)
+	if err != nil {
+		return nil, err
+	}
 	return &TCPClient{
 		TunnelConfig: config,
 		Garlic:       garlic,

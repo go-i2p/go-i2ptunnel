@@ -1,5 +1,7 @@
 HERE=$(shell pwd)
 
+bin: fmt
+
 fmt:
 	find . -name '*.go' -exec gofumpt -w -s -extra {} \;
 

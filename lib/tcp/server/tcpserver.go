@@ -14,12 +14,14 @@ When an I2P peer connects to the tunnel's destination, the traffic flows:
 **/
 
 import (
+	"context"
 	"net"
 
+	"github.com/go-i2p/go-forward/config"
+	"github.com/go-i2p/go-forward/stream"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/onramp"
-	// github.com/go-i2p/go-forward/stream
 )
 
 var implementTCPServer i2ptunnel.I2PTunnel = &TCPServer{}
@@ -31,6 +33,8 @@ type TCPServer struct {
 	i2pconv.TunnelConfig
 	// The local TCP service address
 	net.Addr
+	// The tunnel status
+	i2ptunnel.I2PTunnelStatus
 }
 
 // Address implements i2ptunnel.I2PTunnel.
@@ -45,7 +49,7 @@ func (t *TCPServer) Error() error {
 
 // LocalAddress implements i2ptunnel.I2PTunnel.
 func (t *TCPServer) LocalAddress() (string, string, error) {
-	addr := t.Conn.LocalAddr().String()
+	addr := t.Addr.String()
 	return net.SplitHostPort(addr)
 }
 
@@ -66,23 +70,35 @@ func (t *TCPServer) Start() error {
 		return err
 	}
 	defer i2pListener.Close()
+	defer t.Stop()
+	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
 	for {
 		con, err := i2pListener.Accept()
 		if err != nil {
 			continue
 		}
-		
+		go func() {
+			defer con.Close()
+			lCon, err := net.Dial("tcp", t.Target())
+			if err != nil {
+				return
+			}
+			defer lCon.Close()
+			ctx := context.Background()
+			stream.Forward(ctx, con, lCon, config.DefaultConfig())
+		}()
 	}
 }
 
 // Status implements i2ptunnel.I2PTunnel.
 func (t *TCPServer) Status() i2ptunnel.I2PTunnelStatus {
-	panic("unimplemented")
+	return t.I2PTunnelStatus
 }
 
 // Stop implements i2ptunnel.I2PTunnel.
 func (t *TCPServer) Stop() error {
-	panic("unimplemented")
+	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
+	return nil
 }
 
 // Target implements i2ptunnel.I2PTunnel.

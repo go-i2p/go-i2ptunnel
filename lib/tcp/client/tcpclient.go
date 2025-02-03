@@ -71,8 +71,7 @@ func (t *TCPClient) Options() map[string]string {
 
 // Start implements i2ptunnel.I2PTunnel.
 func (t *TCPClient) Start() error {
-	go func() {
-	}()
+	return nil
 }
 
 // Status implements i2ptunnel.I2PTunnel.
