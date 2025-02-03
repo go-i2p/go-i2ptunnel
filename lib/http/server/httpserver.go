@@ -22,11 +22,31 @@ Key features:
 - Provides access control for I2P clients
 **/
 
-import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+import (
+	"net"
+
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	limitedlistener "github.com/go-i2p/go-limit"
+	"github.com/go-i2p/onramp"
+)
 
 var implementHTTPServer i2ptunnel.I2PTunnel = &HTTPServer{}
 
-type HTTPServer struct{}
+type HTTPServer struct {
+	// I2P Connection to listen to the I2P network
+	*onramp.Garlic
+	// The I2P Tunnel config itself
+	i2pconv.TunnelConfig
+	// The local TCP service address
+	net.Addr
+	// The tunnel status
+	i2ptunnel.I2PTunnelStatus
+	// The rate-limiting configuration
+	limitedlistener.LimitedConfig
+	// Channel for shutdown signaling
+	done chan struct{}
+}
 
 // Get the tunnel's I2P address
 func (h *HTTPServer) Address() string {

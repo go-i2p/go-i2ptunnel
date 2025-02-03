@@ -22,11 +22,24 @@ Key features:
 - Handles protocol negotiation and routing
 **/
 
-import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+import (
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/onramp"
+)
 
 var implementHTTPClient i2ptunnel.I2PTunnel = &HTTPClient{}
 
-type HTTPClient struct{}
+type HTTPClient struct {
+	// I2P Connection to listen to the I2P network
+	*onramp.Garlic
+	// The I2P Tunnel config itself
+	i2pconv.TunnelConfig
+	// The tunnel status
+	i2ptunnel.I2PTunnelStatus
+	// Channel for shutdown signaling
+	done chan struct{}
+}
 
 // Get the tunnel's I2P address
 func (h *HTTPClient) Address() string {

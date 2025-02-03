@@ -39,11 +39,24 @@ When a client connects to this SOCKS5 proxy:
 - Standard SOCKS5 authentication methods
 **/
 
-import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+import (
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/onramp"
+)
 
 var implementSOCKS i2ptunnel.I2PTunnel = &SOCKS{}
 
-type SOCKS struct{}
+type SOCKS struct {
+	// I2P Connection to listen to the I2P network
+	*onramp.Garlic
+	// The I2P Tunnel config itself
+	i2pconv.TunnelConfig
+	// The tunnel status
+	i2ptunnel.I2PTunnelStatus
+	// Channel for shutdown signaling
+	done chan struct{}
+}
 
 // Get the tunnel's I2P address
 func (s *SOCKS) Address() string {
