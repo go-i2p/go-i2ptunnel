@@ -3,8 +3,8 @@ package tcpclient
 import (
 	"strings"
 
-	"github.com/go-i2p/i2pkeys"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
 )
 

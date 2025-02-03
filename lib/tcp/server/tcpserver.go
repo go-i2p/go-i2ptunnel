@@ -21,6 +21,7 @@ import (
 	"github.com/go-i2p/go-forward/stream"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 )
 
@@ -35,6 +36,8 @@ type TCPServer struct {
 	net.Addr
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// The rate-limiting configuration
+	limitedlistener.LimitedConfig
 }
 
 // Address implements i2ptunnel.I2PTunnel.
@@ -72,8 +75,9 @@ func (t *TCPServer) Start() error {
 	defer i2pListener.Close()
 	defer t.Stop()
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(t.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(t.LimitedConfig.RateLimit))
 	for {
-		con, err := i2pListener.Accept()
+		con, err := limitedI2PListener.Accept()
 		if err != nil {
 			continue
 		}
