@@ -23,12 +23,16 @@ When sending UDP packets to an I2P service, the traffic flows:
 **/
 
 import (
+	"context"
+	"net"
 	"strconv"
 
+	"github.com/go-i2p/go-forward/packet"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
+	"honnef.co/go/tools/config"
 	// github.com/go-i2p/go-forward/packet
 )
 
@@ -74,7 +78,31 @@ func (u *UDPClient) Options() map[string]string {
 
 // Start the tunnel
 func (u *UDPClient) Start() error {
-	panic("unimplemented")
+	i2pConnection, err := u.Garlic.DialRemote("udp", u.Target())
+	if err != nil {
+		return err
+	}
+	defer i2pConnection.Close()
+	defer u.Stop()
+	u.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	for {
+		select {
+		case <-u.done:
+			return nil
+		default:
+			raddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port))
+			if err != nil {
+				continue
+			}
+			lCon, err := net.DialUDP("udp", nil, raddr)
+			if err != nil {
+				continue
+			}
+			defer lCon.Close()
+			ctx := context.Background()
+			packet.Forward(ctx, i2pConnection, lCon, config.DefaultConfig())
+		}
+	}
 }
 
 // Get the tunnel's status
