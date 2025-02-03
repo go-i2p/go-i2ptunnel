@@ -43,8 +43,7 @@ import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 
 var implementSOCKS i2ptunnel.I2PTunnel = &SOCKS{}
 
-type SOCKS struct {
-}
+type SOCKS struct{}
 
 // Address implements i2ptunnel.I2PTunnel.
 func (s *SOCKS) Address() string {

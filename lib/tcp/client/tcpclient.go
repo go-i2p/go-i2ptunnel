@@ -25,8 +25,9 @@ import (
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
-	//github.com/go-i2p/go-forward/stream
+	// github.com/go-i2p/go-forward/stream
 )
 
 var implementTCPClient i2ptunnel.I2PTunnel = &TCPClient{}
@@ -38,11 +39,13 @@ type TCPClient struct {
 	net.Listener
 	// The I2P Tunnel config itself
 	i2pconv.TunnelConfig
+	// The remote I2P destination target
+	*i2pkeys.I2PAddr
 }
 
 // Address implements i2ptunnel.I2PTunnel.
 func (t *TCPClient) Address() string {
-	panic("unimplemented")
+	return t.Garlic.B32()
 }
 
 // Error implements i2ptunnel.I2PTunnel.
@@ -52,12 +55,13 @@ func (t *TCPClient) Error() error {
 
 // LocalAddress implements i2ptunnel.I2PTunnel.
 func (t *TCPClient) LocalAddress() (string, string, error) {
-	panic("unimplemented")
+	addr := t.Listener.Addr().String()
+	return net.SplitHostPort(addr)
 }
 
 // Name implements i2ptunnel.I2PTunnel.
 func (t *TCPClient) Name() string {
-	panic("unimplemented")
+	return t.TunnelConfig.Name
 }
 
 // Options implements i2ptunnel.I2PTunnel.
@@ -82,10 +86,10 @@ func (t *TCPClient) Stop() error {
 
 // Target implements i2ptunnel.I2PTunnel.
 func (t *TCPClient) Target() string {
-	panic("unimplemented")
+	return t.I2PAddr.Base32()
 }
 
 // Type implements i2ptunnel.I2PTunnel.
 func (t *TCPClient) Type() string {
-	panic("unimplemented")
+	return t.TunnelConfig.Type
 }

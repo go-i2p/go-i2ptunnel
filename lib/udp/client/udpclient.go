@@ -29,8 +29,7 @@ import (
 
 var implementUDPClient i2ptunnel.I2PTunnel = &UDPClient{}
 
-type UDPClient struct {
-}
+type UDPClient struct{}
 
 // Address implements i2ptunnel.I2PTunnel.
 func (u *UDPClient) Address() string {

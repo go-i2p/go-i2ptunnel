@@ -19,7 +19,7 @@ import (
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/onramp"
-	//github.com/go-i2p/go-forward/stream
+	// github.com/go-i2p/go-forward/stream
 )
 
 var implementTCPServer i2ptunnel.I2PTunnel = &TCPServer{}

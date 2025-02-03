@@ -16,8 +16,7 @@ import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 
 var implementIRCClient i2ptunnel.I2PTunnel = &IRCClient{}
 
-type IRCClient struct {
-}
+type IRCClient struct{}
 
 // Address implements i2ptunnel.I2PTunnel.
 func (i *IRCClient) Address() string {
