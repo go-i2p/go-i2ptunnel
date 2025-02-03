@@ -22,7 +22,10 @@ When sending UDP packets to an I2P service, the traffic flows:
 - Incoming: I2P Network → I2P Client → UDP Packet → Local Client
 **/
 
-import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+import (
+	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	// github.com/go-i2p/go-forward/packet
+)
 
 var implementUDPClient i2ptunnel.I2PTunnel = &UDPClient{}
 

@@ -20,11 +20,24 @@ When a local client connects to the I2P tunnel's destination, the traffic flows:
 - Incoming: I2P Network → I2P Client → TCP Server → Local Client
 **/
 
-import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+import (
+	"net"
+
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/onramp"
+	//github.com/go-i2p/go-forward/stream
+)
 
 var implementTCPClient i2ptunnel.I2PTunnel = &TCPClient{}
 
 type TCPClient struct {
+	// I2P Connection to listen to the I2P network
+	*onramp.Garlic
+	// TCP Connection to the local service
+	net.Listener
+	// The I2P Tunnel config itself
+	i2pconv.TunnelConfig
 }
 
 // Address implements i2ptunnel.I2PTunnel.

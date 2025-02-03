@@ -22,7 +22,10 @@ When an I2P peer connects to the tunnel's destination, the traffic flows:
 - Outgoing: Local Service → UDP Packet → I2P Service → I2P Network
 **/
 
-import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+import (
+	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	// github.com/go-i2p/go-forward/packet
+)
 
 var implementUDPServer i2ptunnel.I2PTunnel = &UDPServer{}
 
