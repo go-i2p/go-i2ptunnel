@@ -28,7 +28,7 @@ var implementHTTPServer i2ptunnel.I2PTunnel = &HTTPServer{}
 
 type HTTPServer struct{}
 
-// Address implements i2ptunnel.I2PTunnel.
+// Get the tunnel's I2P address
 func (h *HTTPServer) Address() string {
 	panic("unimplemented")
 }

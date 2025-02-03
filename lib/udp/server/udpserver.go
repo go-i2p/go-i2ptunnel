@@ -45,7 +45,7 @@ type UDPServer struct {
 	i2ptunnel.I2PTunnelStatus
 }
 
-// Address implements i2ptunnel.I2PTunnel.
+// Get the tunnel's I2P address
 func (u *UDPServer) Address() string {
 	return u.Garlic.B32()
 }

@@ -45,7 +45,7 @@ var implementSOCKS i2ptunnel.I2PTunnel = &SOCKS{}
 
 type SOCKS struct{}
 
-// Address implements i2ptunnel.I2PTunnel.
+// Get the tunnel's I2P address
 func (s *SOCKS) Address() string {
 	panic("unimplemented")
 }

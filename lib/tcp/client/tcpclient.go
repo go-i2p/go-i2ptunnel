@@ -47,7 +47,7 @@ type TCPClient struct {
 	i2ptunnel.I2PTunnelStatus
 }
 
-// Address implements i2ptunnel.I2PTunnel.
+// Get the tunnel's I2P address
 func (t *TCPClient) Address() string {
 	return t.Garlic.B32()
 }

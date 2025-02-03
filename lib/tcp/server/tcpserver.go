@@ -40,7 +40,7 @@ type TCPServer struct {
 	limitedlistener.LimitedConfig
 }
 
-// Address implements i2ptunnel.I2PTunnel.
+// Get the tunnel's I2P address
 func (t *TCPServer) Address() string {
 	return t.Garlic.B32()
 }

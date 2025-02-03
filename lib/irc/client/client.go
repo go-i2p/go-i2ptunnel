@@ -18,7 +18,7 @@ var implementIRCClient i2ptunnel.I2PTunnel = &IRCClient{}
 
 type IRCClient struct{}
 
-// Address implements i2ptunnel.I2PTunnel.
+// Get the tunnel's I2P address
 func (i *IRCClient) Address() string {
 	panic("unimplemented")
 }
