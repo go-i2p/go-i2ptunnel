@@ -1,7 +1,15 @@
 package ircclient
 
 /**
- *
+IRC Client
+----------
+
+The IRC Client implements a SOCKS-compatible proxy that enables local IRC clients to connect to services on the I2P network. It provides:
+
+- Transparent proxying between local IRC clients and I2P servers
+- Command filtering for enhanced security
+- Connection management and automatic reconnection
+- Bandwidth usage monitoring
 **/
 
 import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"

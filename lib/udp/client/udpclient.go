@@ -1,7 +1,25 @@
 package udpclient
 
 /**
- *
+UDP Client Tunnels
+------------------
+
+UDP Client Tunnels accept incoming UDP packets and forward them as I2P Datagrams to an I2P destination. This enables:
+
+- Accessing remote I2P UDP services locally
+- Connecting to game servers hosted on I2P
+- Forwarding local UDP traffic through I2P
+- Simple client-side UDP tunneling
+
+Key features:
+* Transparent UDP forwarding
+* Direct destination addressing
+* Local UDP socket binding
+* Stateless operation
+
+When sending UDP packets to an I2P service, the traffic flows:
+- Outgoing: Local Client → UDP Packet → I2P Client → I2P Network
+- Incoming: I2P Network → I2P Client → UDP Packet → Local Client
 **/
 
 import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"

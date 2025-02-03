@@ -1,7 +1,23 @@
 package tcpclient
 
 /**
- *
+TCP Client Tunnel
+-----------------
+
+A TCP Client tunnel operates by:
+1. Running a TCP Server that listens on a local port
+2. Maintaining an I2P Client connected to a specific destination
+
+When activated:
+- Local applications connect to the TCP Server
+- Traffic routes through the I2P Client to the target I2P destination
+- Creates a secure point-to-point connection
+
+Both tunnel types preserve the original TCP traffic while adding I2P's anonymity and encryption layers.
+
+When a local client connects to the I2P tunnel's destination, the traffic flows:
+- Outgoing: Local Client → TCP Server → I2P Client → I2P Network
+- Incoming: I2P Network → I2P Client → TCP Server → Local Client
 **/
 
 import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"

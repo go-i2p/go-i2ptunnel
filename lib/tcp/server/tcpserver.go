@@ -1,5 +1,18 @@
 package tcpserver
 
+/**
+TCP Server Tunnel
+-----------------
+
+A TCP Server tunnel connects a local TCP service to the I2P network through:
+1. A TCP Client component that interfaces with the local service
+2. An I2P Service component that maintains a persistent destination address
+
+When an I2P peer connects to the tunnel's destination, the traffic flows:
+- Incoming: I2P Network → I2P Service → TCP Client → Local Service
+- Outgoing: Local Service → TCP Client → I2P Service → I2P Network
+**/
+
 import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 
 var implementTCPServer i2ptunnel.I2PTunnel = &TCPServer{}

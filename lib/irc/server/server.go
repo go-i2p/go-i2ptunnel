@@ -1,7 +1,15 @@
 package ircserver
 
 /**
- *
+IRC Server
+----------
+
+The IRC Server implements a reverse proxy that enables IRC servers hosted on the local machine to be accessible from the I2P network. It provides:
+
+- Secure traffic forwarding between local IRC services and I2P clients
+- Access control and connection management
+- Command filtering and security policies
+- Bandwidth and resource monitoring
 **/
 
 import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"

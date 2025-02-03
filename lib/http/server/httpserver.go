@@ -1,7 +1,25 @@
 package httpserver
 
 /**
- *
+HTTP Server
+-----------
+
+The HTTP Server implements a reverse proxy that forwards traffic between local services and I2P clients. It acts as an intermediary, providing access control and traffic management.
+
+```
+[Local Service] <-> [I2P HTTP Server] <-> [I2P Network] <-> [I2P Clients]
+    :8080            (Reverse Proxy)        Encrypted        Browser/App
+                     |
+                - Header filtering
+                - Rate limiting
+                - Access control
+```
+
+Key features:
+- Forwards requests between local services and I2P network
+- Filters and modifies HTTP headers
+- Rate limits incoming requests
+- Provides access control for I2P clients
 **/
 
 import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"

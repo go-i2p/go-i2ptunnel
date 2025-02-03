@@ -1,7 +1,25 @@
 package httpclient
 
 /**
- *
+HTTP Client
+-----------
+
+The HTTP Client implements a proxy server that enables HTTP/S traffic between local applications and I2P network services. It acts as an intermediary, handling all standard HTTP methods and CONNECT requests.
+
+```
+[Browser/App] <-> [I2P HTTP Client] <-> [I2P Network] <-> [I2P Services]
+    :8118           (HTTP Proxy)         Encrypted        Web Servers
+                    |
+               - Protocol handling
+               - Header management
+               - Connection routing
+```
+
+Key features:
+- Supports HTTP, HTTPS and CONNECT methods
+- Proxies requests between local clients and I2P services
+- Manages HTTP headers and connection states
+- Handles protocol negotiation and routing
 **/
 
 import i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
