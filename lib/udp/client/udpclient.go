@@ -23,17 +23,31 @@ When sending UDP packets to an I2P service, the traffic flows:
 **/
 
 import (
+	"strconv"
+
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/i2pkeys"
+	"github.com/go-i2p/onramp"
 	// github.com/go-i2p/go-forward/packet
 )
 
 var implementUDPClient i2ptunnel.I2PTunnel = &UDPClient{}
 
-type UDPClient struct{}
+type UDPClient struct {
+	// I2P Connection to listen to the I2P network
+	*onramp.Garlic
+	// The I2P Tunnel config itself
+	i2pconv.TunnelConfig
+	// The remote I2P destination target
+	*i2pkeys.I2PAddr
+	// The tunnel status
+	i2ptunnel.I2PTunnelStatus
+}
 
 // Address implements i2ptunnel.I2PTunnel.
 func (u *UDPClient) Address() string {
-	panic("unimplemented")
+	return u.Garlic.B32()
 }
 
 // Get the tunnel's error message
@@ -43,17 +57,17 @@ func (u *UDPClient) Error() error {
 
 // Get the tunnel's local host:port
 func (u *UDPClient) LocalAddress() (string, string, error) {
-	panic("unimplemented")
+	return u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port), nil
 }
 
 // Get the tunnel's name
 func (u *UDPClient) Name() string {
-	panic("unimplemented")
+	return u.TunnelConfig.Name
 }
 
 // Get the tunnel's options
 func (u *UDPClient) Options() map[string]string {
-	panic("unimplemented")
+	return u.TunnelConfig.Options()
 }
 
 // Start the tunnel
@@ -63,7 +77,7 @@ func (u *UDPClient) Start() error {
 
 // Get the tunnel's status
 func (u *UDPClient) Status() i2ptunnel.I2PTunnelStatus {
-	panic("unimplemented")
+	return u.I2PTunnelStatus
 }
 
 // Stop the tunnel
@@ -73,10 +87,10 @@ func (u *UDPClient) Stop() error {
 
 // Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
 func (u *UDPClient) Target() string {
-	panic("unimplemented")
+	return u.I2PAddr.Base32()
 }
 
 // Get the tunnel's type
 func (u *UDPClient) Type() string {
-	panic("unimplemented")
+	return u.TunnelConfig.Type
 }
