@@ -31,7 +31,6 @@ import (
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
-	// github.com/go-i2p/go-forward/stream
 )
 
 var implementTCPClient i2ptunnel.I2PTunnel = &TCPClient{}
@@ -45,6 +44,8 @@ type TCPClient struct {
 	*i2pkeys.I2PAddr
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// Channel for shutdown signaling
+	done chan struct{}
 }
 
 // Get the tunnel's I2P address
@@ -105,6 +106,8 @@ func (t *TCPClient) Status() i2ptunnel.I2PTunnelStatus {
 
 // Stop the tunnel
 func (t *TCPClient) Stop() error {
+	close(t.done)
+	// Cleanup resources
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }

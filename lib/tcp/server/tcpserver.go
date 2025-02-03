@@ -38,6 +38,8 @@ type TCPServer struct {
 	i2ptunnel.I2PTunnelStatus
 	// The rate-limiting configuration
 	limitedlistener.LimitedConfig
+	// Channel for shutdown signaling
+	done chan struct{}
 }
 
 // Get the tunnel's I2P address
@@ -100,6 +102,8 @@ func (t *TCPServer) Status() i2ptunnel.I2PTunnelStatus {
 
 // Stop the tunnel
 func (t *TCPServer) Stop() error {
+	close(t.done)
+	// Cleanup resources
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }

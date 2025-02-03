@@ -1,4 +1,4 @@
-package tcpserver
+package udpserver
 
 import (
 	"net"
@@ -6,12 +6,11 @@ import (
 	"strings"
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
-	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 )
 
-// NewTCPServer creates a new TCP Server tunnel with the given configuration
-func NewTCPServer(config i2pconv.TunnelConfig, samAddr string) (*TCPServer, error) {
+// NewUDPServer creates a new UDP Server tunnel with the given configuration
+func NewUDPServer(config i2pconv.TunnelConfig, samAddr string) (*UDPServer, error) {
 	keys, options, err := config.SAMTunnel()
 	if err != nil {
 		return nil, err
@@ -24,18 +23,14 @@ func NewTCPServer(config i2pconv.TunnelConfig, samAddr string) (*TCPServer, erro
 	garlic.ServiceKeys = keys
 	localPort := strconv.Itoa(config.Port)
 	localAddr := net.JoinHostPort(config.Interface, localPort)
-	addr, err := net.ResolveTCPAddr("tcp", localAddr)
+	addr, err := net.ResolveUDPAddr("UDP", localAddr)
 	if err != nil {
 		return nil, err
 	}
-	return &TCPServer{
+	return &UDPServer{
 		TunnelConfig: config,
 		Garlic:       garlic,
 		Addr:         addr,
-		LimitedConfig: limitedlistener.LimitedConfig{
-			MaxConns:  1000,
-			RateLimit: 100,
-		},
-		done: make(chan struct{}),
+		done:         make(chan struct{}),
 	}, nil
 }

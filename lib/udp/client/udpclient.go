@@ -43,6 +43,8 @@ type UDPClient struct {
 	*i2pkeys.I2PAddr
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// Channel for shutdown signaling
+	done chan struct{}
 }
 
 // Get the tunnel's I2P address
@@ -82,7 +84,10 @@ func (u *UDPClient) Status() i2ptunnel.I2PTunnelStatus {
 
 // Stop the tunnel
 func (u *UDPClient) Stop() error {
-	panic("unimplemented")
+	close(u.done)
+	// Cleanup resources
+	u.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
+	return nil
 }
 
 // Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
