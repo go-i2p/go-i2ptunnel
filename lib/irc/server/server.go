@@ -16,6 +16,7 @@ import (
 	"net"
 	"strconv"
 
+	ircinspector "github.com/go-i2p/go-connfilter/irc"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	limitedlistener "github.com/go-i2p/go-limit"
@@ -35,6 +36,8 @@ type IRCServer struct {
 	i2ptunnel.I2PTunnelStatus
 	// The rate-limiting configuration
 	limitedlistener.LimitedConfig
+	// The IRC filtering configuration
+	ircinspector.Config
 	// Channel for shutdown signaling
 	done chan struct{}
 

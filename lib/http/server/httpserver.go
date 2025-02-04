@@ -26,6 +26,7 @@ import (
 	"net"
 	"strconv"
 
+	httpinspector "github.com/go-i2p/go-connfilter/http"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	limitedlistener "github.com/go-i2p/go-limit"
@@ -45,6 +46,8 @@ type HTTPServer struct {
 	i2ptunnel.I2PTunnelStatus
 	// The rate-limiting configuration
 	limitedlistener.LimitedConfig
+	// The http filtering configuration
+	httpinspector.Config
 	// Channel for shutdown signaling
 	done chan struct{}
 

@@ -15,6 +15,7 @@ The IRC Client implements a SOCKS-compatible proxy that enables local IRC client
 import (
 	"strconv"
 
+	ircinspector "github.com/go-i2p/go-connfilter/irc"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/i2pkeys"
@@ -32,6 +33,8 @@ type IRCClient struct {
 	*i2pkeys.I2PAddr
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// The IRC filtering configuration
+	ircinspector.Config
 	// Channel for shutdown signaling
 	done chan struct{}
 

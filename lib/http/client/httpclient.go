@@ -25,6 +25,7 @@ Key features:
 import (
 	"strconv"
 
+	httpinspector "github.com/go-i2p/go-connfilter/http"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/onramp"
@@ -39,6 +40,8 @@ type HTTPClient struct {
 	i2pconv.TunnelConfig
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// The http filtering configuration
+	httpinspector.Config
 	// Channel for shutdown signaling
 	done chan struct{}
 
