@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 )
@@ -29,9 +30,10 @@ func NewTCPServer(config i2pconv.TunnelConfig, samAddr string) (*TCPServer, erro
 		return nil, err
 	}
 	return &TCPServer{
-		TunnelConfig: config,
-		Garlic:       garlic,
-		Addr:         addr,
+		TunnelConfig:    config,
+		Garlic:          garlic,
+		Addr:            addr,
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  1000,
 			RateLimit: 100,

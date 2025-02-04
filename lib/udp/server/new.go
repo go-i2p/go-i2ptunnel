@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/onramp"
 )
 
@@ -28,9 +29,10 @@ func NewUDPServer(config i2pconv.TunnelConfig, samAddr string) (*UDPServer, erro
 		return nil, err
 	}
 	return &UDPServer{
-		TunnelConfig: config,
-		Garlic:       garlic,
-		Addr:         addr,
-		done:         make(chan struct{}),
+		TunnelConfig:    config,
+		Garlic:          garlic,
+		Addr:            addr,
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		done:            make(chan struct{}),
 	}, nil
 }
