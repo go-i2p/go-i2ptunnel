@@ -76,8 +76,9 @@ func (h *HTTPServer) Error() error {
 }
 
 // Get the tunnel's local host:port
-func (h *HTTPServer) LocalAddress() (string, string, error) {
-	return h.TunnelConfig.Interface, strconv.Itoa(h.TunnelConfig.Port), nil
+func (h *HTTPServer) LocalAddress() (string, error) {
+	addr := net.JoinHostPort(h.TunnelConfig.Interface, strconv.Itoa(h.TunnelConfig.Port))
+	return addr, nil
 }
 
 // Get the tunnel's name

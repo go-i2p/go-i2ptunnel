@@ -13,6 +13,7 @@ The IRC Client implements a SOCKS-compatible proxy that enables local IRC client
 **/
 
 import (
+	"net"
 	"strconv"
 
 	ircinspector "github.com/go-i2p/go-connfilter/irc"
@@ -60,8 +61,9 @@ func (i *IRCClient) Error() error {
 }
 
 // Get the tunnel's local host:port
-func (i *IRCClient) LocalAddress() (string, string, error) {
-	return i.TunnelConfig.Interface, strconv.Itoa(i.TunnelConfig.Port), nil
+func (i *IRCClient) LocalAddress() (string, error) {
+	addr := net.JoinHostPort(i.TunnelConfig.Interface, strconv.Itoa(i.TunnelConfig.Port))
+	return addr, nil
 }
 
 // Get the tunnel's name

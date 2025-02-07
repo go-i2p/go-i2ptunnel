@@ -69,8 +69,9 @@ func (t *TCPClient) Error() error {
 }
 
 // Get the tunnel's local host:port
-func (t *TCPClient) LocalAddress() (string, string, error) {
-	return t.TunnelConfig.Interface, strconv.Itoa(t.TunnelConfig.Port), nil
+func (t *TCPClient) LocalAddress() (string, error) {
+	addr := net.JoinHostPort(t.TunnelConfig.Interface, strconv.Itoa(t.TunnelConfig.Port))
+	return addr, nil
 }
 
 // Get the tunnel's name

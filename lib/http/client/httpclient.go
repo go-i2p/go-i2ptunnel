@@ -23,6 +23,7 @@ Key features:
 **/
 
 import (
+	"net"
 	"strconv"
 
 	httpinspector "github.com/go-i2p/go-connfilter/http"
@@ -67,8 +68,9 @@ func (h *HTTPClient) Error() error {
 }
 
 // Get the tunnel's local host:port
-func (h *HTTPClient) LocalAddress() (string, string, error) {
-	return h.TunnelConfig.Interface, strconv.Itoa(h.TunnelConfig.Port), nil
+func (h *HTTPClient) LocalAddress() (string, error) {
+	addr := net.JoinHostPort(h.TunnelConfig.Interface, strconv.Itoa(h.TunnelConfig.Port))
+	return addr, nil
 }
 
 // Get the tunnel's name

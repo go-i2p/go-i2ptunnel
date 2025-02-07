@@ -71,8 +71,9 @@ func (u *UDPClient) Error() error {
 }
 
 // Get the tunnel's local host:port
-func (u *UDPClient) LocalAddress() (string, string, error) {
-	return u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port), nil
+func (u *UDPClient) LocalAddress() (string, error) {
+	addr := net.JoinHostPort(u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port))
+	return addr, nil
 }
 
 // Get the tunnel's name

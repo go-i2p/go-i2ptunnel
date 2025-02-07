@@ -37,5 +37,5 @@ type I2PTunnel interface {
 	// Get the tunnel's error message
 	Error() error
 	// Get the tunnel's local host:port
-	LocalAddress() (string, string, error)
+	LocalAddress() (string, error)
 }

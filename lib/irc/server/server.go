@@ -66,8 +66,9 @@ func (i *IRCServer) Error() error {
 }
 
 // Get the tunnel's local host:port
-func (i *IRCServer) LocalAddress() (string, string, error) {
-	return i.TunnelConfig.Interface, strconv.Itoa(i.TunnelConfig.Port), nil
+func (i *IRCServer) LocalAddress() (string, error) {
+	addr := net.JoinHostPort(i.TunnelConfig.Interface, strconv.Itoa(i.TunnelConfig.Port))
+	return addr, nil
 }
 
 // Get the tunnel's name

@@ -92,8 +92,9 @@ func (s *SOCKS) Error() error {
 }
 
 // Get the tunnel's local host:port
-func (s *SOCKS) LocalAddress() (string, string, error) {
-	return s.TunnelConfig.Interface, strconv.Itoa(s.TunnelConfig.Port), nil
+func (s *SOCKS) LocalAddress() (string, error) {
+	addr := net.JoinHostPort(s.TunnelConfig.Interface, strconv.Itoa(s.TunnelConfig.Port))
+	return addr, nil
 }
 
 // Get the tunnel's name

@@ -16,6 +16,7 @@ When an I2P peer connects to the tunnel's destination, the traffic flows:
 import (
 	"context"
 	"net"
+	"strconv"
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
@@ -63,9 +64,9 @@ func (t *TCPServer) Error() error {
 }
 
 // Get the tunnel's local host:port
-func (t *TCPServer) LocalAddress() (string, string, error) {
-	addr := t.Addr.String()
-	return net.SplitHostPort(addr)
+func (t *TCPServer) LocalAddress() (string, error) {
+	addr := net.JoinHostPort(t.TunnelConfig.Interface, strconv.Itoa(t.TunnelConfig.Port))
+	return addr, nil
 }
 
 // Get the tunnel's name
