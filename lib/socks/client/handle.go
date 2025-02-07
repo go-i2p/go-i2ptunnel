@@ -12,8 +12,10 @@ import (
 	"github.com/txthinking/socks5"
 )
 
-var socksHandler socks5.Handler = &SOCKS{}
-var forwardConfig = config.DefaultConfig()
+var (
+	socksHandler  socks5.Handler = &SOCKS{}
+	forwardConfig                = config.DefaultConfig()
+)
 
 // TCPHandle implements socks5.Handler.
 func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Request) error {

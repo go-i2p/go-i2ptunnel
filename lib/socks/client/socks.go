@@ -131,9 +131,8 @@ func (s *SOCKS) Start() error {
 	s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
 	s.Server.Handle = s
 	s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
-	s.Server.ListenAndServe(s)
 
-	return nil
+	return s.Server.ListenAndServe(s)
 }
 
 // Get the tunnel's status
