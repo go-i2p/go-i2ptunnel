@@ -40,11 +40,16 @@ When a client connects to this SOCKS5 proxy:
 **/
 
 import (
+	"context"
+	"fmt"
+	"net"
 	"strconv"
+	"sync"
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/onramp"
+	"github.com/txthinking/socks5"
 )
 
 var implementSOCKS i2ptunnel.I2PTunnel = &SOCKS{}
@@ -56,11 +61,17 @@ type SOCKS struct {
 	i2pconv.TunnelConfig
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// SOCKS5 server instance
+	*socks5.Server
 	// Channel for shutdown signaling
 	done chan struct{}
-
+	// Mutex for server operations
+	mu sync.Mutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
+	// Context for cleanup
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func (s *SOCKS) recordError(err error) {
@@ -97,7 +108,31 @@ func (s *SOCKS) Options() map[string]string {
 
 // Start the tunnel
 func (s *SOCKS) Start() error {
-	panic("unimplemented")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.Server != nil {
+		return nil // Already started
+	}
+
+	// Create context for managing goroutines
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	s.done = make(chan struct{})
+
+	// Create SOCKS5 server
+	addr := net.JoinHostPort(s.TunnelConfig.Interface, strconv.Itoa(s.TunnelConfig.Port))
+	server, err := socks5.NewClassicServer(addr, "", "", "", 0, 0)
+	if err != nil {
+		s.recordError(err)
+		return fmt.Errorf("failed to create SOCKS5 server: %w", err)
+	}
+
+	s.Server = server
+	s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
+	s.Server.Handle = s
+	s.Server.ListenAndServe(s)
+
+	return nil
 }
 
 // Get the tunnel's status
@@ -107,7 +142,21 @@ func (s *SOCKS) Status() i2ptunnel.I2PTunnelStatus {
 
 // Stop the tunnel
 func (s *SOCKS) Stop() error {
-	panic("unimplemented")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.Server != nil {
+		s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopping
+		close(s.done)
+		s.cancel()
+		if err := s.Server.Shutdown(); err != nil {
+			s.recordError(err)
+			return err
+		}
+		s.Server = nil
+		s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
+	}
+	return nil
 }
 
 // Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
