@@ -130,6 +130,7 @@ func (s *SOCKS) Start() error {
 	s.Server = server
 	s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
 	s.Server.Handle = s
+	s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
 	s.Server.ListenAndServe(s)
 
 	return nil
