@@ -13,10 +13,13 @@ The IRC Server implements a reverse proxy that enables IRC servers hosted on the
 **/
 
 import (
+	"context"
 	"net"
 	"strconv"
 
 	ircinspector "github.com/go-i2p/go-connfilter/irc"
+	"github.com/go-i2p/go-forward/config"
+	"github.com/go-i2p/go-forward/stream"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	limitedlistener "github.com/go-i2p/go-limit"
@@ -79,7 +82,35 @@ func (i *IRCServer) Options() map[string]string {
 
 // Start the tunnel
 func (i *IRCServer) Start() error {
-	panic("unimplemented")
+	i2pListener, err := i.Garlic.Listen()
+	if err != nil {
+		return err
+	}
+	defer i2pListener.Close()
+	defer i.Stop()
+	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(i.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(i.LimitedConfig.RateLimit))
+	ircInspectorListener := ircinspector.New(limitedI2PListener, i.Config)
+	for {
+		select {
+		case <-i.done:
+			return nil
+		default:
+			con, err := ircInspectorListener.Accept()
+			if err != nil {
+				continue
+			}
+
+			defer con.Close()
+			lCon, err := net.Dial("tcp", i.Target())
+			if err != nil {
+				continue
+			}
+			defer lCon.Close()
+			ctx := context.Background()
+			stream.Forward(ctx, con, lCon, config.DefaultConfig())
+		}
+	}
 }
 
 // Get the tunnel's status
@@ -89,7 +120,10 @@ func (i *IRCServer) Status() i2ptunnel.I2PTunnelStatus {
 
 // Stop the tunnel
 func (i *IRCServer) Stop() error {
-	panic("unimplemented")
+	close(i.done)
+	// Cleanup resources
+	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
+	return nil
 }
 
 // Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP

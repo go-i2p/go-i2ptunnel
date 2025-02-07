@@ -23,10 +23,13 @@ Key features:
 **/
 
 import (
+	"context"
 	"net"
 	"strconv"
 
 	httpinspector "github.com/go-i2p/go-connfilter/http"
+	"github.com/go-i2p/go-forward/config"
+	"github.com/go-i2p/go-forward/stream"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	limitedlistener "github.com/go-i2p/go-limit"
@@ -89,7 +92,35 @@ func (h *HTTPServer) Options() map[string]string {
 
 // Start the tunnel
 func (h *HTTPServer) Start() error {
-	panic("unimplemented")
+	i2pListener, err := h.Garlic.Listen()
+	if err != nil {
+		return err
+	}
+	defer i2pListener.Close()
+	defer h.Stop()
+	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(h.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(h.LimitedConfig.RateLimit))
+	httpInspectorListener := httpinspector.New(limitedI2PListener, h.Config)
+	for {
+		select {
+		case <-h.done:
+			return nil
+		default:
+			con, err := httpInspectorListener.Accept()
+			if err != nil {
+				continue
+			}
+
+			defer con.Close()
+			lCon, err := net.Dial("tcp", h.Target())
+			if err != nil {
+				continue
+			}
+			defer lCon.Close()
+			ctx := context.Background()
+			stream.Forward(ctx, con, lCon, config.DefaultConfig())
+		}
+	}
 }
 
 // Get the tunnel's status
@@ -99,7 +130,10 @@ func (h *HTTPServer) Status() i2ptunnel.I2PTunnelStatus {
 
 // Stop the tunnel
 func (h *HTTPServer) Stop() error {
-	panic("unimplemented")
+	close(h.done)
+	// Cleanup resources
+	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
+	return nil
 }
 
 // Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
