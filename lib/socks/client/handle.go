@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/packet"
 	"github.com/go-i2p/go-forward/stream"
+	udpconst "github.com/go-i2p/go-i2ptunnel/lib/udp/const"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/txthinking/socks5"
 )
 
 var (
 	socksHandler  socks5.Handler = &SOCKS{}
-	forwardConfig                = config.DefaultConfig()
+	forwardConfig                = udpconst.DatagramForwardConfig
 )
 
 // TCPHandle implements socks5.Handler.
