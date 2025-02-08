@@ -1,4 +1,5 @@
 HERE=$(shell pwd)
+ANDROID_NDK_HOME=""
 
 bin: fmt
 	go build ./...
