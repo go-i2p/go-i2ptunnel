@@ -81,11 +81,6 @@ func (u *UDPServer) Name() string {
 	return u.TunnelConfig.Name
 }
 
-// Get the tunnel's options
-func (u *UDPServer) Options() map[string]string {
-	return u.TunnelConfig.Options()
-}
-
 // Start the tunnel
 func (u *UDPServer) Start() error {
 	i2pListener, err := u.Garlic.ListenPacket()

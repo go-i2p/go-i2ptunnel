@@ -86,11 +86,6 @@ func (h *HTTPServer) Name() string {
 	return h.TunnelConfig.Name
 }
 
-// Get the tunnel's options
-func (h *HTTPServer) Options() map[string]string {
-	return h.TunnelConfig.Options()
-}
-
 // Start the tunnel
 func (h *HTTPServer) Start() error {
 	i2pListener, err := h.Garlic.Listen()

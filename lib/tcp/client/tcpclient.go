@@ -79,11 +79,6 @@ func (t *TCPClient) Name() string {
 	return t.TunnelConfig.Name
 }
 
-// Get the tunnel's options
-func (t *TCPClient) Options() map[string]string {
-	return t.TunnelConfig.Options()
-}
-
 // Start the tunnel
 func (t *TCPClient) Start() error {
 	i2pConn, err := t.Garlic.Dial("tcp", t.Target())

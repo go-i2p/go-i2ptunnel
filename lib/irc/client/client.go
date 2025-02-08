@@ -74,11 +74,6 @@ func (i *IRCClient) Name() string {
 	return i.TunnelConfig.Name
 }
 
-// Get the tunnel's options
-func (i *IRCClient) Options() map[string]string {
-	return i.TunnelConfig.Options()
-}
-
 // Start the tunnel
 func (i *IRCClient) Start() error {
 	i2pConn, err := i.Garlic.Dial("tcp", i.Target())

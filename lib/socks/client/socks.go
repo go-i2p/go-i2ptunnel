@@ -102,11 +102,6 @@ func (s *SOCKS) Name() string {
 	return s.TunnelConfig.Name
 }
 
-// Get the tunnel's options
-func (s *SOCKS) Options() map[string]string {
-	return s.TunnelConfig.Options()
-}
-
 // Start the tunnel
 func (s *SOCKS) Start() error {
 	s.mu.Lock()

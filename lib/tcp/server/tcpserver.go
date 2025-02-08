@@ -74,11 +74,6 @@ func (t *TCPServer) Name() string {
 	return t.TunnelConfig.Name
 }
 
-// Get the tunnel's options
-func (t *TCPServer) Options() map[string]string {
-	return t.Options()
-}
-
 // Start the tunnel
 func (t *TCPServer) Start() error {
 	i2pListener, err := t.Garlic.Listen()

@@ -78,11 +78,6 @@ func (h *HTTPClient) Name() string {
 	return h.TunnelConfig.Name
 }
 
-// Get the tunnel's options
-func (h *HTTPClient) Options() map[string]string {
-	return h.TunnelConfig.Options()
-}
-
 // Start the tunnel
 func (h *HTTPClient) Start() error {
 	panic("unimplemented")
