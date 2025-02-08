@@ -48,7 +48,7 @@ Get the tunnel's error message
 #### func (*UDPServer) LocalAddress
 
 ```go
-func (u *UDPServer) LocalAddress() (string, string, error)
+func (u *UDPServer) LocalAddress() (string, error)
 ```
 Get the tunnel's local host:port
 

@@ -23,12 +23,14 @@ type I2PTunnel interface {
 	Target() string
 	// Get the tunnel's options
 	Options() map[string]string
+	// Set the tunnel's options
+	SetOptions(map[string]string) error
 	// Get the tunnel's status
 	Status() I2PTunnelStatus
 	// Get the tunnel's error message
 	Error() error
 	// Get the tunnel's local host:port
-	LocalAddress() (string, string, error)
+	LocalAddress() (string, error)
 }
 ```
 

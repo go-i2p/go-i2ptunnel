@@ -10,7 +10,7 @@ doc: checklist
 	find lib cmd -type d -exec $(HERE)/doc.sh {} \;
 
 checklist:
-	find . -name '*.go' -exec grep --color -C 1 -Hn 'panic("unimplemented")' {} \; 2> /dev/null 1> CHECKLIST.md
+	find . -name '*.go' -exec grep --color -C 1 -Hn 'panic("unimplemented")' {} \; 2> /dev/null 1> UNIMPLEMENTED.md
 
 mobile:
 	go install golang.org/x/mobile/cmd/gomobile@latest

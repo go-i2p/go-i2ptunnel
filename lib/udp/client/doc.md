@@ -48,7 +48,7 @@ Get the tunnel's error message
 #### func (*UDPClient) LocalAddress
 
 ```go
-func (u *UDPClient) LocalAddress() (string, string, error)
+func (u *UDPClient) LocalAddress() (string, error)
 ```
 Get the tunnel's local host:port
 

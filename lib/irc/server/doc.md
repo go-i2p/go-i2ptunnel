@@ -19,6 +19,8 @@ type IRCServer struct {
 	i2ptunnel.I2PTunnelStatus
 	// The rate-limiting configuration
 	limitedlistener.LimitedConfig
+	// The IRC filtering configuration
+	ircinspector.Config
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
@@ -50,7 +52,7 @@ Get the tunnel's error message
 #### func (*IRCServer) LocalAddress
 
 ```go
-func (i *IRCServer) LocalAddress() (string, string, error)
+func (i *IRCServer) LocalAddress() (string, error)
 ```
 Get the tunnel's local host:port
 

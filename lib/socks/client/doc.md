@@ -15,6 +15,8 @@ type SOCKS struct {
 	i2pconv.TunnelConfig
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// SOCKS5 server instance
+	*socks5.Server
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
@@ -39,7 +41,7 @@ Get the tunnel's error message
 #### func (*SOCKS) LocalAddress
 
 ```go
-func (s *SOCKS) LocalAddress() (string, string, error)
+func (s *SOCKS) LocalAddress() (string, error)
 ```
 Get the tunnel's local host:port
 
@@ -78,6 +80,13 @@ func (s *SOCKS) Stop() error
 ```
 Stop the tunnel
 
+#### func (*SOCKS) TCPHandle
+
+```go
+func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Request) error
+```
+TCPHandle implements socks5.Handler.
+
 #### func (*SOCKS) Target
 
 ```go
@@ -92,3 +101,10 @@ and HTTP
 func (s *SOCKS) Type() string
 ```
 Get the tunnel's type
+
+#### func (*SOCKS) UDPHandle
+
+```go
+func (s *SOCKS) UDPHandle(_ *socks5.Server, addr *net.UDPAddr, data *socks5.Datagram) error
+```
+UDPHandle implements socks5.Handler.

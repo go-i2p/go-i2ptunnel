@@ -15,6 +15,8 @@ type HTTPClient struct {
 	i2pconv.TunnelConfig
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// The http filtering configuration
+	httpinspector.Config
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
@@ -46,7 +48,7 @@ Get the tunnel's error message
 #### func (*HTTPClient) LocalAddress
 
 ```go
-func (h *HTTPClient) LocalAddress() (string, string, error)
+func (h *HTTPClient) LocalAddress() (string, error)
 ```
 Get the tunnel's local host:port
 

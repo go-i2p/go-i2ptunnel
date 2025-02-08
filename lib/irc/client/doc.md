@@ -17,6 +17,8 @@ type IRCClient struct {
 	*i2pkeys.I2PAddr
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// The IRC filtering configuration
+	ircinspector.Config
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
@@ -48,7 +50,7 @@ Get the tunnel's error message
 #### func (*IRCClient) LocalAddress
 
 ```go
-func (i *IRCClient) LocalAddress() (string, string, error)
+func (i *IRCClient) LocalAddress() (string, error)
 ```
 Get the tunnel's local host:port
 

@@ -50,7 +50,7 @@ Get the tunnel's error message
 #### func (*TCPServer) LocalAddress
 
 ```go
-func (t *TCPServer) LocalAddress() (string, string, error)
+func (t *TCPServer) LocalAddress() (string, error)
 ```
 Get the tunnel's local host:port
 

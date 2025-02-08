@@ -48,7 +48,7 @@ Get the tunnel's error message
 #### func (*TCPClient) LocalAddress
 
 ```go
-func (t *TCPClient) LocalAddress() (string, string, error)
+func (t *TCPClient) LocalAddress() (string, error)
 ```
 Get the tunnel's local host:port
 
