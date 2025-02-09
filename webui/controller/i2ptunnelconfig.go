@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/go-i2ptunnel/lib/loader"
 )
 
 /**
@@ -23,10 +24,11 @@ func (c *Config) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func NewConfig(yamlFile string) (*Config, error) {
-	c := &Config{}
-	err := c.LoadConfig(yamlFile)
+	tunnel, err := loader.Load(yamlFile, "localhost:7656")
 	if err != nil {
 		return nil, err
 	}
-	return c, nil
+	return &Config{
+		I2PTunnel: tunnel,
+	}, nil
 }

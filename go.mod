@@ -5,7 +5,7 @@ go 1.23.5
 require (
 	github.com/go-i2p/go-connfilter v0.0.0-20250205023438-0f2b889a80f6
 	github.com/go-i2p/go-forward v0.0.0-20250202052226-ee8a43dcb664
-	github.com/go-i2p/go-i2ptunnel-config v0.0.0-20250209024146-bb43a7caaf9f
+	github.com/go-i2p/go-i2ptunnel-config v0.0.0-20250209030407-ba90db65df97
 	github.com/go-i2p/go-limit v0.0.0-20250203203118-210616857c15
 	github.com/go-i2p/i2pkeys v0.33.92
 	github.com/go-i2p/onramp v0.33.92
@@ -23,7 +23,6 @@ require (
 	github.com/txthinking/runnergroup v0.0.0-20210608031112-152c7c4432bf // indirect
 	github.com/urfave/cli v1.22.16 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
-	golang.org/x/mobile v0.0.0-20250106192035-c31d5b91ecc3 // indirect
 	golang.org/x/mod v0.23.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect

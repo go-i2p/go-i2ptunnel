@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	templates "github.com/go-i2p/go-i2ptunnel/webui/templates"
@@ -74,7 +73,7 @@ func NewControllerGroup(directory string) (*ControllerGroup, error) {
 	}
 
 	for _, file := range files {
-		if !file.IsDir() && strings.HasSuffix(file.Name(), ".yaml") {
+		if !file.IsDir() {
 			controller, err := NewController(filepath.Join(directory, file.Name()))
 			if err != nil {
 				return nil, err
