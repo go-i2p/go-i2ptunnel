@@ -16,6 +16,8 @@ github.com/go-i2p/go-i2ptunnel-config v0.0.0-20250203061220-6b5e19741c47 h1:3F1v
 github.com/go-i2p/go-i2ptunnel-config v0.0.0-20250203061220-6b5e19741c47/go.mod h1:u8CgiYIfehSFpoVWNe1up6TO4sasPpRUHxZw7W2e4sM=
 github.com/go-i2p/go-i2ptunnel-config v0.0.0-20250208035926-cff0b0758eda h1:I5z+lG0tk6TB/GY1wEZLVJZer8kuA9KCG0IdrJWGghQ=
 github.com/go-i2p/go-i2ptunnel-config v0.0.0-20250208035926-cff0b0758eda/go.mod h1:u8CgiYIfehSFpoVWNe1up6TO4sasPpRUHxZw7W2e4sM=
+github.com/go-i2p/go-i2ptunnel-config v0.0.0-20250209024146-bb43a7caaf9f h1:sLuEjwk/1NfH7krFMdyyqeM43IpkcaYBxv4pt6k8l3I=
+github.com/go-i2p/go-i2ptunnel-config v0.0.0-20250209024146-bb43a7caaf9f/go.mod h1:u8CgiYIfehSFpoVWNe1up6TO4sasPpRUHxZw7W2e4sM=
 github.com/go-i2p/go-limit v0.0.0-20250203203118-210616857c15 h1:ASjMbwlepoDQfrhv+H2B5ICBPJU5ES1JzmOxzPDx3YQ=
 github.com/go-i2p/go-limit v0.0.0-20250203203118-210616857c15/go.mod h1:4jjmVRhvKj47sQ6B6wdDhN1IrEZunE6KwkYLQx/BeVE=
 github.com/go-i2p/i2pkeys v0.0.0-20241108200332-e4f5ccdff8c4/go.mod h1:m5TlHjPZrU5KbTd7Lr+I2rljyC6aJ88HdkeMQXV0U0E=

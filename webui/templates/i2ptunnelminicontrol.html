@@ -1,0 +1,24 @@
+<div class="mini-tunnel">
+    <h3>
+        <a href="/tunnel/{{.Name}}">{{.Name}}</a>
+        <small>({{.Type}})</small>
+    </h3>
+    
+    <div class="status-{{.Status}}">
+        Status: {{.Status}}
+    </div>
+
+    <form method="POST" style="margin-top: 5px;">
+        {{if eq .Status "running"}}
+            <input type="submit" name="action" value="Stop" />
+        {{else if eq .Status "stopped"}}
+            <input type="submit" name="action" value="Start" />
+        {{end}}
+    </form>
+
+    {{if .Error}}
+    <div style="color: red; font-size: 0.8em;">
+        Error: {{.Error}}
+    </div>
+    {{end}}
+</div>

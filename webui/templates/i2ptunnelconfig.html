@@ -1,0 +1,98 @@
+<h1>Configure Tunnel: {{.Name}}</h1>
+
+<form method="POST" action="/{{.ID}}/config">
+    <fieldset>
+        <legend>Basic Settings</legend>
+        
+        <div class="form-group">
+            <label>Name <span class="required">*</span></label>
+            <input type="text" name="name" value="{{.Name}}" required>
+            <div class="help-text">Helpful identifier for this tunnel</div>
+            <label>ID <span class="required">*</span></label>
+            <input type="text" name="id" value="{{.ID}}" required>
+            <div class="help-text">Unique identifier for this tunnel</div>
+        </div>
+
+        <div class="form-group">
+            <label>Type <span class="required">*</span></label>
+            <select name="type" required>
+                <!-- Server Types -->
+                <optgroup label="Server Tunnels">
+                    <option value="tcpserver" {{if eq .Type "tcpserver"}}selected{{end}}>TCP Server</option>
+                    <option value="httpserver" {{if eq .Type "httpserver"}}selected{{end}}>HTTP Server</option>
+                    <option value="ircserver" {{if eq .Type "ircserver"}}selected{{end}}>IRC Server</option>
+                    <option value="udpserver" {{if eq .Type "udpserver"}}selected{{end}}>UDP Server</option>
+                </optgroup>
+            
+                <!-- Client Types -->
+                <optgroup label="Client Tunnels">
+                    <option value="tcpclient" {{if eq .Type "tcpclient"}}selected{{end}}>TCP Client</option>
+                    <option value="udpclient" {{if eq .Type "udpclient"}}selected{{end}}>UDP Client</option>
+                    <option value="ircclient" {{if eq .Type "ircclient"}}selected{{end}}>IRC Client</option>
+                </optgroup>
+            
+                <!-- Proxy Types -->
+                <optgroup label="Proxy Tunnels">
+                    <option value="httpclient" {{if eq .Type "httpclient"}}selected{{end}}>HTTP Proxy</option>
+                    <option value="socks" {{if eq .Type "socks"}}selected{{end}}>SOCKS Proxy</option>
+                </optgroup>
+            
+                <!-- Special Types -->
+                <!--<optgroup label="Special">
+                    <option value="tunclient" {{if eq .Type "tunclient"}}selected{{end}}>TUN Device</option>
+                </optgroup>-->
+            </select>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Network Settings</legend>
+        
+        <div class="form-group">
+            <label>Local Host</label>
+            <input type="text" name="host" value="{{.Options.host}}" placeholder="127.0.0.1">
+        </div>
+
+        <div class="form-group">
+            <label>Local Port <span class="required">*</span></label>
+            <input type="number" name="port" value="{{.Options.port}}" required>
+        </div>
+
+        {{if eq .Type "client"}}
+        <div class="form-group">
+            <label>Target Destination <span class="required">*</span></label>
+            <input type="text" name="destination" value="{{.Target}}">
+            <div class="help-text">I2P destination address</div>
+        </div>
+        {{end}}
+    </fieldset>
+
+    <fieldset>
+        <legend>I2P Options</legend>
+
+        <div class="form-group">
+            <label>Keys File</label>
+            <input type="text" name="keys" value="{{.Options.keys}}">
+            <div class="help-text">Path to keyfile (leave empty for session-length keys)</div>
+        </div>
+
+        <div class="form-group">
+            <label>Signature Type</label>
+            <select name="sigtype">
+                <option value="ED25519" {{if eq .Options.sigtype "ED25519"}}selected{{end}}>ED25519</option>
+                <option value="ECDSA" {{if eq .Options.sigtype "ECDSA"}}selected{{end}}>ECDSA</option>
+            </select>
+        </div>
+    </fieldset>
+
+    {{if .Error}}
+    <div class="error">
+        {{.Error}}
+    </div>
+    {{end}}
+
+    <div class="form-actions">
+        <button type="submit">Save Changes</button>
+        <a href="/{{.ID}}/config">Cancel</a>
+    </div>
+</form>

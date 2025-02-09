@@ -1,5 +1,7 @@
 package i2ptunnel
 
+import "strings"
+
 type I2PTunnelStatus string
 
 const (
@@ -24,6 +26,8 @@ type I2PTunnel interface {
 	Stop() error
 	// Get the tunnel's name
 	Name() string
+	// Get the tunnel's ID
+	ID() string
 	// Get the tunnel's type
 	Type() string
 	// Get the tunnel's I2P address
@@ -34,10 +38,29 @@ type I2PTunnel interface {
 	Options() map[string]string
 	// Set the tunnel's options
 	SetOptions(map[string]string) error
+	// Load the tunnel config
+	LoadConfig(path string) error
 	// Get the tunnel's status
 	Status() I2PTunnelStatus
 	// Get the tunnel's error message
 	Error() error
 	// Get the tunnel's local host:port
 	LocalAddress() (string, error)
+}
+
+// Clean the name to form an ID
+// change newlines to +
+// change tabs to _
+// change spaces to -
+// erase foreslashes
+func Clean(name string) string {
+	// change newlines to +
+	// change tabs to _
+	// change spaces to -
+	// erase foreslashes
+	clean := strings.ReplaceAll(name, "\n", "+")
+	clean = strings.ReplaceAll(clean, "\t", "_")
+	clean = strings.ReplaceAll(clean, " ", "-")
+	clean = strings.ReplaceAll(clean, "/", "")
+	return clean
 }

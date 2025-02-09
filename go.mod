@@ -5,7 +5,7 @@ go 1.23.5
 require (
 	github.com/go-i2p/go-connfilter v0.0.0-20250205023438-0f2b889a80f6
 	github.com/go-i2p/go-forward v0.0.0-20250202052226-ee8a43dcb664
-	github.com/go-i2p/go-i2ptunnel-config v0.0.0-20250208035926-cff0b0758eda
+	github.com/go-i2p/go-i2ptunnel-config v0.0.0-20250209024146-bb43a7caaf9f
 	github.com/go-i2p/go-limit v0.0.0-20250203203118-210616857c15
 	github.com/go-i2p/i2pkeys v0.33.92
 	github.com/go-i2p/onramp v0.33.92

@@ -1,0 +1,69 @@
+<h1>Tunnel Control: {{.Name}}</h1>
+
+<div class="tunnel-info">
+    <h2>Tunnel Information</h2>
+    <table>
+        <tr>
+            <td>Name:</td>
+            <td>{{.Name}}</td>
+        </tr>
+        <tr>
+            <td>Type:</td>
+            <td>{{.Type}}</td>
+        </tr>
+        <tr>
+            <td>Status:</td>
+            <td class="status-{{.Status}}">{{.Status}}</td>
+        </tr>
+        <tr>
+            <td>Local Address:</td>
+            <td>{{.LocalAddress}}</td>
+        </tr>
+        <tr>
+            <td>I2P Address:</td>
+            <td>{{.Address}}</td>
+        </tr>
+        {{if .Target}}
+        <tr>
+            <td>Target:</td>
+            <td>{{.Target}}</td>
+        </tr>
+        {{end}}
+    </table>
+</div>
+
+<div class="tunnel-controls">
+    <h2>Controls</h2>
+    <form method="POST">
+        {{if eq .Status "running"}}
+            <input type="submit" name="action" value="Stop" />
+        {{else if eq .Status "stopped"}}
+            <input type="submit" name="action" value="Start" />
+        {{end}}
+        <input type="submit" name="action" value="Restart" />
+    </form>
+</div>
+
+{{if .Error}}
+<div class="tunnel-errors">
+    <h2>Error Messages</h2>
+    <pre>{{.Error}}</pre>
+</div>
+{{end}}
+
+<div class="tunnel-options">
+    <h2>Tunnel Options</h2>
+    <form method="POST" action="config">
+        {{range $key, $value := .Options}}
+        <div>
+            <label for="{{$key}}">{{$key}}:</label>
+            <input type="text" id="{{$key}}" name="{{$key}}" value="{{$value}}" />
+        </div>
+        {{end}}
+        <input type="submit" value="Update Options" />
+    </form>
+</div>
+
+<footer>
+    <p><a href="/home">Return to Tunnel List</a></p>
+</footer>
