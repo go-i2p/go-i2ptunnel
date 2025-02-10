@@ -59,13 +59,6 @@ func (u *UDPClient) Name() string
 ```
 Get the tunnel's name
 
-#### func (*UDPClient) Options
-
-```go
-func (u *UDPClient) Options() map[string]string
-```
-Get the tunnel's options
-
 #### func (*UDPClient) Start
 
 ```go

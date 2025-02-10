@@ -61,13 +61,6 @@ func (t *TCPServer) Name() string
 ```
 Get the tunnel's name
 
-#### func (*TCPServer) Options
-
-```go
-func (t *TCPServer) Options() map[string]string
-```
-Get the tunnel's options
-
 #### func (*TCPServer) Start
 
 ```go

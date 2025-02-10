@@ -63,13 +63,6 @@ func (h *HTTPServer) Name() string
 ```
 Get the tunnel's name
 
-#### func (*HTTPServer) Options
-
-```go
-func (h *HTTPServer) Options() map[string]string
-```
-Get the tunnel's options
-
 #### func (*HTTPServer) Start
 
 ```go

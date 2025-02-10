@@ -59,13 +59,6 @@ func (t *TCPClient) Name() string
 ```
 Get the tunnel's name
 
-#### func (*TCPClient) Options
-
-```go
-func (t *TCPClient) Options() map[string]string
-```
-Get the tunnel's options
-
 #### func (*TCPClient) Start
 
 ```go

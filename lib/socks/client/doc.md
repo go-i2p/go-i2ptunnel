@@ -24,6 +24,12 @@ type SOCKS struct {
 ```
 
 
+#### func  NewSocksClient
+
+```go
+func NewSocksClient(config i2pconv.TunnelConfig, samAddr string) (*SOCKS, error)
+```
+
 #### func (*SOCKS) Address
 
 ```go
@@ -51,13 +57,6 @@ Get the tunnel's local host:port
 func (s *SOCKS) Name() string
 ```
 Get the tunnel's name
-
-#### func (*SOCKS) Options
-
-```go
-func (s *SOCKS) Options() map[string]string
-```
-Get the tunnel's options
 
 #### func (*SOCKS) Start
 

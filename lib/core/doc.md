@@ -5,6 +5,14 @@
 
 ## Usage
 
+#### func  Clean
+
+```go
+func Clean(name string) string
+```
+Clean the name to form an ID change newlines to + change tabs to _ change spaces
+to - erase foreslashes
+
 #### type I2PTunnel
 
 ```go
@@ -15,6 +23,8 @@ type I2PTunnel interface {
 	Stop() error
 	// Get the tunnel's name
 	Name() string
+	// Get the tunnel's ID
+	ID() string
 	// Get the tunnel's type
 	Type() string
 	// Get the tunnel's I2P address
@@ -25,6 +35,8 @@ type I2PTunnel interface {
 	Options() map[string]string
 	// Set the tunnel's options
 	SetOptions(map[string]string) error
+	// Load the tunnel config
+	LoadConfig(path string) error
 	// Get the tunnel's status
 	Status() I2PTunnelStatus
 	// Get the tunnel's error message

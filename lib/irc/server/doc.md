@@ -63,13 +63,6 @@ func (i *IRCServer) Name() string
 ```
 Get the tunnel's name
 
-#### func (*IRCServer) Options
-
-```go
-func (i *IRCServer) Options() map[string]string
-```
-Get the tunnel's options
-
 #### func (*IRCServer) Start
 
 ```go

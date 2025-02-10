@@ -17,6 +17,10 @@ type HTTPClient struct {
 	i2ptunnel.I2PTunnelStatus
 	// The http filtering configuration
 	httpinspector.Config
+	// The proxy server
+	*goproxy.ProxyHttpServer
+	// The http server
+	*http.Server
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
@@ -38,6 +42,18 @@ func (h *HTTPClient) Address() string
 ```
 Get the tunnel's I2P address
 
+#### func (*HTTPClient) Dial
+
+```go
+func (h *HTTPClient) Dial(network, addr string) (c net.Conn, err error)
+```
+
+#### func (*HTTPClient) DialContext
+
+```go
+func (h *HTTPClient) DialContext(ctx context.Context, network, addr string) (c net.Conn, err error)
+```
+
 #### func (*HTTPClient) Error
 
 ```go
@@ -58,13 +74,6 @@ Get the tunnel's local host:port
 func (h *HTTPClient) Name() string
 ```
 Get the tunnel's name
-
-#### func (*HTTPClient) Options
-
-```go
-func (h *HTTPClient) Options() map[string]string
-```
-Get the tunnel's options
 
 #### func (*HTTPClient) Start
 
