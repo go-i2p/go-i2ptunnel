@@ -1,3 +1,6 @@
 *.jar
 *.aar
 cg
+i2pkeys
+onionkeys
+tlskeys
