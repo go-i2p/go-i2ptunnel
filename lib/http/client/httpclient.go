@@ -23,13 +23,18 @@ Key features:
 **/
 
 import (
+	"context"
 	"net"
+	"net/http"
 	"strconv"
+	"sync"
 
 	httpinspector "github.com/go-i2p/go-connfilter/http"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/onramp"
+
+	"github.com/elazarl/goproxy"
 )
 
 var implementHTTPClient i2ptunnel.I2PTunnel = &HTTPClient{}
@@ -43,11 +48,19 @@ type HTTPClient struct {
 	i2ptunnel.I2PTunnelStatus
 	// The http filtering configuration
 	httpinspector.Config
+	// The proxy server
+	*goproxy.ProxyHttpServer
+	// The http server
+	*http.Server
 	// Channel for shutdown signaling
 	done chan struct{}
-
+	// Mutex for server operations
+	mu sync.Mutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
+	// Context for cleanup
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func (h *HTTPClient) recordError(err error) {
@@ -80,7 +93,29 @@ func (h *HTTPClient) Name() string {
 
 // Start the tunnel
 func (h *HTTPClient) Start() error {
-	panic("unimplemented")
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.ProxyHttpServer != nil {
+		return nil // Already started
+	}
+
+	// Create context for managing goroutines
+	h.ctx, h.cancel = context.WithCancel(context.Background())
+	h.done = make(chan struct{})
+	proxy := goproxy.NewProxyHttpServer()
+	h.ProxyHttpServer = proxy
+	h.ProxyHttpServer.Tr.DialContext = h.DialContext
+	// set up local listener
+	listener, err := net.Listen("tcp", net.JoinHostPort(h.Interface, strconv.Itoa(h.Port)))
+	if err != nil {
+		return err
+	}
+	// set up httpinspector listener
+	listenerInspector := httpinspector.New(listener, h.Config)
+	h.Server = &http.Server{}
+	h.Server.Handler = h.ProxyHttpServer
+	return h.Server.Serve(listenerInspector)
 }
 
 // Get the tunnel's status
@@ -90,7 +125,21 @@ func (h *HTTPClient) Status() i2ptunnel.I2PTunnelStatus {
 
 // Stop the tunnel
 func (h *HTTPClient) Stop() error {
-	panic("unimplemented")
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.Server != nil {
+		h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopping
+		close(h.done)
+		if err := h.Server.Shutdown(h.ctx); err != nil {
+			h.recordError(err)
+			return err
+		}
+		h.cancel()
+		h.Server = nil
+		h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
+	}
+	return nil
 }
 
 // Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
