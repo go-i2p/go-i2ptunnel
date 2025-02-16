@@ -20,7 +20,6 @@ type Config struct {
 }
 
 func (c *Config) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
 }
 
 func NewConfig(yamlFile string) (*Config, error) {

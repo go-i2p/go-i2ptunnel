@@ -17,11 +17,9 @@ type Controller struct {
 }
 
 func (c *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
 }
 
 func (c *Controller) MiniServeHTTP(w http.ResponseWriter, r *http.Request) {
-
 }
 
 func NewController(yamlFile string) (*Controller, error) {

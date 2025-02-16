@@ -52,7 +52,8 @@ func (t *TCPServer) recordError(err error) {
 
 // Get the tunnel's I2P address
 func (t *TCPServer) Address() string {
-	return t.Garlic.B32()
+	return t.Garlic.StreamListener.Addr().String()
+	//B32()
 }
 
 // Get the tunnel's error message
@@ -76,7 +77,7 @@ func (t *TCPServer) Name() string {
 
 // Start the tunnel
 func (t *TCPServer) Start() error {
-	i2pListener, err := t.Garlic.Listen()
+	i2pListener, err := t.Garlic.ListenStream()
 	if err != nil {
 		return err
 	}

@@ -16,7 +16,7 @@ require (
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
 	github.com/cretz/bine v0.2.0 // indirect
-	github.com/go-i2p/sam3 v0.33.9 // indirect
+	github.com/go-i2p/sam3 v0.33.92 // indirect
 	github.com/magiconair/properties v1.8.9 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
@@ -33,3 +33,19 @@ require (
 	golang.org/x/tools v0.29.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+replace github.com/go-i2p/go-i2ptunnel-config => ../go-i2ptunnel-config
+
+//replace github.com/go-i2p/onramp => ../onramp
+
+replace github.com/go-i2p/go-connfilter => ../go-connfilter
+
+replace github.com/go-i2p/go-forward => ../go-forward
+
+replace github.com/go-i2p/go-limit => ../go-limit
+
+//replace github.com/go-i2p/sam3 => ../sam3
+
+replace github.com/go-i2p/logger => ../logger
+
+//replace github.com/go-i2p/i2pkeys => ../i2pkeys

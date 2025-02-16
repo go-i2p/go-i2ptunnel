@@ -57,7 +57,7 @@ func (t *TCPClient) recordError(err error) {
 
 // Get the tunnel's I2P address
 func (t *TCPClient) Address() string {
-	return t.Garlic.B32()
+	return t.Garlic.StreamSession.Addr().Base32()
 }
 
 // Get the tunnel's error message

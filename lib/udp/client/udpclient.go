@@ -59,7 +59,7 @@ func (u *UDPClient) recordError(err error) {
 
 // Get the tunnel's I2P address
 func (u *UDPClient) Address() string {
-	return u.Garlic.B32()
+	return u.Garlic.DatagramSession.Addr().String()
 }
 
 // Get the tunnel's error message
