@@ -3,6 +3,7 @@ package tcp
 import (
 	"io"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -12,6 +13,28 @@ import (
 	"github.com/go-i2p/i2pkeys"
 )
 
+func RandomOpenPort(n string) int {
+	switch n {
+	case "tcp", "tcp4", "tcp6":
+		l, _ := net.Listen(n, ":0")
+		defer l.Close()
+		return l.Addr().(*net.TCPAddr).Port
+	case "udp", "udp4", "udp6":
+		l, _ := net.ListenPacket(n, ":0")
+		defer l.Close()
+		return l.LocalAddr().(*net.UDPAddr).Port
+	}
+	return 0
+}
+
+func RandomTCPPort() int {
+	return RandomOpenPort("tcp")
+}
+
+func RandomUDPPort() int {
+	return RandomOpenPort("udp")
+}
+
 func TestTCPTunnel(t *testing.T) {
 	// Generate test keys
 	//keys, err := i2pkeys.LoadKeys("i2pkeys/test-server.i2p.private")
@@ -19,12 +42,13 @@ func TestTCPTunnel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to load test keys: %v", err)
 	}
+	sport := RandomTCPPort()
 
 	// Setup server config
 	serverConfig := i2pconv.TunnelConfig{
 		Name:      "test-server",
 		Type:      "tcpserver",
-		Port:      8080,
+		Port:      sport,
 		Interface: "127.0.0.1",
 	}
 
@@ -40,7 +64,7 @@ func TestTCPTunnel(t *testing.T) {
 		}
 	}()
 	defer srv.Stop()
-
+	cport := RandomTCPPort()
 	// Wait for server startup
 	time.Sleep(2 * time.Second)
 
@@ -48,7 +72,7 @@ func TestTCPTunnel(t *testing.T) {
 	clientConfig := i2pconv.TunnelConfig{
 		Name:      "test-client",
 		Type:      "tcpclient",
-		Port:      8081,
+		Port:      cport,
 		Interface: "127.0.0.1",
 		Target:    srv.Address(),
 	}
@@ -71,7 +95,7 @@ func TestTCPTunnel(t *testing.T) {
 
 	// Test data transfer
 	testData := []byte("Hello I2P!")
-	conn, err := net.Dial("tcp", "127.0.0.1:8081")
+	conn, err := net.Dial("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(cport)))
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
