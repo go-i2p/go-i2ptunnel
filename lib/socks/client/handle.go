@@ -8,6 +8,7 @@ import (
 	"github.com/go-i2p/go-forward/packet"
 	"github.com/go-i2p/go-forward/stream"
 	udpconst "github.com/go-i2p/go-i2ptunnel/lib/udp/const"
+	"github.com/go-i2p/go-sam-go/datagram"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/txthinking/socks5"
 )
@@ -34,7 +35,7 @@ func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Reque
 // UDPHandle implements socks5.Handler.
 func (s *SOCKS) UDPHandle(_ *socks5.Server, addr *net.UDPAddr, data *socks5.Datagram) error {
 	// Connect to destination through I2P
-	i2pConn, err := s.Garlic.DialRemote("udp", data.Address())
+	i2pConn, err := s.Garlic.Dial("udp", data.Address())
 	if err != nil {
 		return err
 	}
@@ -46,7 +47,7 @@ func (s *SOCKS) UDPHandle(_ *socks5.Server, addr *net.UDPAddr, data *socks5.Data
 	}
 
 	// Send initial datagram
-	if _, err := i2pConn.WriteTo(data.Data, remoteAddr); err != nil {
+	if _, err := i2pConn.(*datagram.DatagramSession).WriteTo(data.Data, remoteAddr); err != nil {
 		return fmt.Errorf("failed to write initial datagram: %w", err)
 	}
 
@@ -59,5 +60,5 @@ func (s *SOCKS) UDPHandle(_ *socks5.Server, addr *net.UDPAddr, data *socks5.Data
 
 	// Forward subsequent packets
 	ctx := context.Background()
-	return packet.Forward(ctx, conn, i2pConn, forwardConfig)
+	return packet.Forward(ctx, conn, i2pConn.(*datagram.DatagramSession), forwardConfig)
 }

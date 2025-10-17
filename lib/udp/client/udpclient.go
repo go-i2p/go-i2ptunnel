@@ -24,6 +24,7 @@ When sending UDP packets to an I2P service, the traffic flows:
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strconv"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/go-i2p/go-forward/packet"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/go-sam-go/datagram"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
 )
@@ -59,7 +61,11 @@ func (u *UDPClient) recordError(err error) {
 
 // Get the tunnel's I2P address
 func (u *UDPClient) Address() string {
-	return u.Garlic.DatagramSession.Addr().String()
+	// For UDP client, return our own I2P address if available
+	if u.Garlic != nil && u.Garlic.ServiceKeys != nil {
+		return u.Garlic.ServiceKeys.Addr().Base32()
+	}
+	return ""
 }
 
 // Get the tunnel's error message
@@ -83,7 +89,7 @@ func (u *UDPClient) Name() string {
 
 // Start the tunnel
 func (u *UDPClient) Start() error {
-	i2pConnection, err := u.Garlic.DialRemote("udp", u.Target())
+	i2pConnection, err := u.Garlic.Dial("udp", u.Target())
 	if err != nil {
 		return err
 	}
@@ -105,7 +111,7 @@ func (u *UDPClient) Start() error {
 			}
 			defer lCon.Close()
 			ctx := context.Background()
-			packet.Forward(ctx, i2pConnection, lCon, config.DefaultConfig())
+			packet.Forward(ctx, i2pConnection.(*datagram.DatagramSession), lCon, config.DefaultConfig())
 		}
 	}
 }
@@ -131,4 +137,55 @@ func (u *UDPClient) Target() string {
 // Get the tunnel's type
 func (u *UDPClient) Type() string {
 	return u.TunnelConfig.Type
+}
+
+// Get the tunnel's ID
+func (u *UDPClient) ID() string {
+	return i2ptunnel.Clean(u.Name())
+}
+
+// Get the tunnel's options
+func (u *UDPClient) Options() map[string]string {
+	// Return basic configuration options as a map
+	options := make(map[string]string)
+	options["name"] = u.TunnelConfig.Name
+	options["type"] = u.TunnelConfig.Type
+	options["interface"] = u.TunnelConfig.Interface
+	options["port"] = strconv.Itoa(u.TunnelConfig.Port)
+	if u.I2PAddr != nil {
+		options["target"] = u.I2PAddr.Base32()
+	}
+	return options
+}
+
+// Set the tunnel's options
+func (u *UDPClient) SetOptions(opts map[string]string) error {
+	// Apply configuration options from the map
+	if name, ok := opts["name"]; ok {
+		u.TunnelConfig.Name = name
+	}
+	if iface, ok := opts["interface"]; ok {
+		u.TunnelConfig.Interface = iface
+	}
+	if portStr, ok := opts["port"]; ok {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			u.TunnelConfig.Port = port
+		} else {
+			return fmt.Errorf("invalid port value: %s", portStr)
+		}
+	}
+	if target, ok := opts["target"]; ok {
+		addr, err := i2pkeys.Lookup(target)
+		if err != nil {
+			return fmt.Errorf("invalid target address: %w", err)
+		}
+		u.I2PAddr = addr
+	}
+	return nil
+}
+
+// Load the tunnel config from file
+func (u *UDPClient) LoadConfig(path string) error {
+	// For now, return an error indicating this method needs configuration file support
+	return fmt.Errorf("LoadConfig not yet implemented: would load configuration from %s", path)
 }
