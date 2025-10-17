@@ -24,6 +24,7 @@ When an I2P peer connects to the tunnel's destination, the traffic flows:
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strconv"
 
@@ -59,7 +60,11 @@ func (u *UDPServer) recordError(err error) {
 
 // Get the tunnel's I2P address
 func (u *UDPServer) Address() string {
-	return u.Garlic.DatagramSession.Addr().String()
+	// For UDP server, return the service address if available
+	if u.Garlic != nil && u.Garlic.ServiceKeys != nil {
+		return u.Garlic.ServiceKeys.Addr().Base32()
+	}
+	return ""
 }
 
 // Get the tunnel's error message
@@ -131,4 +136,48 @@ func (u *UDPServer) Target() string {
 // Get the tunnel's type
 func (u *UDPServer) Type() string {
 	return u.TunnelConfig.Type
+}
+
+// Get the tunnel's ID
+func (u *UDPServer) ID() string {
+	return i2ptunnel.Clean(u.Name())
+}
+
+// Get the tunnel's options
+func (u *UDPServer) Options() map[string]string {
+	// Return basic configuration options as a map
+	options := make(map[string]string)
+	options["name"] = u.TunnelConfig.Name
+	options["type"] = u.TunnelConfig.Type
+	options["interface"] = u.TunnelConfig.Interface
+	options["port"] = strconv.Itoa(u.TunnelConfig.Port)
+	if u.Addr != nil {
+		options["target"] = u.Addr.String()
+	}
+	return options
+}
+
+// Set the tunnel's options
+func (u *UDPServer) SetOptions(opts map[string]string) error {
+	// Apply configuration options from the map
+	if name, ok := opts["name"]; ok {
+		u.TunnelConfig.Name = name
+	}
+	if iface, ok := opts["interface"]; ok {
+		u.TunnelConfig.Interface = iface
+	}
+	if portStr, ok := opts["port"]; ok {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			u.TunnelConfig.Port = port
+		} else {
+			return fmt.Errorf("invalid port value: %s", portStr)
+		}
+	}
+	return nil
+}
+
+// Load the tunnel config from file
+func (u *UDPServer) LoadConfig(path string) error {
+	// For now, return an error indicating this method needs configuration file support
+	return fmt.Errorf("LoadConfig not yet implemented: would load configuration from %s", path)
 }
