@@ -24,6 +24,7 @@ Key features:
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -69,7 +70,11 @@ func (h *HTTPClient) recordError(err error) {
 
 // Get the tunnel's I2P address
 func (h *HTTPClient) Address() string {
-	return h.Garlic.B32()
+	// For HTTP client proxy, return the service address if available
+	if h.Garlic != nil && h.Garlic.ServiceKeys != nil {
+		return h.Garlic.ServiceKeys.Addr().Base32()
+	}
+	return ""
 }
 
 // Get the tunnel's error message
@@ -150,4 +155,45 @@ func (h *HTTPClient) Target() string {
 // Get the tunnel's type
 func (h *HTTPClient) Type() string {
 	return h.TunnelConfig.Type
+}
+
+// Get the tunnel's ID
+func (h *HTTPClient) ID() string {
+	return i2ptunnel.Clean(h.Name())
+}
+
+// Get the tunnel's options
+func (h *HTTPClient) Options() map[string]string {
+	// Return basic configuration options as a map
+	options := make(map[string]string)
+	options["name"] = h.TunnelConfig.Name
+	options["type"] = h.TunnelConfig.Type
+	options["interface"] = h.TunnelConfig.Interface
+	options["port"] = strconv.Itoa(h.TunnelConfig.Port)
+	return options
+}
+
+// Set the tunnel's options
+func (h *HTTPClient) SetOptions(opts map[string]string) error {
+	// Apply configuration options from the map
+	if name, ok := opts["name"]; ok {
+		h.TunnelConfig.Name = name
+	}
+	if iface, ok := opts["interface"]; ok {
+		h.TunnelConfig.Interface = iface
+	}
+	if portStr, ok := opts["port"]; ok {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			h.TunnelConfig.Port = port
+		} else {
+			return fmt.Errorf("invalid port value: %s", portStr)
+		}
+	}
+	return nil
+}
+
+// Load the tunnel config from file
+func (h *HTTPClient) LoadConfig(path string) error {
+	// For now, return an error indicating this method needs configuration file support
+	return fmt.Errorf("LoadConfig not yet implemented: would load configuration from %s", path)
 }

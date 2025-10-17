@@ -22,6 +22,7 @@ When a local client connects to the I2P tunnel's destination, the traffic flows:
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strconv"
 
@@ -57,7 +58,11 @@ func (t *TCPClient) recordError(err error) {
 
 // Get the tunnel's I2P address
 func (t *TCPClient) Address() string {
-	return t.Garlic.StreamSession.Addr().Base32()
+	// Return the target I2P address for client tunnels
+	if t.I2PAddr != nil {
+		return t.I2PAddr.Base32()
+	}
+	return ""
 }
 
 // Get the tunnel's error message
@@ -131,4 +136,55 @@ func (t *TCPClient) Target() string {
 // Get the tunnel's type
 func (t *TCPClient) Type() string {
 	return t.TunnelConfig.Type
+}
+
+// Get the tunnel's ID
+func (t *TCPClient) ID() string {
+	return i2ptunnel.Clean(t.Name())
+}
+
+// Get the tunnel's options
+func (t *TCPClient) Options() map[string]string {
+	// Return basic configuration options as a map
+	options := make(map[string]string)
+	options["name"] = t.TunnelConfig.Name
+	options["type"] = t.TunnelConfig.Type
+	options["interface"] = t.TunnelConfig.Interface
+	options["port"] = strconv.Itoa(t.TunnelConfig.Port)
+	if t.I2PAddr != nil {
+		options["target"] = t.I2PAddr.Base32()
+	}
+	return options
+}
+
+// Set the tunnel's options
+func (t *TCPClient) SetOptions(opts map[string]string) error {
+	// Apply configuration options from the map
+	if name, ok := opts["name"]; ok {
+		t.TunnelConfig.Name = name
+	}
+	if iface, ok := opts["interface"]; ok {
+		t.TunnelConfig.Interface = iface
+	}
+	if portStr, ok := opts["port"]; ok {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			t.TunnelConfig.Port = port
+		} else {
+			return fmt.Errorf("invalid port value: %s", portStr)
+		}
+	}
+	if target, ok := opts["target"]; ok {
+		addr, err := i2pkeys.Lookup(target)
+		if err != nil {
+			return fmt.Errorf("invalid target address: %w", err)
+		}
+		t.I2PAddr = addr
+	}
+	return nil
+}
+
+// Load the tunnel config from file
+func (t *TCPClient) LoadConfig(path string) error {
+	// For now, return an error indicating this method needs configuration file support
+	return fmt.Errorf("LoadConfig not yet implemented: would load configuration from %s", path)
 }

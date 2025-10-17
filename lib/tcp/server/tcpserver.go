@@ -15,6 +15,7 @@ When an I2P peer connects to the tunnel's destination, the traffic flows:
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strconv"
 
@@ -52,8 +53,14 @@ func (t *TCPServer) recordError(err error) {
 
 // Get the tunnel's I2P address
 func (t *TCPServer) Address() string {
-	return t.Garlic.StreamListener.Addr().String()
-	//B32()
+	// For server tunnels, return the service address if available
+	if t.Garlic != nil {
+		// Use service keys to identify the tunnel's I2P address
+		if t.Garlic.ServiceKeys != nil {
+			return t.Garlic.ServiceKeys.Addr().Base32()
+		}
+	}
+	return ""
 }
 
 // Get the tunnel's error message
@@ -128,4 +135,64 @@ func (t *TCPServer) Target() string {
 // Get the tunnel's type
 func (t *TCPServer) Type() string {
 	return t.TunnelConfig.Type
+}
+
+// Get the tunnel's ID
+func (t *TCPServer) ID() string {
+	return i2ptunnel.Clean(t.Name())
+}
+
+// Get the tunnel's options
+func (t *TCPServer) Options() map[string]string {
+	// Return basic configuration options as a map
+	options := make(map[string]string)
+	options["name"] = t.TunnelConfig.Name
+	options["type"] = t.TunnelConfig.Type
+	options["interface"] = t.TunnelConfig.Interface
+	options["port"] = strconv.Itoa(t.TunnelConfig.Port)
+	options["maxconns"] = strconv.Itoa(t.LimitedConfig.MaxConns)
+	options["ratelimit"] = strconv.FormatFloat(t.LimitedConfig.RateLimit, 'f', -1, 64)
+	if t.Addr != nil {
+		options["target"] = t.Addr.String()
+	}
+	return options
+}
+
+// Set the tunnel's options
+func (t *TCPServer) SetOptions(opts map[string]string) error {
+	// Apply configuration options from the map
+	if name, ok := opts["name"]; ok {
+		t.TunnelConfig.Name = name
+	}
+	if iface, ok := opts["interface"]; ok {
+		t.TunnelConfig.Interface = iface
+	}
+	if portStr, ok := opts["port"]; ok {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			t.TunnelConfig.Port = port
+		} else {
+			return fmt.Errorf("invalid port value: %s", portStr)
+		}
+	}
+	if maxconnsStr, ok := opts["maxconns"]; ok {
+		if maxconns, err := strconv.Atoi(maxconnsStr); err == nil {
+			t.LimitedConfig.MaxConns = maxconns
+		} else {
+			return fmt.Errorf("invalid maxconns value: %s", maxconnsStr)
+		}
+	}
+	if ratelimitStr, ok := opts["ratelimit"]; ok {
+		if ratelimit, err := strconv.ParseFloat(ratelimitStr, 64); err == nil {
+			t.LimitedConfig.RateLimit = ratelimit
+		} else {
+			return fmt.Errorf("invalid ratelimit value: %s", ratelimitStr)
+		}
+	}
+	return nil
+}
+
+// Load the tunnel config from file
+func (t *TCPServer) LoadConfig(path string) error {
+	// For now, return an error indicating this method needs configuration file support
+	return fmt.Errorf("LoadConfig not yet implemented: would load configuration from %s", path)
 }

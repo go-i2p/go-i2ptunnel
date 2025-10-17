@@ -28,7 +28,6 @@ func NewHTTPClient(config i2pconv.TunnelConfig, samAddr string) (*HTTPClient, er
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		done:            make(chan struct{}),
 	}
-
 	return h, nil
 }
 
