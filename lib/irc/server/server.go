@@ -14,6 +14,7 @@ The IRC Server implements a reverse proxy that enables IRC servers hosted on the
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strconv"
 
@@ -54,7 +55,11 @@ func (t *IRCServer) recordError(err error) {
 
 // Get the tunnel's I2P address
 func (i *IRCServer) Address() string {
-	return i.Garlic.B32()
+	// For IRC server, return the service address if available
+	if i.Garlic != nil && i.Garlic.ServiceKeys != nil {
+		return i.Garlic.ServiceKeys.Addr().Base32()
+	}
+	return ""
 }
 
 // Get the tunnel's error message
@@ -130,4 +135,64 @@ func (i *IRCServer) Target() string {
 // Get the tunnel's type
 func (i *IRCServer) Type() string {
 	return i.TunnelConfig.Type
+}
+
+// Get the tunnel's ID
+func (i *IRCServer) ID() string {
+	return i2ptunnel.Clean(i.Name())
+}
+
+// Get the tunnel's options
+func (i *IRCServer) Options() map[string]string {
+	// Return basic configuration options as a map
+	options := make(map[string]string)
+	options["name"] = i.TunnelConfig.Name
+	options["type"] = i.TunnelConfig.Type
+	options["interface"] = i.TunnelConfig.Interface
+	options["port"] = strconv.Itoa(i.TunnelConfig.Port)
+	options["maxconns"] = strconv.Itoa(i.LimitedConfig.MaxConns)
+	options["ratelimit"] = strconv.FormatFloat(i.LimitedConfig.RateLimit, 'f', -1, 64)
+	if i.Addr != nil {
+		options["target"] = i.Addr.String()
+	}
+	return options
+}
+
+// Set the tunnel's options
+func (i *IRCServer) SetOptions(opts map[string]string) error {
+	// Apply configuration options from the map
+	if name, ok := opts["name"]; ok {
+		i.TunnelConfig.Name = name
+	}
+	if iface, ok := opts["interface"]; ok {
+		i.TunnelConfig.Interface = iface
+	}
+	if portStr, ok := opts["port"]; ok {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			i.TunnelConfig.Port = port
+		} else {
+			return fmt.Errorf("invalid port value: %s", portStr)
+		}
+	}
+	if maxconnsStr, ok := opts["maxconns"]; ok {
+		if maxconns, err := strconv.Atoi(maxconnsStr); err == nil {
+			i.LimitedConfig.MaxConns = maxconns
+		} else {
+			return fmt.Errorf("invalid maxconns value: %s", maxconnsStr)
+		}
+	}
+	if ratelimitStr, ok := opts["ratelimit"]; ok {
+		if ratelimit, err := strconv.ParseFloat(ratelimitStr, 64); err == nil {
+			i.LimitedConfig.RateLimit = ratelimit
+		} else {
+			return fmt.Errorf("invalid ratelimit value: %s", ratelimitStr)
+		}
+	}
+	return nil
+}
+
+// Load the tunnel config from file
+func (i *IRCServer) LoadConfig(path string) error {
+	// For now, return an error indicating this method needs configuration file support
+	return fmt.Errorf("LoadConfig not yet implemented: would load configuration from %s", path)
 }

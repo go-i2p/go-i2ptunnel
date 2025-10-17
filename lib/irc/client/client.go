@@ -14,6 +14,7 @@ The IRC Client implements a SOCKS-compatible proxy that enables local IRC client
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strconv"
 
@@ -52,7 +53,11 @@ func (t *IRCClient) recordError(err error) {
 
 // Get the tunnel's I2P address
 func (i *IRCClient) Address() string {
-	return i.Garlic.B32()
+	// For IRC client, return the service address if available
+	if i.Garlic != nil && i.Garlic.ServiceKeys != nil {
+		return i.Garlic.ServiceKeys.Addr().Base32()
+	}
+	return ""
 }
 
 // Get the tunnel's error message
@@ -128,4 +133,55 @@ func (i *IRCClient) Target() string {
 // Get the tunnel's type
 func (i *IRCClient) Type() string {
 	return i.TunnelConfig.Type
+}
+
+// Get the tunnel's ID
+func (i *IRCClient) ID() string {
+	return i2ptunnel.Clean(i.Name())
+}
+
+// Get the tunnel's options
+func (i *IRCClient) Options() map[string]string {
+	// Return basic configuration options as a map
+	options := make(map[string]string)
+	options["name"] = i.TunnelConfig.Name
+	options["type"] = i.TunnelConfig.Type
+	options["interface"] = i.TunnelConfig.Interface
+	options["port"] = strconv.Itoa(i.TunnelConfig.Port)
+	if i.I2PAddr != nil {
+		options["target"] = i.I2PAddr.Base32()
+	}
+	return options
+}
+
+// Set the tunnel's options
+func (i *IRCClient) SetOptions(opts map[string]string) error {
+	// Apply configuration options from the map
+	if name, ok := opts["name"]; ok {
+		i.TunnelConfig.Name = name
+	}
+	if iface, ok := opts["interface"]; ok {
+		i.TunnelConfig.Interface = iface
+	}
+	if portStr, ok := opts["port"]; ok {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			i.TunnelConfig.Port = port
+		} else {
+			return fmt.Errorf("invalid port value: %s", portStr)
+		}
+	}
+	if target, ok := opts["target"]; ok {
+		addr, err := i2pkeys.Lookup(target)
+		if err != nil {
+			return fmt.Errorf("invalid target address: %w", err)
+		}
+		i.I2PAddr = addr
+	}
+	return nil
+}
+
+// Load the tunnel config from file
+func (i *IRCClient) LoadConfig(path string) error {
+	// For now, return an error indicating this method needs configuration file support
+	return fmt.Errorf("LoadConfig not yet implemented: would load configuration from %s", path)
 }
