@@ -80,7 +80,11 @@ func (s *SOCKS) recordError(err error) {
 
 // Get the tunnel's I2P address
 func (s *SOCKS) Address() string {
-	return s.Garlic.B32()
+	// For SOCKS proxy, return the service address if available
+	if s.Garlic != nil && s.Garlic.ServiceKeys != nil {
+		return s.Garlic.ServiceKeys.Addr().Base32()
+	}
+	return ""
 }
 
 // Get the tunnel's error message
@@ -163,4 +167,45 @@ func (s *SOCKS) Target() string {
 // Get the tunnel's type
 func (s *SOCKS) Type() string {
 	return s.TunnelConfig.Type
+}
+
+// Get the tunnel's ID
+func (s *SOCKS) ID() string {
+	return i2ptunnel.Clean(s.Name())
+}
+
+// Get the tunnel's options
+func (s *SOCKS) Options() map[string]string {
+	// Return basic configuration options as a map
+	options := make(map[string]string)
+	options["name"] = s.TunnelConfig.Name
+	options["type"] = s.TunnelConfig.Type
+	options["interface"] = s.TunnelConfig.Interface
+	options["port"] = strconv.Itoa(s.TunnelConfig.Port)
+	return options
+}
+
+// Set the tunnel's options
+func (s *SOCKS) SetOptions(opts map[string]string) error {
+	// Apply configuration options from the map
+	if name, ok := opts["name"]; ok {
+		s.TunnelConfig.Name = name
+	}
+	if iface, ok := opts["interface"]; ok {
+		s.TunnelConfig.Interface = iface
+	}
+	if portStr, ok := opts["port"]; ok {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			s.TunnelConfig.Port = port
+		} else {
+			return fmt.Errorf("invalid port value: %s", portStr)
+		}
+	}
+	return nil
+}
+
+// Load the tunnel config from file
+func (s *SOCKS) LoadConfig(path string) error {
+	// For now, return an error indicating this method needs configuration file support
+	return fmt.Errorf("LoadConfig not yet implemented: would load configuration from %s", path)
 }
