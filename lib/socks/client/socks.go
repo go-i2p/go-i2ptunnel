@@ -49,6 +49,7 @@ import (
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/onramp"
 	"github.com/txthinking/socks5"
 )
@@ -188,19 +189,25 @@ func (s *SOCKS) Options() map[string]string {
 
 // Set the tunnel's options
 func (s *SOCKS) SetOptions(opts map[string]string) error {
-	// Apply configuration options from the map
+	// Apply configuration options from the map with validation
 	if name, ok := opts["name"]; ok {
+		if err := validate.RequiredString("name", name); err != nil {
+			return err
+		}
 		s.TunnelConfig.Name = name
 	}
 	if iface, ok := opts["interface"]; ok {
+		if err := validate.Interface(iface); err != nil {
+			return err
+		}
 		s.TunnelConfig.Interface = iface
 	}
 	if portStr, ok := opts["port"]; ok {
-		if port, err := strconv.Atoi(portStr); err == nil {
-			s.TunnelConfig.Port = port
-		} else {
-			return fmt.Errorf("invalid port value: %s", portStr)
+		port, err := validate.PortString(portStr)
+		if err != nil {
+			return err
 		}
+		s.TunnelConfig.Port = port
 	}
 	return nil
 }

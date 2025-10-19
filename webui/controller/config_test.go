@@ -31,7 +31,7 @@ func createTestConfig(t *testing.T, name, tunnelType, target string, port int) s
 
 	configContent += "\n"
 
-	if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configFile, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 

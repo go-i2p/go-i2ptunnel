@@ -24,7 +24,7 @@ func TestLoadConfig_Success(t *testing.T) {
     port: 9999
     target: ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 
@@ -75,7 +75,7 @@ func TestLoadConfig_RunningTunnel(t *testing.T) {
     port: 9999
     target: ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 
@@ -143,7 +143,7 @@ func TestLoadConfig_WrongType(t *testing.T) {
     port: 9999
     target: localhost:80
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 
@@ -187,7 +187,7 @@ func TestLoadConfig_InvalidTarget(t *testing.T) {
     port: 9999
     target: invalid-address-not-base32
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 
@@ -226,7 +226,7 @@ interface=127.0.0.1
 listenPort=7777
 targetDestination=ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 

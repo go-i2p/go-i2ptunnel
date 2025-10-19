@@ -159,13 +159,13 @@ func (c *Config) saveConfig() error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(c.configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
 	// Write to file atomically using temp file + rename
 	tempPath := c.configPath + ".tmp"
-	if err := os.WriteFile(tempPath, data, 0644); err != nil {
+	if err := os.WriteFile(tempPath, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write temp config: %w", err)
 	}
 

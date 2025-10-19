@@ -24,6 +24,7 @@ import (
 	"github.com/go-i2p/go-forward/stream"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 )
@@ -161,33 +162,42 @@ func (i *IRCServer) Options() map[string]string {
 
 // Set the tunnel's options
 func (i *IRCServer) SetOptions(opts map[string]string) error {
-	// Apply configuration options from the map
+	// Apply configuration options from the map with validation
 	if name, ok := opts["name"]; ok {
+		if err := validate.RequiredString("name", name); err != nil {
+			return err
+		}
 		i.TunnelConfig.Name = name
 	}
 	if iface, ok := opts["interface"]; ok {
+		if err := validate.Interface(iface); err != nil {
+			return err
+		}
 		i.TunnelConfig.Interface = iface
 	}
 	if portStr, ok := opts["port"]; ok {
-		if port, err := strconv.Atoi(portStr); err == nil {
-			i.TunnelConfig.Port = port
-		} else {
-			return fmt.Errorf("invalid port value: %s", portStr)
+		port, err := validate.PortString(portStr)
+		if err != nil {
+			return err
 		}
+		i.TunnelConfig.Port = port
 	}
 	if maxconnsStr, ok := opts["maxconns"]; ok {
-		if maxconns, err := strconv.Atoi(maxconnsStr); err == nil {
-			i.LimitedConfig.MaxConns = maxconns
-		} else {
+		maxconns, err := strconv.Atoi(maxconnsStr)
+		if err != nil {
 			return fmt.Errorf("invalid maxconns value: %s", maxconnsStr)
 		}
+		if err := validate.MaxConnections(maxconns); err != nil {
+			return err
+		}
+		i.LimitedConfig.MaxConns = maxconns
 	}
 	if ratelimitStr, ok := opts["ratelimit"]; ok {
-		if ratelimit, err := strconv.ParseFloat(ratelimitStr, 64); err == nil {
-			i.LimitedConfig.RateLimit = ratelimit
-		} else {
-			return fmt.Errorf("invalid ratelimit value: %s", ratelimitStr)
+		ratelimit, err := validate.RateLimitString(ratelimitStr)
+		if err != nil {
+			return err
 		}
+		i.LimitedConfig.RateLimit = ratelimit
 	}
 	return nil
 }

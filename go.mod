@@ -14,6 +14,7 @@ require (
 	github.com/go-i2p/i2pkeys v0.33.92
 	github.com/go-i2p/onramp v0.33.93-0.20251016200402-d3ac8f5353c5
 	github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -38,7 +39,6 @@ require (
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 replace github.com/go-i2p/go-i2ptunnel-config => ../go-i2ptunnel-config

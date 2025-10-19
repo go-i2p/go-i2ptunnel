@@ -9,10 +9,8 @@ import (
 	ircinspector "github.com/go-i2p/go-connfilter/irc"
 )
 
-var (
-	// Pattern to match user@host format
-	userHostPattern = regexp.MustCompile(`@[^\s]+`)
-)
+// Pattern to match user@host format
+var userHostPattern = regexp.MustCompile(`@[^\s]+`)
 
 // ApplyIRCServerFilters wraps a listener with IRC server-side filtering
 // Blocks administrative commands and masks host information

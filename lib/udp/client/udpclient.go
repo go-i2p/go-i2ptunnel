@@ -33,6 +33,7 @@ import (
 	"github.com/go-i2p/go-forward/packet"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-sam-go/datagram"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
@@ -161,21 +162,30 @@ func (u *UDPClient) Options() map[string]string {
 
 // Set the tunnel's options
 func (u *UDPClient) SetOptions(opts map[string]string) error {
-	// Apply configuration options from the map
+	// Apply configuration options from the map with validation
 	if name, ok := opts["name"]; ok {
+		if err := validate.RequiredString("name", name); err != nil {
+			return err
+		}
 		u.TunnelConfig.Name = name
 	}
 	if iface, ok := opts["interface"]; ok {
+		if err := validate.Interface(iface); err != nil {
+			return err
+		}
 		u.TunnelConfig.Interface = iface
 	}
 	if portStr, ok := opts["port"]; ok {
-		if port, err := strconv.Atoi(portStr); err == nil {
-			u.TunnelConfig.Port = port
-		} else {
-			return fmt.Errorf("invalid port value: %s", portStr)
+		port, err := validate.PortString(portStr)
+		if err != nil {
+			return err
 		}
+		u.TunnelConfig.Port = port
 	}
 	if target, ok := opts["target"]; ok {
+		if err := validate.I2PAddress(target); err != nil {
+			return err
+		}
 		addr, err := i2pkeys.Lookup(target)
 		if err != nil {
 			return fmt.Errorf("invalid target address: %w", err)
