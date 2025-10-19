@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 
 	"github.com/go-i2p/go-forward/config"
@@ -191,8 +192,50 @@ func (t *TCPServer) SetOptions(opts map[string]string) error {
 	return nil
 }
 
-// Load the tunnel config from file
+// LoadConfig loads tunnel configuration from a file and updates the tunnel settings.
+// The tunnel must be stopped before calling LoadConfig to prevent inconsistent state.
+// Supported formats: .properties, .ini, .yaml/.yml
+//
+// Why: Production deployments need to reload configuration without recreating tunnel objects.
+// Design: Uses go-i2ptunnel-config library for parsing. Preserves SAM connection and I2P keys.
 func (t *TCPServer) LoadConfig(path string) error {
-	// For now, return an error indicating this method needs configuration file support
-	return fmt.Errorf("LoadConfig not yet implemented: would load configuration from %s", path)
+	// Prevent config changes while tunnel is running to avoid race conditions
+	if t.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusRunning ||
+		t.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusStarting {
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", t.I2PTunnelStatus)
+	}
+
+	// Parse config file using the converter library
+	conv := i2pconv.Converter{}
+	format, err := conv.DetectFormat(path)
+	if err != nil {
+		return fmt.Errorf("failed to detect config format: %w", err)
+	}
+
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	newConfig, err := conv.ParseInput(bytes, format)
+	if err != nil {
+		return fmt.Errorf("failed to parse config: %w", err)
+	}
+
+	// Type safety: ensure loaded config matches expected tunnel type
+	if newConfig.Type != "tcpserver" {
+		return fmt.Errorf("config file contains %s tunnel, expected tcpserver", newConfig.Type)
+	}
+
+	// Validate target address (local service) before applying changes
+	targetAddr, err := net.ResolveTCPAddr("tcp", newConfig.Target)
+	if err != nil {
+		return fmt.Errorf("invalid target address in config: %w", err)
+	}
+
+	// Update mutable configuration fields
+	t.TunnelConfig = *newConfig
+	t.Addr = targetAddr
+
+	return nil
 }

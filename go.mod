@@ -8,8 +8,9 @@ require (
 	github.com/elazarl/goproxy v1.7.0
 	github.com/go-i2p/go-connfilter v0.0.0-20250205023438-0f2b889a80f6
 	github.com/go-i2p/go-forward v0.0.0-20250202052226-ee8a43dcb664
-	github.com/go-i2p/go-i2ptunnel-config v0.0.0-20250209030407-ba90db65df97
+	github.com/go-i2p/go-i2ptunnel-config v0.0.0-20251019021515-10ef90f2473b
 	github.com/go-i2p/go-limit v0.0.0-20250203203118-210616857c15
+	github.com/go-i2p/go-sam-go v0.0.0-20251016194809-b6ead96fdc39
 	github.com/go-i2p/i2pkeys v0.33.92
 	github.com/go-i2p/onramp v0.33.93-0.20251016200402-d3ac8f5353c5
 	github.com/txthinking/socks5 v0.0.0-20230325130024-4230056ae301
@@ -20,7 +21,6 @@ require (
 	github.com/cretz/bine v0.2.0 // indirect
 	github.com/go-i2p/common v0.0.0-20250819203334-e5459df35789 // indirect
 	github.com/go-i2p/crypto v0.0.0-20250822224541-85015740db11 // indirect
-	github.com/go-i2p/go-sam-go v0.0.0-20251016194809-b6ead96fdc39 // indirect
 	github.com/go-i2p/logger v0.0.0-20241123010126-3050657e5d0c // indirect
 	github.com/magiconair/properties v1.8.9 // indirect
 	github.com/oklog/ulid/v2 v2.1.1 // indirect

@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 
 	"github.com/go-i2p/go-forward/config"
@@ -183,8 +184,56 @@ func (t *TCPClient) SetOptions(opts map[string]string) error {
 	return nil
 }
 
-// Load the tunnel config from file
+// LoadConfig loads tunnel configuration from a file and updates the tunnel settings.
+// The tunnel must be stopped before calling LoadConfig to prevent inconsistent state.
+// Supported formats: .properties, .ini, .yaml/.yml
+//
+// Why: Production deployments need to reload configuration without recreating tunnel objects.
+// This enables configuration management tools and web UIs to persist changes.
+//
+// Design: Uses the go-i2ptunnel-config library to parse config files in multiple formats,
+// then updates only the mutable fields. SAM connection is preserved to maintain tunnel identity.
+// The Garlic (I2P connection) is NOT reloaded - it maintains the existing keys and SAM session.
 func (t *TCPClient) LoadConfig(path string) error {
-	// For now, return an error indicating this method needs configuration file support
-	return fmt.Errorf("LoadConfig not yet implemented: would load configuration from %s", path)
+	// Prevent config changes while tunnel is running to avoid race conditions
+	if t.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusRunning ||
+		t.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusStarting {
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", t.I2PTunnelStatus)
+	}
+
+	// Parse config file using the converter library
+	// This handles format detection and validation for .properties, .ini, .yaml
+	conv := i2pconv.Converter{}
+	format, err := conv.DetectFormat(path)
+	if err != nil {
+		return fmt.Errorf("failed to detect config format: %w", err)
+	}
+
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	newConfig, err := conv.ParseInput(bytes, format)
+	if err != nil {
+		return fmt.Errorf("failed to parse config: %w", err)
+	}
+
+	// Type safety: ensure loaded config matches expected tunnel type
+	if newConfig.Type != "tcpclient" {
+		return fmt.Errorf("config file contains %s tunnel, expected tcpclient", newConfig.Type)
+	}
+
+	// Validate target address before applying changes
+	addr, err := i2pkeys.Lookup(newConfig.Target)
+	if err != nil {
+		return fmt.Errorf("invalid target address in config: %w", err)
+	}
+
+	// Update mutable configuration fields
+	// The Garlic connection (SAM) is preserved to maintain tunnel identity and keys
+	t.TunnelConfig = *newConfig
+	t.I2PAddr = addr
+
+	return nil
 }
