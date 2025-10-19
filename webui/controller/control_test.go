@@ -37,8 +37,6 @@ func TestControllerServeHTTPGet(t *testing.T) {
 
 // TestControllerStart tests starting a tunnel via POST
 func TestControllerStart(t *testing.T) {
-	t.Skip("Skipping test that requires I2P router connection - known i2cp.leaseSetEncType duplicate parameter issue")
-
 	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
 
 	controller, err := NewController(configFile)
@@ -70,8 +68,6 @@ func TestControllerStart(t *testing.T) {
 
 // TestControllerStop tests stopping a running tunnel
 func TestControllerStop(t *testing.T) {
-	t.Skip("Skipping test that requires I2P router connection - known i2cp.leaseSetEncType duplicate parameter issue")
-
 	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
 
 	controller, err := NewController(configFile)
@@ -107,8 +103,6 @@ func TestControllerStop(t *testing.T) {
 
 // TestControllerRestart tests restarting a tunnel
 func TestControllerRestart(t *testing.T) {
-	t.Skip("Skipping test that requires I2P router connection - known i2cp.leaseSetEncType duplicate parameter issue")
-
 	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
 
 	controller, err := NewController(configFile)

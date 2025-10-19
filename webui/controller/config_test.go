@@ -128,8 +128,6 @@ func TestConfigServeHTTPPostInvalidPort(t *testing.T) {
 
 // TestConfigServeHTTPPostWhileRunning tests that config cannot be changed while tunnel is running
 func TestConfigServeHTTPPostWhileRunning(t *testing.T) {
-	t.Skip("Skipping test that requires I2P router connection - known i2cp.leaseSetEncType duplicate parameter issue")
-
 	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
 
 	cfg, err := NewConfig(configFile)
