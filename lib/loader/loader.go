@@ -2,7 +2,6 @@ package loader
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strconv"
@@ -30,7 +29,7 @@ func validateHost(samAddr ...string) string {
 	case 1:
 		host, port, err := net.SplitHostPort(samAddr[0])
 		if err != nil {
-			log.Println("Invalid SAM port number, trying the default", err)
+			log.WithError(err).WithField("sam_addr", samAddr[0]).Warn("Invalid SAM address format, using default")
 			return DEFAULT_SAM_ADDRESS
 		}
 		samhost = net.JoinHostPort(host, port)
@@ -38,7 +37,7 @@ func validateHost(samAddr ...string) string {
 		host := samAddr[0]
 		port, err := strconv.Atoi(samAddr[1])
 		if err != nil {
-			log.Println("Invalid SAM port number, trying the default", err)
+			log.WithError(err).WithField("port_string", samAddr[1]).Warn("Invalid SAM port number, using default")
 			return DEFAULT_SAM_ADDRESS
 		}
 		samhost = net.JoinHostPort(host, strconv.Itoa(port))

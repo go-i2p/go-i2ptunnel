@@ -14,8 +14,6 @@ github.com/go-i2p/common v0.0.0-20250819203334-e5459df35789 h1:W7y9mxcb5xQOnuojn
 github.com/go-i2p/common v0.0.0-20250819203334-e5459df35789/go.mod h1:GD6iti2YU9LPrcESZ6Ty3lgxKGO7324tPhuKfYsJxrQ=
 github.com/go-i2p/crypto v0.0.0-20250822224541-85015740db11 h1:j/Nw7AuvEnG+qIsSG97n6aSEX4Y3ReP9jlaTamFjGMU=
 github.com/go-i2p/crypto v0.0.0-20250822224541-85015740db11/go.mod h1:5felGikM6K5D95TLvVxew1UfR0BdtPpfmJLZa8cuY5U=
-github.com/go-i2p/go-sam-go v0.0.0-20251019222649-156dfde398c8 h1:v7CsGn1B2hUv3Crv5iR4G/mb/5W133N+7RGcUM4p91Y=
-github.com/go-i2p/go-sam-go v0.0.0-20251019222649-156dfde398c8/go.mod h1:I50BfP6g73ASJBCFNH7MhW08OXZCLjVH0+EoOy5/JDw=
 github.com/go-i2p/i2pkeys v0.33.92 h1:e2vx3vf7tNesaJ8HmAlGPOcfiGM86jzeIGxh27I9J2Y=
 github.com/go-i2p/i2pkeys v0.33.92/go.mod h1:BRURQ/twxV0WKjZlFSKki93ivBi+MirZPWudfwTzMpE=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
@@ -91,8 +89,8 @@ golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.2.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.34.0 h1:H5Y5sJ2L2JRdyv7ROF1he/lPdvFsd0mJHFw2ThKHxLA=
-golang.org/x/sys v0.34.0/go.mod h1:BJP2sWEmIv4KK5OTEluFJCKSidICx8ciO85XgH3Ak8k=
+golang.org/x/sys v0.37.0 h1:fdNQudmxPjkdUTPnLn5mdQv7Zwvbvpaxqs831goi9kQ=
+golang.org/x/sys v0.37.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/term v0.0.0-20210927222741-03fcf44c2211/go.mod h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=
 golang.org/x/term v0.2.0/go.mod h1:TVmDHMZPmdnySmBfhjOoOdhjzdE1h4u1VwSiw2l1Nuc=
