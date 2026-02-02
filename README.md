@@ -16,13 +16,61 @@ A Go implementation of I2P tunneling services with support for TCP, HTTP, UDP, a
 - SOCKS5 Proxy - Multi-protocol proxy
 - IRC Client - Chat connectivity
 - UDP Client - Datagram tunneling
-- TUN Device - Network interface tunneling (Linux)
+
+### VPN/Network Interface Support
+
+For TUN/WireGuard-based VPN tunneling, see our dedicated implementation at [github.com/go-i2p/wireguard](https://github.com/go-i2p/wireguard).
 
 ## Installation
 
 ```bash
 go get github.com/go-i2p/go-i2ptunnel
 ```
+
+## Logging
+
+This project uses the enhanced `github.com/go-i2p/logger` logging system, providing structured logging with configurable verbosity and fast-fail mode for debugging.
+
+### Environment Variables
+
+- **`DEBUG_I2P`**: Control logging verbosity
+  - `debug` - Verbose debugging information
+  - `warn` - Warnings and errors only
+  - `error` - Errors only
+  - Unset or empty - Logging disabled (default)
+
+- **`WARNFAIL_I2P`**: Enable fast-fail mode for testing
+  - `true` - Warnings and errors become fatal
+  - `false` or unset - Normal operation (default)
+
+### Usage Examples
+
+```bash
+# Enable debug logging
+export DEBUG_I2P=debug
+go run cmd/web/main.go
+
+# Enable warnings only
+export DEBUG_I2P=warn
+./your-program
+
+# Enable fast-fail mode for testing
+export WARNFAIL_I2P=true
+go test ./...
+
+# Run with no logging (production default)
+./your-program
+```
+
+### Structured Logging Features
+
+The logger provides:
+
+- Zero-impact when disabled - No performance overhead in production
+- Structured fields for searchable logs
+- Error context tracking with `WithError()`
+- Rich metadata support with `WithField()` and `WithFields()`
+- Integration with logrus for advanced features
 
 ## Contributing
 

@@ -18,7 +18,6 @@ lib/standard/client # high level net.Dialer implementation, filtering middleware
 lib/standard/server # high level net.Listener implementation, filtering middleware
 lib/udp/client # high level net.Conn implementation, filtering middleware
 lib/udp/server # high level net.Listener implementation, filtering middleware
-lib/tun/client # high level songgao.Water implementation using SOCKS5 backend, configuration tooling
 
 # Commands
 
@@ -32,5 +31,7 @@ cmd/standard/client # starts a proxy listening on a port forwarding requests to 
 cmd/standard/server # start a client connected to a local port forwarding requests to lib/standard/server's custom net.Listener
 cmd/udp/client # start a "quasi-server" which forwards datagrams to and from lib/udp/client's custom net.Conn
 cmd/udp/server # start a "quasi-client" which forwards datagrams to and from lib/udp/server's custom net.Listener
-cmd/tun/client # start a TUN device forwarding to a SOCKS proxy
+
+# VPN/Network Interface Support
+# For TUN device and WireGuard-based VPN tunneling, see: github.com/go-i2p/wireguard
 ```
