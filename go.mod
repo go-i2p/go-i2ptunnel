@@ -42,17 +42,17 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 )
 
-replace github.com/go-i2p/go-i2ptunnel-config => ../go-i2ptunnel-config
+//replace github.com/go-i2p/go-i2ptunnel-config => ../go-i2ptunnel-config
 
 //replace github.com/go-i2p/onramp => ../onramp
 
 //replace github.com/go-i2p/go-sam-go => ../go-sam-go
 
-replace github.com/go-i2p/go-connfilter => ../go-connfilter
+//replace github.com/go-i2p/go-connfilter => ../go-connfilter
 
-replace github.com/go-i2p/go-forward => ../go-forward
+//replace github.com/go-i2p/go-forward => ../go-forward
 
-replace github.com/go-i2p/go-limit => ../go-limit
+//replace github.com/go-i2p/go-limit => ../go-limit
 
 //replace github.com/go-i2p/sam3 => ../sam3
 

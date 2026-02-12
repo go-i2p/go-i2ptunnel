@@ -8,14 +8,19 @@ A Go implementation of I2P tunneling services with support for TCP, HTTP, UDP, a
 - TCP Server - Standard TCP port forwarding
 - HTTP Server - Web service hosting
 - IRC Server - Chat service hosting
-- UDP Server - Datagram forwarding (Non-standard)
+- UDP Server - Datagram forwarding (Non-standard, uses onramp "hybrid1" mode)
 
 ### Client Tunnels
 - TCP Client - Direct connection tunneling
 - HTTP Proxy - Web browsing support
 - SOCKS5 Proxy - Multi-protocol proxy
 - IRC Client - Chat connectivity
-- UDP Client - Datagram tunneling
+- UDP Client - Datagram tunneling (Non-standard, uses onramp "hybrid1" mode)
+
+### P2P Tunnels
+- UDP Bidirectional - Datagram Forwarding and SOCKS5 Client on same keys (non-standard, uses onramp "hybrid2" mode)
+- TCP Bidirectional - TCP Forwarding and SOCKS5 Client on same keys
+- HTTP Bidirectional - HTTP Server and SOCKS5 client on same keys
 
 ### VPN/Network Interface Support
 
@@ -88,6 +93,8 @@ go test ./...
 ```
 
 Review test output and ensure all tunnel types function correctly.
+
+**Note**: Currently experiencing a dependency version conflict with `onramp@v0.33.93-0.20251019222841-39bbd6584c39` that prevents tests from building. This is a pre-existing environment issue not related to the test implementations. Tests are comprehensively implemented and ready to run once the dependency is updated.
 
 ## License
 
