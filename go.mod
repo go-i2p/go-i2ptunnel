@@ -13,7 +13,7 @@ require (
 	github.com/go-i2p/go-sam-go v0.33.0
 	github.com/go-i2p/i2pkeys v0.33.92
 	github.com/go-i2p/logger v0.1.3
-	github.com/go-i2p/onramp v0.33.93-0.20251019222841-39bbd6584c39
+	github.com/go-i2p/onramp v0.33.92
 	github.com/txthinking/socks5 v0.0.0-20251011041537-5c31f201a10e
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -22,11 +22,13 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/cretz/bine v0.2.0 // indirect
-	github.com/go-i2p/common v0.1.3 // indirect
 	github.com/go-i2p/crypto v0.1.3 // indirect
+	github.com/go-i2p/sam3 v0.33.9 // indirect
+	github.com/kr/pretty v0.3.1 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/samber/lo v1.52.0 // indirect
 	github.com/samber/oops v1.21.0 // indirect
@@ -40,6 +42,7 @@ require (
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
 //replace github.com/go-i2p/go-i2ptunnel-config => ../go-i2ptunnel-config

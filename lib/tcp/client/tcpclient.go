@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
@@ -49,6 +50,8 @@ type TCPClient struct {
 	i2ptunnel.I2PTunnelStatus
 	// Channel for shutdown signaling
 	done chan struct{}
+	// Ensures Stop() is only executed once to prevent double-close panic
+	stopOnce sync.Once
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
@@ -86,20 +89,17 @@ func (t *TCPClient) Name() string {
 	return t.TunnelConfig.Name
 }
 
-// Start the tunnel
+// Start the tunnel.
+// Each accepted local connection gets its own I2P stream to the target destination.
+// Connections are handled concurrently in separate goroutines.
 func (t *TCPClient) Start() error {
-	i2pConn, err := t.Garlic.Dial("tcp", t.Target())
-	if err != nil {
-		return err
-	}
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
-	defer i2pConn.Close()
-	defer t.Stop()
 	listener, err := net.Listen("tcp", net.JoinHostPort(t.Interface, strconv.Itoa(t.Port)))
 	if err != nil {
 		return err
 	}
 	defer listener.Close()
+	defer t.Stop()
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
 	for {
 		select {
@@ -110,11 +110,23 @@ func (t *TCPClient) Start() error {
 			if err != nil {
 				continue
 			}
-			defer con.Close()
-			ctx := context.Background()
-			stream.Forward(ctx, con, i2pConn, config.DefaultConfig())
+			go t.handleConnection(con)
 		}
 	}
+}
+
+// handleConnection forwards a single local connection over its own I2P stream.
+// Both connections are closed when forwarding completes.
+func (t *TCPClient) handleConnection(con net.Conn) {
+	defer con.Close()
+	i2pConn, err := t.Garlic.Dial("tcp", t.Target())
+	if err != nil {
+		t.recordError(err)
+		return
+	}
+	defer i2pConn.Close()
+	ctx := context.Background()
+	stream.Forward(ctx, con, i2pConn, config.DefaultConfig())
 }
 
 // Get the tunnel's status
@@ -122,10 +134,11 @@ func (t *TCPClient) Status() i2ptunnel.I2PTunnelStatus {
 	return t.I2PTunnelStatus
 }
 
-// Stop the tunnel
+// Stop the tunnel. Safe to call multiple times.
 func (t *TCPClient) Stop() error {
-	close(t.done)
-	// Cleanup resources
+	t.stopOnce.Do(func() {
+		close(t.done)
+	})
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }

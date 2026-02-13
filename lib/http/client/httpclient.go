@@ -57,6 +57,8 @@ type HTTPClient struct {
 	*http.Server
 	// Channel for shutdown signaling
 	done chan struct{}
+	// Ensures the done channel is only closed once to prevent panic
+	stopOnce sync.Once
 	// Mutex for server operations
 	mu sync.Mutex
 	// Error history of the tunnel
@@ -122,6 +124,7 @@ func (h *HTTPClient) Start() error {
 	listenerInspector := httpinspector.New(listener, h.Config)
 	h.Server = &http.Server{}
 	h.Server.Handler = h.ProxyHttpServer
+	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
 	return h.Server.Serve(listenerInspector)
 }
 
@@ -130,14 +133,16 @@ func (h *HTTPClient) Status() i2ptunnel.I2PTunnelStatus {
 	return h.I2PTunnelStatus
 }
 
-// Stop the tunnel
+// Stop the tunnel. Safe to call multiple times.
 func (h *HTTPClient) Stop() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	if h.Server != nil {
 		h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopping
-		close(h.done)
+		h.stopOnce.Do(func() {
+			close(h.done)
+		})
 		if err := h.Server.Shutdown(h.ctx); err != nil {
 			h.recordError(err)
 			return err

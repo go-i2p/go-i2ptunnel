@@ -28,6 +28,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/packet"
@@ -52,6 +53,8 @@ type UDPClient struct {
 	i2ptunnel.I2PTunnelStatus
 	// Channel for shutdown signaling
 	done chan struct{}
+	// Ensures Stop() is only executed once to prevent double-close panic
+	stopOnce sync.Once
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
@@ -89,7 +92,8 @@ func (u *UDPClient) Name() string {
 	return u.TunnelConfig.Name
 }
 
-// Start the tunnel
+// Start the tunnel.
+// Forwards UDP packets between local sockets and the I2P datagram session.
 func (u *UDPClient) Start() error {
 	i2pConnection, err := u.Garlic.Dial("udp", u.Target())
 	if err != nil {
@@ -111,9 +115,11 @@ func (u *UDPClient) Start() error {
 			if err != nil {
 				continue
 			}
-			defer lCon.Close()
-			ctx := context.Background()
-			packet.Forward(ctx, i2pConnection.(*datagram.DatagramSession), lCon, config.DefaultConfig())
+			func() {
+				defer lCon.Close()
+				ctx := context.Background()
+				packet.Forward(ctx, i2pConnection.(*datagram.DatagramSession), lCon, config.DefaultConfig())
+			}()
 		}
 	}
 }
@@ -123,10 +129,11 @@ func (u *UDPClient) Status() i2ptunnel.I2PTunnelStatus {
 	return u.I2PTunnelStatus
 }
 
-// Stop the tunnel
+// Stop the tunnel. Safe to call multiple times.
 func (u *UDPClient) Stop() error {
-	close(u.done)
-	// Cleanup resources
+	u.stopOnce.Do(func() {
+		close(u.done)
+	})
 	u.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }

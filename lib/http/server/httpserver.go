@@ -28,6 +28,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 
 	httpinspector "github.com/go-i2p/go-connfilter/http"
 	"github.com/go-i2p/go-forward/config"
@@ -56,6 +57,8 @@ type HTTPServer struct {
 	httpinspector.Config
 	// Channel for shutdown signaling
 	done chan struct{}
+	// Ensures Stop() is only executed once to prevent double-close panic
+	stopOnce sync.Once
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
@@ -93,7 +96,8 @@ func (h *HTTPServer) Name() string {
 	return h.TunnelConfig.Name
 }
 
-// Start the tunnel
+// Start the tunnel.
+// Each incoming I2P connection is forwarded to the local HTTP service in a separate goroutine.
 func (h *HTTPServer) Start() error {
 	i2pListener, err := h.Garlic.Listen()
 	if err != nil {
@@ -113,17 +117,23 @@ func (h *HTTPServer) Start() error {
 			if err != nil {
 				continue
 			}
-
-			defer con.Close()
-			lCon, err := net.Dial("tcp", h.Target())
-			if err != nil {
-				continue
-			}
-			defer lCon.Close()
-			ctx := context.Background()
-			stream.Forward(ctx, con, lCon, config.DefaultConfig())
+			go h.handleConnection(con)
 		}
 	}
+}
+
+// handleConnection forwards a single I2P connection to the local HTTP service.
+// Both connections are closed when forwarding completes.
+func (h *HTTPServer) handleConnection(con net.Conn) {
+	defer con.Close()
+	lCon, err := net.Dial("tcp", h.Target())
+	if err != nil {
+		h.recordError(err)
+		return
+	}
+	defer lCon.Close()
+	ctx := context.Background()
+	stream.Forward(ctx, con, lCon, config.DefaultConfig())
 }
 
 // Get the tunnel's status
@@ -131,10 +141,11 @@ func (h *HTTPServer) Status() i2ptunnel.I2PTunnelStatus {
 	return h.I2PTunnelStatus
 }
 
-// Stop the tunnel
+// Stop the tunnel. Safe to call multiple times.
 func (h *HTTPServer) Stop() error {
-	close(h.done)
-	// Cleanup resources
+	h.stopOnce.Do(func() {
+		close(h.done)
+	})
 	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }

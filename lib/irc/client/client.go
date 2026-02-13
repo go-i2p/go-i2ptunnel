@@ -18,6 +18,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 
 	ircinspector "github.com/go-i2p/go-connfilter/irc"
 	"github.com/go-i2p/go-forward/config"
@@ -44,6 +45,8 @@ type IRCClient struct {
 	ircinspector.Config
 	// Channel for shutdown signaling
 	done chan struct{}
+	// Ensures Stop() is only executed once to prevent double-close panic
+	stopOnce sync.Once
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
@@ -81,20 +84,17 @@ func (i *IRCClient) Name() string {
 	return i.TunnelConfig.Name
 }
 
-// Start the tunnel
+// Start the tunnel.
+// Each accepted local connection gets its own I2P stream to the target destination.
+// Connections are handled concurrently in separate goroutines.
 func (i *IRCClient) Start() error {
-	i2pConn, err := i.Garlic.Dial("tcp", i.Target())
-	if err != nil {
-		return err
-	}
 	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
-	defer i2pConn.Close()
-	defer i.Stop()
 	listener, err := net.Listen("tcp", net.JoinHostPort(i.Interface, strconv.Itoa(i.Port)))
 	if err != nil {
 		return err
 	}
 	defer listener.Close()
+	defer i.Stop()
 	filteredListener := ircinspector.New(listener, i.Config)
 	defer filteredListener.Close()
 	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
@@ -107,11 +107,23 @@ func (i *IRCClient) Start() error {
 			if err != nil {
 				continue
 			}
-			defer con.Close()
-			ctx := context.Background()
-			stream.Forward(ctx, con, i2pConn, config.DefaultConfig())
+			go i.handleConnection(con)
 		}
 	}
+}
+
+// handleConnection forwards a single local connection over its own I2P stream.
+// Both connections are closed when forwarding completes.
+func (i *IRCClient) handleConnection(con net.Conn) {
+	defer con.Close()
+	i2pConn, err := i.Garlic.Dial("tcp", i.Target())
+	if err != nil {
+		i.recordError(err)
+		return
+	}
+	defer i2pConn.Close()
+	ctx := context.Background()
+	stream.Forward(ctx, con, i2pConn, config.DefaultConfig())
 }
 
 // Get the tunnel's status
@@ -119,10 +131,11 @@ func (i *IRCClient) Status() i2ptunnel.I2PTunnelStatus {
 	return i.I2PTunnelStatus
 }
 
-// Stop the tunnel
+// Stop the tunnel. Safe to call multiple times.
 func (i *IRCClient) Stop() error {
-	close(i.done)
-	// Cleanup resources
+	i.stopOnce.Do(func() {
+		close(i.done)
+	})
 	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }
