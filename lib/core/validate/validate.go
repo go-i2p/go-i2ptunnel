@@ -179,16 +179,19 @@ func RequiredString(field, value string) error {
 // udpclient, udpserver, socksclient.
 func TunnelType(tunnelType string) error {
 	validTypes := map[string]bool{
-		"tcpclient":   true,
-		"tcpserver":   true,
-		"httpclient":  true,
-		"httpserver":  true,
-		"ircclient":   true,
-		"ircserver":   true,
-		"udpclient":   true,
-		"udpserver":   true,
-		"socks":       true,
-		"socksclient": true,
+		"tcpclient":         true,
+		"tcpserver":         true,
+		"httpclient":        true,
+		"httpserver":        true,
+		"ircclient":         true,
+		"ircserver":         true,
+		"udpclient":         true,
+		"udpserver":         true,
+		"socks":             true,
+		"socksclient":       true,
+		"tcpbidirectional":  true,
+		"udpbidirectional":  true,
+		"httpbidirectional": true,
 	}
 
 	if !validTypes[tunnelType] {
@@ -196,7 +199,7 @@ func TunnelType(tunnelType string) error {
 			Field:   "type",
 			Value:   tunnelType,
 			Message: "unsupported tunnel type",
-			Hint:    "supported types: tcpclient, tcpserver, httpclient, httpserver, ircclient, ircserver, udpclient, udpserver, socks, socksclient",
+			Hint:    "supported types: tcpclient, tcpserver, httpclient, httpserver, ircclient, ircserver, udpclient, udpserver, socks, socksclient, tcpbidirectional, udpbidirectional, httpbidirectional",
 		}
 	}
 	return nil

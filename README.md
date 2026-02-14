@@ -20,7 +20,7 @@ A Go implementation of I2P tunneling services with support for TCP, HTTP, UDP, a
 ### P2P Tunnels
 - UDP Bidirectional - Datagram Forwarding and SOCKS5 Client on same keys (non-standard, uses onramp "hybrid2" mode)
 - TCP Bidirectional - TCP Forwarding and SOCKS5 Client on same keys
-- HTTP Bidirectional - HTTP Server and SOCKS5 client on same keys
+- HTTP Bidirectional - HTTP Server and HTTP client on same keys
 
 ### VPN/Network Interface Support
 

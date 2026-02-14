@@ -8,13 +8,16 @@ import (
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	httpbidirectional "github.com/go-i2p/go-i2ptunnel/lib/http/bidirectional"
 	httpclient "github.com/go-i2p/go-i2ptunnel/lib/http/client"
 	httpserver "github.com/go-i2p/go-i2ptunnel/lib/http/server"
 	ircclient "github.com/go-i2p/go-i2ptunnel/lib/irc/client"
 	ircserver "github.com/go-i2p/go-i2ptunnel/lib/irc/server"
 	socks "github.com/go-i2p/go-i2ptunnel/lib/socks/client"
+	tcpbidirectional "github.com/go-i2p/go-i2ptunnel/lib/tcp/bidirectional"
 	tcpclient "github.com/go-i2p/go-i2ptunnel/lib/tcp/client"
 	tcpserver "github.com/go-i2p/go-i2ptunnel/lib/tcp/server"
+	udpbidirectional "github.com/go-i2p/go-i2ptunnel/lib/udp/bidirectional"
 	udpclient "github.com/go-i2p/go-i2ptunnel/lib/udp/client"
 	udpserver "github.com/go-i2p/go-i2ptunnel/lib/udp/server"
 )
@@ -83,6 +86,12 @@ func Load(path string, samAddr ...string) (i2ptunnel.I2PTunnel, error) {
 		return ircclient.NewIRCClient(*tunnel, samhost)
 	case "ircserver":
 		return ircserver.NewIRCServer(*tunnel, samhost)
+	case "tcpbidirectional":
+		return tcpbidirectional.NewTCPBidirectional(*tunnel, samhost)
+	case "udpbidirectional":
+		return udpbidirectional.NewUDPBidirectional(*tunnel, samhost)
+	case "httpbidirectional":
+		return httpbidirectional.NewHTTPBidirectional(*tunnel, samhost)
 	default:
 		return nil, fmt.Errorf("unknown tunnel type: %s", tunnel.Type)
 	}

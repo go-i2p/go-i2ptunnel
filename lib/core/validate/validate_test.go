@@ -385,6 +385,21 @@ func TestTunnelType(t *testing.T) {
 			wantError:  false,
 		},
 		{
+			name:       "tcpbidirectional",
+			tunnelType: "tcpbidirectional",
+			wantError:  false,
+		},
+		{
+			name:       "udpbidirectional",
+			tunnelType: "udpbidirectional",
+			wantError:  false,
+		},
+		{
+			name:       "httpbidirectional",
+			tunnelType: "httpbidirectional",
+			wantError:  false,
+		},
+		{
 			name:       "invalid type",
 			tunnelType: "invalidtype",
 			wantError:  true,
