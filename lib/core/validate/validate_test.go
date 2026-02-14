@@ -448,10 +448,9 @@ func TestMaxConnections(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name:      "very high limit with warning",
+			name:      "very high limit with warning (logged, not error)",
 			maxConns:  15000,
-			wantError: true,
-			wantHint:  "resource exhaustion",
+			wantError: false,
 		},
 		{
 			name:      "negative value",
