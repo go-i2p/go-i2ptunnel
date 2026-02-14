@@ -1,8 +1,8 @@
 package ircserver
 
 import (
+	"fmt"
 	"net"
-	"strconv"
 	"strings"
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
@@ -23,11 +23,10 @@ func NewIRCServer(config i2pconv.TunnelConfig, samAddr string) (*IRCServer, erro
 		return nil, err
 	}
 	garlic.ServiceKeys = keys
-	localPort := strconv.Itoa(config.Port)
-	localAddr := net.JoinHostPort(config.Interface, localPort)
-	addr, err := net.ResolveTCPAddr("tcp", localAddr)
+	// Resolve the forward target address (where incoming I2P connections are forwarded to)
+	addr, err := net.ResolveTCPAddr("tcp", config.Target)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid target address %q: %w", config.Target, err)
 	}
 	return &IRCServer{
 		TunnelConfig:    config,

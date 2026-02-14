@@ -29,10 +29,9 @@ func TestPort(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name:      "privileged port with warning",
+			name:      "privileged port (valid, no error)",
 			port:      80,
-			wantError: true,
-			wantHint:  "requires root privileges",
+			wantError: false,
 		},
 		{
 			name:      "port zero",
@@ -99,10 +98,10 @@ func TestPortString(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name:      "valid but privileged",
+			name:      "valid privileged port",
 			portStr:   "443",
 			wantPort:  443,
-			wantError: true, // Warning for privileged port
+			wantError: false,
 		},
 	}
 
@@ -378,6 +377,11 @@ func TestTunnelType(t *testing.T) {
 		{
 			name:       "socksclient",
 			tunnelType: "socksclient",
+			wantError:  false,
+		},
+		{
+			name:       "socks",
+			tunnelType: "socks",
 			wantError:  false,
 		},
 		{

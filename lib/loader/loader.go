@@ -73,7 +73,7 @@ func Load(path string, samAddr ...string) (i2ptunnel.I2PTunnel, error) {
 		return udpclient.NewUDPClient(*tunnel, samhost)
 	case "udpserver":
 		return udpserver.NewUDPServer(*tunnel, samhost)
-	case "socks":
+	case "socks", "socksclient":
 		return socks.NewSocksClient(*tunnel, samhost)
 	case "httpclient":
 		return httpclient.NewHTTPClient(*tunnel, samhost)

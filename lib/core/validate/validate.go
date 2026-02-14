@@ -38,15 +38,9 @@ func Port(port int) error {
 			Hint:    "choose a port in the valid range (1024-65535 recommended for non-root)",
 		}
 	}
-	// Warn about privileged ports but don't fail validation
-	if port < 1024 {
-		return &ValidationError{
-			Field:   "port",
-			Value:   strconv.Itoa(port),
-			Message: "port is in privileged range (<1024)",
-			Hint:    "requires root privileges or capabilities; consider using port >=1024",
-		}
-	}
+	// Privileged ports (<1024) are valid but may require root privileges.
+	// As documented: warn but don't fail validation.
+	// Callers that need to warn can check port < 1024 separately.
 	return nil
 }
 
@@ -193,6 +187,7 @@ func TunnelType(tunnelType string) error {
 		"ircserver":   true,
 		"udpclient":   true,
 		"udpserver":   true,
+		"socks":       true,
 		"socksclient": true,
 	}
 
@@ -201,7 +196,7 @@ func TunnelType(tunnelType string) error {
 			Field:   "type",
 			Value:   tunnelType,
 			Message: "unsupported tunnel type",
-			Hint:    "supported types: tcpclient, tcpserver, httpclient, httpserver, ircclient, ircserver, udpclient, udpserver, socksclient",
+			Hint:    "supported types: tcpclient, tcpserver, httpclient, httpserver, ircclient, ircserver, udpclient, udpserver, socks, socksclient",
 		}
 	}
 	return nil

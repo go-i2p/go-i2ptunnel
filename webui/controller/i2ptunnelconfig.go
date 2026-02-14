@@ -137,18 +137,34 @@ func (c *Config) renderConfigWithError(w http.ResponseWriter, errMsg string) {
 	templates.I2PTunnelConfigTemplate.Execute(w, data)
 }
 
-// saveConfig persists the current tunnel configuration to disk in YAML format
+// saveConfig persists the current tunnel configuration to disk in YAML format.
+// Uses the tunnels: wrapper format expected by loader.Load() / Converter.ParseInput().
 func (c *Config) saveConfig() error {
-	// Create config structure matching loader expectations
-	config := map[string]interface{}{
-		"type":    c.Type(),
-		"name":    c.Name(),
-		"id":      c.ID(),
-		"options": c.Options(),
+	// Build inner tunnel config matching loader expectations
+	tunnelConfig := map[string]interface{}{
+		"name": c.Name(),
+		"type": c.Type(),
 	}
 
 	if target := c.Target(); target != "" {
-		config["target"] = target
+		tunnelConfig["target"] = target
+	}
+
+	opts := c.Options()
+	if port, ok := opts["port"]; ok {
+		if p, err := strconv.Atoi(port); err == nil {
+			tunnelConfig["port"] = p
+		}
+	}
+	if iface, ok := opts["interface"]; ok {
+		tunnelConfig["interface"] = iface
+	}
+
+	// Wrap in the "tunnels:" top-level key expected by the parser
+	config := map[string]interface{}{
+		"tunnels": map[string]interface{}{
+			c.Name(): tunnelConfig,
+		},
 	}
 
 	// Marshal to YAML

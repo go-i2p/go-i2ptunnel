@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/webui/templates"
 )
 
@@ -96,7 +97,7 @@ func (c *Controller) handlePostControl(w http.ResponseWriter, r *http.Request) {
 // handleStart starts the tunnel if it's not already running
 func (c *Controller) handleStart() error {
 	status := c.Status()
-	if status == "running" || status == "starting" {
+	if status == i2ptunnel.I2PTunnelStatusRunning || status == i2ptunnel.I2PTunnelStatusStarting {
 		return fmt.Errorf("tunnel is already %s", status)
 	}
 
@@ -110,7 +111,7 @@ func (c *Controller) handleStart() error {
 // handleStop stops the tunnel if it's running
 func (c *Controller) handleStop() error {
 	status := c.Status()
-	if status == "stopped" || status == "stopping" {
+	if status == i2ptunnel.I2PTunnelStatusStopped || status == i2ptunnel.I2PTunnelStatusStopping {
 		return fmt.Errorf("tunnel is already %s", status)
 	}
 
@@ -124,7 +125,7 @@ func (c *Controller) handleStop() error {
 // handleRestart stops and then starts the tunnel
 func (c *Controller) handleRestart() error {
 	// Stop tunnel if running
-	if c.Status() == "running" {
+	if c.Status() == i2ptunnel.I2PTunnelStatusRunning {
 		if err := c.Stop(); err != nil {
 			return fmt.Errorf("failed to stop tunnel during restart: %w", err)
 		}

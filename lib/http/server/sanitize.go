@@ -3,6 +3,7 @@ package httpserver
 import (
 	"net"
 	"net/http"
+	"net/url"
 
 	httpinspector "github.com/go-i2p/go-connfilter/http"
 )
@@ -64,9 +65,12 @@ func ApplyHTTPServerFilters(listener net.Listener) net.Listener {
 	return httpinspector.New(listener, config)
 }
 
-// isSameOrigin checks if two URLs share the same origin
-func isSameOrigin(url1, url2 string) bool {
-	// Simple check - both should have same domain
-	// For I2P, this is less critical but included for completeness
-	return url1 == url2
+// isSameOrigin checks if two URLs share the same origin (scheme + host + port)
+func isSameOrigin(raw1, raw2 string) bool {
+	u1, err1 := url.Parse(raw1)
+	u2, err2 := url.Parse(raw2)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return u1.Scheme == u2.Scheme && u1.Host == u2.Host
 }

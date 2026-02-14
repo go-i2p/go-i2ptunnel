@@ -216,8 +216,7 @@ func TestHTTPServerLocalAddress(t *testing.T) {
 
 // TestHTTPServerTarget tests Target() method.
 // Why: HTTP server forwards to a specific local service target.
-// Design: Verifies the target address reflects the listening address.
-// Note: Currently server.Addr is set to interface:port, not the actual forward target.
+// Design: Verifies the target address reflects the configured forward target.
 func TestHTTPServerTarget(t *testing.T) {
 	config := i2pconv.TunnelConfig{
 		Name:      "test-target",
@@ -233,8 +232,8 @@ func TestHTTPServerTarget(t *testing.T) {
 	}
 
 	target := server.Target()
-	// The server's Addr field is currently set to interface:port
-	expectedTarget := "127.0.0.1:8080"
+	// Target() should return the forward target address from config
+	expectedTarget := "127.0.0.1:9090"
 	if target != expectedTarget {
 		t.Errorf("Expected target '%s', got '%s'", expectedTarget, target)
 	}

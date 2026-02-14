@@ -50,9 +50,7 @@ func (cg *ControllerGroup) HandleHTMLFooter(r *http.Request, w http.ResponseWrit
 
 func (cg *ControllerGroup) HandleGroup(r *http.Request, w http.ResponseWriter) {
 	for _, controller := range cg.I2PTunnels {
-		if i2ptunnel.Clean(controller.Name()) == tunnel(r) {
-			controller.MiniServeHTTP(w, r)
-		}
+		controller.MiniServeHTTP(w, r)
 	}
 }
 
