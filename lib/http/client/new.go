@@ -25,6 +25,7 @@ func NewHTTPClient(config i2pconv.TunnelConfig, samAddr string) (*HTTPClient, er
 	h := &HTTPClient{
 		TunnelConfig:    config,
 		Garlic:          garlic,
+		Config:          DefaultHTTPClientConfig(),
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		done:            make(chan struct{}),
 	}

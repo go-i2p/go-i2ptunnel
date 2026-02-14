@@ -105,6 +105,7 @@ func (i *IRCServer) Start() error {
 	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(i.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(i.LimitedConfig.RateLimit))
 	ircInspectorListener := ircinspector.New(limitedI2PListener, i.Config)
+	ApplyIRCServerFilterRules(ircInspectorListener, i.Address())
 	for {
 		select {
 		case <-i.done:

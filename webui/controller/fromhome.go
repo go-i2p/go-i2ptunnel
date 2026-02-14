@@ -2,14 +2,14 @@ package controller
 
 import (
 	"net/http"
-	"path/filepath"
+	"path"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 )
 
 func handler(r *http.Request) string {
 	if r != nil {
-		dir, file := filepath.Split(r.URL.Path)
+		dir, file := path.Split(r.URL.Path)
 		if dir == "/" {
 			if file == "home" {
 				return "group"
@@ -27,9 +27,13 @@ func handler(r *http.Request) string {
 
 func tunnel(r *http.Request) string {
 	if r != nil {
-		dir, file := filepath.Split(r.URL.Path)
+		dir, file := path.Split(r.URL.Path)
 		if file == "config" || file == "control" {
-			return i2ptunnel.Clean(dir)
+			// Extract tunnel name: the path segment immediately before the action.
+			// For /my-tunnel/control → "my-tunnel"
+			// For /group/my-tunnel/control → "my-tunnel"
+			tunnelName := path.Base(dir)
+			return i2ptunnel.Clean(tunnelName)
 		}
 	}
 	return ""

@@ -33,6 +33,7 @@ func NewIRCServer(config i2pconv.TunnelConfig, samAddr string) (*IRCServer, erro
 		Garlic:          garlic,
 		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		Config:          DefaultIRCServerConfig(),
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  1000,
 			RateLimit: 100,

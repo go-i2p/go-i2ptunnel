@@ -8,10 +8,11 @@ import (
 	ircinspector "github.com/go-i2p/go-connfilter/irc"
 )
 
-// ApplyIRCClientFilters wraps a listener with IRC client-side filtering
-// Blocks dangerous commands like DCC and filters potentially leaky content
-func ApplyIRCClientFilters(listener net.Listener, i2pHost string) net.Listener {
-	config := ircinspector.Config{
+// DefaultIRCClientConfig returns an ircinspector.Config pre-configured with
+// privacy-protecting defaults for IRC client tunnels. It blocks DCC commands
+// that could expose real IP addresses.
+func DefaultIRCClientConfig() ircinspector.Config {
+	return ircinspector.Config{
 		OnMessage: func(msg *ircinspector.Message) error {
 			// Block DCC commands - direct client connections expose real IP
 			if strings.EqualFold(msg.Command, "DCC") {
@@ -26,15 +27,17 @@ func ApplyIRCClientFilters(listener net.Listener, i2pHost string) net.Listener {
 			return nil
 		},
 	}
+}
 
-	inspector := ircinspector.New(listener, config)
-
+// ApplyIRCClientFilterRules adds hostname-masking filter rules to an existing
+// IRC inspector. Call this after ircinspector.New() to add PING and USERHOST
+// filters that replace real hostnames with the I2P address.
+func ApplyIRCClientFilterRules(inspector *ircinspector.Inspector, i2pHost string) {
 	// Replace real hostnames with .i2p addresses in PING responses
 	inspector.AddFilter(ircinspector.Filter{
 		Command: "PING",
 		Callback: func(msg *ircinspector.Message) error {
 			if i2pHost != "" && len(msg.Params) > 0 {
-				// Replace any real hostname with I2P hostname
 				msg.Params[0] = i2pHost
 			}
 			return nil
@@ -45,9 +48,7 @@ func ApplyIRCClientFilters(listener net.Listener, i2pHost string) net.Listener {
 	inspector.AddFilter(ircinspector.Filter{
 		Command: "USERHOST",
 		Callback: func(msg *ircinspector.Message) error {
-			// Mask the response to hide real user@host
 			if i2pHost != "" && msg.Trailing != "" {
-				// Replace user@realhost with user@i2phost
 				parts := strings.Split(msg.Trailing, "@")
 				if len(parts) > 1 {
 					msg.Trailing = parts[0] + "@" + i2pHost
@@ -56,6 +57,12 @@ func ApplyIRCClientFilters(listener net.Listener, i2pHost string) net.Listener {
 			return nil
 		},
 	})
+}
 
+// ApplyIRCClientFilters wraps a listener with IRC client-side filtering.
+// Blocks dangerous commands like DCC and filters potentially leaky content.
+func ApplyIRCClientFilters(listener net.Listener, i2pHost string) net.Listener {
+	inspector := ircinspector.New(listener, DefaultIRCClientConfig())
+	ApplyIRCClientFilterRules(inspector, i2pHost)
 	return inspector
 }

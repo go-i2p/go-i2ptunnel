@@ -12,10 +12,11 @@ import (
 // Pattern to match user@host format
 var userHostPattern = regexp.MustCompile(`@[^\s]+`)
 
-// ApplyIRCServerFilters wraps a listener with IRC server-side filtering
-// Blocks administrative commands and masks host information
-func ApplyIRCServerFilters(listener net.Listener, i2pHost string) net.Listener {
-	config := ircinspector.Config{
+// DefaultIRCServerConfig returns an ircinspector.Config pre-configured with
+// privacy-protecting defaults for IRC server tunnels. It blocks DCC commands
+// and dangerous administrative commands.
+func DefaultIRCServerConfig() ircinspector.Config {
+	return ircinspector.Config{
 		OnMessage: func(msg *ircinspector.Message) error {
 			command := strings.ToUpper(msg.Command)
 
@@ -25,7 +26,7 @@ func ApplyIRCServerFilters(listener net.Listener, i2pHost string) net.Listener {
 				return fmt.Errorf("administrative command %s not allowed over I2P", command)
 			}
 
-			// Block DCC commands - direct connections expose real IPs
+			// Block DCC commands
 			if command == "DCC" {
 				return fmt.Errorf("DCC commands are not allowed over I2P")
 			}
@@ -38,25 +39,19 @@ func ApplyIRCServerFilters(listener net.Listener, i2pHost string) net.Listener {
 			return nil
 		},
 		OnNumeric: func(numeric int, msg *ircinspector.Message) error {
-			// Mask WHOIS responses (numeric 311) to hide real hostnames
-			if numeric == 311 && i2pHost != "" {
-				// WHOIS user response format: 311 nick user host * :realname
-				if len(msg.Params) >= 3 {
-					// Replace real host with I2P host
-					msg.Params[2] = i2pHost
-				}
-			}
 			return nil
 		},
 	}
+}
 
-	inspector := ircinspector.New(listener, config)
-
+// ApplyIRCServerFilterRules adds hostname-masking filter rules to an existing
+// IRC inspector. Call this after ircinspector.New() to add JOIN and WHOIS
+// filters that replace real hostnames with the I2P address.
+func ApplyIRCServerFilterRules(inspector *ircinspector.Inspector, i2pHost string) {
 	// Filter JOIN messages to mask hostnames
 	inspector.AddFilter(ircinspector.Filter{
 		Command: "JOIN",
 		Callback: func(msg *ircinspector.Message) error {
-			// Mask user@host in prefix
 			if i2pHost != "" && msg.Prefix != "" {
 				msg.Prefix = userHostPattern.ReplaceAllString(msg.Prefix, "@"+i2pHost)
 			}
@@ -68,13 +63,18 @@ func ApplyIRCServerFilters(listener net.Listener, i2pHost string) net.Listener {
 	inspector.AddFilter(ircinspector.Filter{
 		Command: "WHOIS",
 		Callback: func(msg *ircinspector.Message) error {
-			// Mask any @host patterns in the response
 			if i2pHost != "" && msg.Trailing != "" {
 				msg.Trailing = userHostPattern.ReplaceAllString(msg.Trailing, "@"+i2pHost)
 			}
 			return nil
 		},
 	})
+}
 
+// ApplyIRCServerFilters wraps a listener with IRC server-side filtering.
+// Blocks administrative commands and masks host information.
+func ApplyIRCServerFilters(listener net.Listener, i2pHost string) net.Listener {
+	inspector := ircinspector.New(listener, DefaultIRCServerConfig())
+	ApplyIRCServerFilterRules(inspector, i2pHost)
 	return inspector
 }

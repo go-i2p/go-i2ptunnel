@@ -33,6 +33,7 @@ func NewHTTPServer(config i2pconv.TunnelConfig, samAddr string) (*HTTPServer, er
 		Garlic:          garlic,
 		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		Config:          DefaultHTTPServerConfig(),
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  1000,
 			RateLimit: 100,

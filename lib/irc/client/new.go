@@ -29,6 +29,7 @@ func NewIRCClient(config i2pconv.TunnelConfig, samAddr string) (*IRCClient, erro
 		TunnelConfig:    config,
 		Garlic:          garlic,
 		I2PAddr:         addr,
+		Config:          DefaultIRCClientConfig(),
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		done:            make(chan struct{}),
 	}, nil

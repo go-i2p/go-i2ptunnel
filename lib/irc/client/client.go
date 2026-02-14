@@ -103,6 +103,7 @@ func (i *IRCClient) Start() error {
 	defer listener.Close()
 	defer i.Stop()
 	filteredListener := ircinspector.New(listener, i.Config)
+	ApplyIRCClientFilterRules(filteredListener, i.Address())
 	defer filteredListener.Close()
 	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
 	for {
