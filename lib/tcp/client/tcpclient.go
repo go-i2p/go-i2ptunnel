@@ -27,6 +27,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
@@ -52,13 +53,17 @@ type TCPClient struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Mutex protecting the Errors slice from concurrent access
+	errMu sync.Mutex
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 }
 
 func (t *TCPClient) recordError(err error) {
+	t.errMu.Lock()
 	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
+	t.errMu.Unlock()
 }
 
 // Get the tunnel's I2P address
@@ -72,6 +77,8 @@ func (t *TCPClient) Address() string {
 
 // Get the tunnel's error message
 func (t *TCPClient) Error() error {
+	t.errMu.Lock()
+	defer t.errMu.Unlock()
 	if len(t.Errors) > 0 {
 		return t.Errors[len(t.Errors)-1]
 	}
@@ -108,6 +115,14 @@ func (t *TCPClient) Start() error {
 		default:
 			con, err := listener.Accept()
 			if err != nil {
+				// Check if tunnel is shutting down
+				select {
+				case <-t.done:
+					return nil
+				default:
+				}
+				// Backoff to prevent CPU-burning tight loop on persistent errors
+				time.Sleep(50 * time.Millisecond)
 				continue
 			}
 			go t.handleConnection(con)

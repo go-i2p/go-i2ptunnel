@@ -19,6 +19,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	ircinspector "github.com/go-i2p/go-connfilter/irc"
 	"github.com/go-i2p/go-forward/config"
@@ -47,13 +48,17 @@ type IRCClient struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Mutex protecting the Errors slice from concurrent access
+	errMu sync.Mutex
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 }
 
 func (t *IRCClient) recordError(err error) {
+	t.errMu.Lock()
 	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
+	t.errMu.Unlock()
 }
 
 // Get the tunnel's I2P address
@@ -67,6 +72,8 @@ func (i *IRCClient) Address() string {
 
 // Get the tunnel's error message
 func (i *IRCClient) Error() error {
+	i.errMu.Lock()
+	defer i.errMu.Unlock()
 	if len(i.Errors) > 0 {
 		return i.Errors[len(i.Errors)-1]
 	}
@@ -105,6 +112,12 @@ func (i *IRCClient) Start() error {
 		default:
 			con, err := filteredListener.Accept()
 			if err != nil {
+				select {
+				case <-i.done:
+					return nil
+				default:
+				}
+				time.Sleep(50 * time.Millisecond)
 				continue
 			}
 			go i.handleConnection(con)

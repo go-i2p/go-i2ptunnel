@@ -10,7 +10,8 @@ func (i I2PTunnelError) Error() string {
 	return i.errorString
 }
 
-var exampleError error = I2PTunnelError{}
+// Compile-time interface satisfaction check
+var _ error = I2PTunnelError{}
 
 func NewError(tun I2PTunnel, err error) I2PTunnelError {
 	details := fmt.Sprintf("Name:%s\n\tError:%s\n", tun.Name(), err)

@@ -61,6 +61,8 @@ type HTTPClient struct {
 	stopOnce sync.Once
 	// Mutex for server operations
 	mu sync.Mutex
+	// Mutex protecting the Errors slice from concurrent access
+	errMu sync.Mutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 	// Context for cleanup
@@ -69,7 +71,9 @@ type HTTPClient struct {
 }
 
 func (h *HTTPClient) recordError(err error) {
+	h.errMu.Lock()
 	h.Errors = append(h.Errors, i2ptunnel.NewError(h, err))
+	h.errMu.Unlock()
 }
 
 // Get the tunnel's I2P address
@@ -83,6 +87,8 @@ func (h *HTTPClient) Address() string {
 
 // Get the tunnel's error message
 func (h *HTTPClient) Error() error {
+	h.errMu.Lock()
+	defer h.errMu.Unlock()
 	if len(h.Errors) > 0 {
 		return h.Errors[len(h.Errors)-1]
 	}
@@ -143,11 +149,18 @@ func (h *HTTPClient) Stop() error {
 		h.stopOnce.Do(func() {
 			close(h.done)
 		})
-		if err := h.Server.Shutdown(h.ctx); err != nil {
+		// Use a fresh context for shutdown if Start() was never called (h.ctx is nil)
+		shutdownCtx := h.ctx
+		if shutdownCtx == nil {
+			shutdownCtx = context.Background()
+		}
+		if err := h.Server.Shutdown(shutdownCtx); err != nil {
 			h.recordError(err)
 			return err
 		}
-		h.cancel()
+		if h.cancel != nil {
+			h.cancel()
+		}
 		h.Server = nil
 		h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	}

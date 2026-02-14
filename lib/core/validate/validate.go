@@ -2,6 +2,7 @@ package validate
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -218,14 +219,9 @@ func MaxConnections(maxConns int) error {
 			Hint:    "use 0 for unlimited connections or a positive number to set a limit",
 		}
 	}
-	// Warn about very high connection limits
+	// Warn about very high connection limits (but allow them)
 	if maxConns > 10000 {
-		return &ValidationError{
-			Field:   "maxconns",
-			Value:   strconv.Itoa(maxConns),
-			Message: "maxconns is very high (>10000)",
-			Hint:    "high connection limits may cause resource exhaustion; consider a lower value",
-		}
+		log.Printf("Warning: maxconns is very high (%d > 10000); high connection limits may cause resource exhaustion", maxConns)
 	}
 	return nil
 }

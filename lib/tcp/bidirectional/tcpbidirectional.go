@@ -16,6 +16,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
@@ -48,12 +49,16 @@ type TCPBidirectional struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Mutex protecting the Errors slice from concurrent access
+	errMu sync.Mutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 }
 
 func (t *TCPBidirectional) recordError(err error) {
+	t.errMu.Lock()
 	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
+	t.errMu.Unlock()
 }
 
 // Address returns the tunnel's I2P address.
@@ -66,6 +71,8 @@ func (t *TCPBidirectional) Address() string {
 
 // Error returns the most recent error, or nil.
 func (t *TCPBidirectional) Error() error {
+	t.errMu.Lock()
+	defer t.errMu.Unlock()
 	if len(t.Errors) > 0 {
 		return t.Errors[len(t.Errors)-1]
 	}
@@ -132,6 +139,12 @@ func (t *TCPBidirectional) Start() error {
 		default:
 			con, err := limitedI2PListener.Accept()
 			if err != nil {
+				select {
+				case <-t.done:
+					return nil
+				default:
+				}
+				time.Sleep(50 * time.Millisecond)
 				continue
 			}
 			go t.handleServerConnection(con)

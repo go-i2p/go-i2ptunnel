@@ -67,8 +67,12 @@ type SOCKS struct {
 	*socks5.Server
 	// Channel for shutdown signaling
 	done chan struct{}
+	// Ensures Stop() is only executed once to prevent double-close panic
+	stopOnce sync.Once
 	// Mutex for server operations
 	mu sync.Mutex
+	// Mutex protecting the Errors slice from concurrent access
+	errMu sync.Mutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 	// Context for cleanup
@@ -77,7 +81,9 @@ type SOCKS struct {
 }
 
 func (s *SOCKS) recordError(err error) {
+	s.errMu.Lock()
 	s.Errors = append(s.Errors, i2ptunnel.NewError(s, err))
+	s.errMu.Unlock()
 }
 
 // Get the tunnel's I2P address
@@ -91,6 +97,8 @@ func (s *SOCKS) Address() string {
 
 // Get the tunnel's error message
 func (s *SOCKS) Error() error {
+	s.errMu.Lock()
+	defer s.errMu.Unlock()
 	if len(s.Errors) > 0 {
 		return s.Errors[len(s.Errors)-1]
 	}
@@ -142,15 +150,19 @@ func (s *SOCKS) Status() i2ptunnel.I2PTunnelStatus {
 	return s.I2PTunnelStatus
 }
 
-// Stop the tunnel
+// Stop the tunnel. Safe to call multiple times.
 func (s *SOCKS) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.Server != nil {
 		s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopping
-		close(s.done)
-		s.cancel()
+		s.stopOnce.Do(func() {
+			close(s.done)
+		})
+		if s.cancel != nil {
+			s.cancel()
+		}
 		if err := s.Server.Shutdown(); err != nil {
 			s.recordError(err)
 			return err
@@ -243,8 +255,8 @@ func (s *SOCKS) LoadConfig(path string) error {
 	}
 
 	// Type safety: ensure loaded config matches expected tunnel type
-	if newConfig.Type != "socks" {
-		return fmt.Errorf("config file contains %s tunnel, expected socks", newConfig.Type)
+	if newConfig.Type != "socks" && newConfig.Type != "socksclient" {
+		return fmt.Errorf("config file contains %s tunnel, expected socks or socksclient", newConfig.Type)
 	}
 
 	// Update mutable configuration fields

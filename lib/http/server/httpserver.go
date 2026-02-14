@@ -29,6 +29,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	httpinspector "github.com/go-i2p/go-connfilter/http"
 	"github.com/go-i2p/go-forward/config"
@@ -59,13 +60,17 @@ type HTTPServer struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Mutex protecting the Errors slice from concurrent access
+	errMu sync.Mutex
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 }
 
 func (h *HTTPServer) recordError(err error) {
+	h.errMu.Lock()
 	h.Errors = append(h.Errors, i2ptunnel.NewError(h, err))
+	h.errMu.Unlock()
 }
 
 // Get the tunnel's I2P address
@@ -79,6 +84,8 @@ func (h *HTTPServer) Address() string {
 
 // Get the tunnel's error message
 func (h *HTTPServer) Error() error {
+	h.errMu.Lock()
+	defer h.errMu.Unlock()
 	if len(h.Errors) > 0 {
 		return h.Errors[len(h.Errors)-1]
 	}
@@ -99,7 +106,7 @@ func (h *HTTPServer) Name() string {
 // Start the tunnel.
 // Each incoming I2P connection is forwarded to the local HTTP service in a separate goroutine.
 func (h *HTTPServer) Start() error {
-	i2pListener, err := h.Garlic.Listen()
+	i2pListener, err := h.Garlic.ListenStream()
 	if err != nil {
 		return err
 	}
@@ -115,6 +122,12 @@ func (h *HTTPServer) Start() error {
 		default:
 			con, err := httpInspectorListener.Accept()
 			if err != nil {
+				select {
+				case <-h.done:
+					return nil
+				default:
+				}
+				time.Sleep(50 * time.Millisecond)
 				continue
 			}
 			go h.handleConnection(con)

@@ -16,6 +16,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/packet"
@@ -45,12 +46,16 @@ type UDPBidirectional struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Mutex protecting the Errors slice from concurrent access
+	errMu sync.Mutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 }
 
 func (u *UDPBidirectional) recordError(err error) {
+	u.errMu.Lock()
 	u.Errors = append(u.Errors, i2ptunnel.NewError(u, err))
+	u.errMu.Unlock()
 }
 
 // Address returns the tunnel's I2P address.
@@ -63,6 +68,8 @@ func (u *UDPBidirectional) Address() string {
 
 // Error returns the most recent error, or nil.
 func (u *UDPBidirectional) Error() error {
+	u.errMu.Lock()
+	defer u.errMu.Unlock()
 	if len(u.Errors) > 0 {
 		return u.Errors[len(u.Errors)-1]
 	}
@@ -110,6 +117,12 @@ func (u *UDPBidirectional) Start() error {
 
 	u.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
 
+	// Resolve target address once before entering the loop
+	raddr, err := net.ResolveUDPAddr("udp", u.Target())
+	if err != nil {
+		return fmt.Errorf("failed to resolve target UDP address: %w", err)
+	}
+
 	// Server-side datagram forwarding loop
 	for {
 		select {
@@ -121,12 +134,14 @@ func (u *UDPBidirectional) Start() error {
 			}
 			return err
 		default:
-			raddr, err := net.ResolveUDPAddr("udp", u.Target())
-			if err != nil {
-				continue
-			}
 			lCon, err := net.DialUDP("udp", nil, raddr)
 			if err != nil {
+				select {
+				case <-u.done:
+					return nil
+				default:
+				}
+				time.Sleep(50 * time.Millisecond)
 				continue
 			}
 			func() {

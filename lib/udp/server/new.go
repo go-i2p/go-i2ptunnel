@@ -2,7 +2,6 @@ package udpserver
 
 import (
 	"net"
-	"strconv"
 	"strings"
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
@@ -22,9 +21,8 @@ func NewUDPServer(config i2pconv.TunnelConfig, samAddr string) (*UDPServer, erro
 		return nil, err
 	}
 	garlic.ServiceKeys = keys
-	localPort := strconv.Itoa(config.Port)
-	localAddr := net.JoinHostPort(config.Interface, localPort)
-	addr, err := net.ResolveUDPAddr("UDP", localAddr)
+	// Resolve the target address (the local service to forward I2P datagrams to)
+	addr, err := net.ResolveUDPAddr("udp", config.Target)
 	if err != nil {
 		return nil, err
 	}

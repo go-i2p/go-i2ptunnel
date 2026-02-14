@@ -94,16 +94,17 @@ func (c *Controller) handlePostControl(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, r.URL.Path, http.StatusSeeOther)
 }
 
-// handleStart starts the tunnel if it's not already running
+// handleStart starts the tunnel if it's not already running.
+// Start() is launched in a background goroutine because most tunnel types
+// block indefinitely in an accept loop. The HTTP handler returns immediately
+// so the browser receives a redirect response.
 func (c *Controller) handleStart() error {
 	status := c.Status()
 	if status == i2ptunnel.I2PTunnelStatusRunning || status == i2ptunnel.I2PTunnelStatusStarting {
 		return fmt.Errorf("tunnel is already %s", status)
 	}
 
-	if err := c.Start(); err != nil {
-		return fmt.Errorf("failed to start tunnel: %w", err)
-	}
+	go c.Start()
 
 	return nil
 }
@@ -122,7 +123,9 @@ func (c *Controller) handleStop() error {
 	return nil
 }
 
-// handleRestart stops and then starts the tunnel
+// handleRestart stops and then starts the tunnel.
+// Start() is launched in a background goroutine because most tunnel types
+// block indefinitely in an accept loop.
 func (c *Controller) handleRestart() error {
 	// Stop tunnel if running
 	if c.Status() == i2ptunnel.I2PTunnelStatusRunning {
@@ -131,10 +134,8 @@ func (c *Controller) handleRestart() error {
 		}
 	}
 
-	// Start tunnel
-	if err := c.Start(); err != nil {
-		return fmt.Errorf("failed to start tunnel during restart: %w", err)
-	}
+	// Start tunnel in background goroutine
+	go c.Start()
 
 	return nil
 }
