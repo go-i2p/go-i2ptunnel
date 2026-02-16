@@ -128,6 +128,7 @@ func (s *SOCKS) Start() error {
 	// Create context for managing goroutines
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.done = make(chan struct{})
+	s.stopOnce = sync.Once{}
 
 	// Create SOCKS5 server
 	addr := net.JoinHostPort(s.TunnelConfig.Interface, strconv.Itoa(s.TunnelConfig.Port))

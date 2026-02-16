@@ -89,7 +89,10 @@ func (u *UDPBidirectional) Name() string {
 
 // Start launches both the server-side I2P datagram listener and the client-side
 // SOCKS5 proxy concurrently. It blocks until the tunnel is stopped.
+// Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (u *UDPBidirectional) Start() error {
+	u.done = make(chan struct{})
+	u.stopOnce = sync.Once{}
 	u.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
 
 	// Start the server side: listen for I2P datagrams

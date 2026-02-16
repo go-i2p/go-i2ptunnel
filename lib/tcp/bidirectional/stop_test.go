@@ -1,6 +1,7 @@
 package tcpbidirectional
 
 import (
+	"sync"
 	"testing"
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
@@ -251,4 +252,39 @@ func TestTCPBidirectionalLoadConfigWhileStarting(t *testing.T) {
 // TestTCPBidirectionalImplementsInterface confirms the type satisfies I2PTunnel.
 func TestTCPBidirectionalImplementsInterface(t *testing.T) {
 	var _ i2ptunnel.I2PTunnel = &TCPBidirectional{}
+}
+
+// TestRestartAfterStop verifies that after Stop(), the done channel and stopOnce
+// can be reset (as Start() now does) so the tunnel is restartable.
+func TestRestartAfterStop(t *testing.T) {
+	tunnel := &TCPBidirectional{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		done:            make(chan struct{}),
+	}
+
+	tunnel.Stop()
+	select {
+	case <-tunnel.done:
+	default:
+		t.Fatal("done channel should be closed after first Stop()")
+	}
+
+	tunnel.done = make(chan struct{})
+	tunnel.stopOnce = sync.Once{}
+
+	select {
+	case <-tunnel.done:
+		t.Fatal("done channel should be open after reset")
+	default:
+	}
+
+	tunnel.Stop()
+	select {
+	case <-tunnel.done:
+	default:
+		t.Fatal("done channel should be closed after second Stop()")
+	}
+	if tunnel.Status() != i2ptunnel.I2PTunnelStatusStopped {
+		t.Errorf("Expected status stopped after restart cycle, got %v", tunnel.Status())
+	}
 }

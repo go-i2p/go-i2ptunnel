@@ -99,7 +99,10 @@ func (t *TCPClient) Name() string {
 // Start the tunnel.
 // Each accepted local connection gets its own I2P stream to the target destination.
 // Connections are handled concurrently in separate goroutines.
+// Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (t *TCPClient) Start() error {
+	t.done = make(chan struct{})
+	t.stopOnce = sync.Once{}
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
 	listener, err := net.Listen("tcp", net.JoinHostPort(t.Interface, strconv.Itoa(t.Port)))
 	if err != nil {

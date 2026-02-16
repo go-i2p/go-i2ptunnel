@@ -101,7 +101,10 @@ func (u *UDPClient) Name() string {
 
 // Start the tunnel.
 // Forwards UDP packets between local sockets and the I2P datagram session.
+// Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (u *UDPClient) Start() error {
+	u.done = make(chan struct{})
+	u.stopOnce = sync.Once{}
 	i2pConnection, err := u.Garlic.Dial("udp", u.Target())
 	if err != nil {
 		return err

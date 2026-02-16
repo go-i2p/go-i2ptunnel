@@ -118,6 +118,7 @@ func (h *HTTPClient) Start() error {
 	// Create context for managing goroutines
 	h.ctx, h.cancel = context.WithCancel(context.Background())
 	h.done = make(chan struct{})
+	h.stopOnce = sync.Once{}
 	proxy := goproxy.NewProxyHttpServer()
 	h.ProxyHttpServer = proxy
 	h.ProxyHttpServer.Tr.DialContext = h.DialContext
@@ -162,6 +163,7 @@ func (h *HTTPClient) Stop() error {
 			h.cancel()
 		}
 		h.Server = nil
+		h.ProxyHttpServer = nil
 		h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	}
 	return nil

@@ -107,7 +107,10 @@ func (h *HTTPBidirectional) Name() string {
 
 // Start launches both the server-side I2P listener (forwarding to the local
 // HTTP service) and the client-side HTTP proxy concurrently.
+// Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (h *HTTPBidirectional) Start() error {
+	h.done = make(chan struct{})
+	h.stopOnce = sync.Once{}
 	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
 	h.ctx, h.cancel = context.WithCancel(context.Background())
 

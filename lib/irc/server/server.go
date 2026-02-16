@@ -95,7 +95,10 @@ func (i *IRCServer) Name() string {
 
 // Start the tunnel.
 // Each incoming I2P connection is forwarded to the local IRC service in a separate goroutine.
+// Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (i *IRCServer) Start() error {
+	i.done = make(chan struct{})
+	i.stopOnce = sync.Once{}
 	i2pListener, err := i.Garlic.ListenStream()
 	if err != nil {
 		return err

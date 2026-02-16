@@ -1,6 +1,7 @@
 package tcpclient
 
 import (
+	"sync"
 	"testing"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
@@ -60,5 +61,45 @@ func TestDoneChannelSignaling(t *testing.T) {
 		// expected — channel is closed
 	default:
 		t.Fatal("done channel should be closed after Stop()")
+	}
+}
+
+// TestRestartAfterStop verifies that after Stop(), the done channel and stopOnce
+// can be reset (as Start() now does) so the tunnel is restartable.
+// Before this fix, Stop() left done permanently closed and stopOnce spent.
+func TestRestartAfterStop(t *testing.T) {
+	tunnel := &TCPClient{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		done:            make(chan struct{}),
+	}
+
+	// First stop
+	tunnel.Stop()
+	select {
+	case <-tunnel.done:
+	default:
+		t.Fatal("done channel should be closed after first Stop()")
+	}
+
+	// Simulate what Start() now does: reset done and stopOnce
+	tunnel.done = make(chan struct{})
+	tunnel.stopOnce = sync.Once{}
+
+	// Verify done is open after reset
+	select {
+	case <-tunnel.done:
+		t.Fatal("done channel should be open after reset")
+	default:
+	}
+
+	// Second stop should work
+	tunnel.Stop()
+	select {
+	case <-tunnel.done:
+	default:
+		t.Fatal("done channel should be closed after second Stop()")
+	}
+	if tunnel.Status() != i2ptunnel.I2PTunnelStatusStopped {
+		t.Errorf("Expected status stopped after restart cycle, got %v", tunnel.Status())
 	}
 }

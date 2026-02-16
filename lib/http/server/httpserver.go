@@ -105,7 +105,10 @@ func (h *HTTPServer) Name() string {
 
 // Start the tunnel.
 // Each incoming I2P connection is forwarded to the local HTTP service in a separate goroutine.
+// Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (h *HTTPServer) Start() error {
+	h.done = make(chan struct{})
+	h.stopOnce = sync.Once{}
 	i2pListener, err := h.Garlic.ListenStream()
 	if err != nil {
 		return err

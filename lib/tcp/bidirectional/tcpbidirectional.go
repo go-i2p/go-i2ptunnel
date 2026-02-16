@@ -93,7 +93,10 @@ func (t *TCPBidirectional) Name() string {
 // Start launches both the server-side I2P listener (forwarding to the local
 // target) and the client-side SOCKS5 proxy concurrently. It blocks until the
 // tunnel is stopped.
+// Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (t *TCPBidirectional) Start() error {
+	t.done = make(chan struct{})
+	t.stopOnce = sync.Once{}
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
 
 	// Start the server side: listen on I2P and forward to local target
