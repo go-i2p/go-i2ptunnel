@@ -244,7 +244,7 @@ func TestHTTPClientLoadConfig(t *testing.T) {
     interface: 0.0.0.0
     port: 8888
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -296,7 +296,7 @@ func TestHTTPClientLoadConfig(t *testing.T) {
     interface: 127.0.0.1
     port: 8080
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -328,7 +328,7 @@ func TestHTTPClientLoadConfig(t *testing.T) {
     port: 8080
     target: test.i2p
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 

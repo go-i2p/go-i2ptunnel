@@ -243,7 +243,7 @@ func TestSOCKSClientLoadConfig(t *testing.T) {
     interface: 0.0.0.0
     port: 1090
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -295,7 +295,7 @@ func TestSOCKSClientLoadConfig(t *testing.T) {
     interface: 127.0.0.1
     port: 1080
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -326,7 +326,7 @@ func TestSOCKSClientLoadConfig(t *testing.T) {
     interface: 127.0.0.1
     port: 1080
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 

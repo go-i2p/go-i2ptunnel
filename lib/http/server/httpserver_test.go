@@ -322,7 +322,7 @@ func TestHTTPServerLoadConfig(t *testing.T) {
     port: 8888
     target: 127.0.0.1:9999
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -380,7 +380,7 @@ func TestHTTPServerLoadConfig(t *testing.T) {
     port: 8080
     target: 127.0.0.1:8080
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -412,7 +412,7 @@ func TestHTTPServerLoadConfig(t *testing.T) {
     interface: 127.0.0.1
     port: 8080
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -445,7 +445,7 @@ func TestHTTPServerLoadConfig(t *testing.T) {
     port: 8080
     target: invalid-target-address
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 

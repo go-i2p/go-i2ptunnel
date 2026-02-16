@@ -323,7 +323,7 @@ func TestIRCServerLoadConfig(t *testing.T) {
     target: 127.0.0.1:6667
     target: 127.0.0.1:9999
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -382,7 +382,7 @@ func TestIRCServerLoadConfig(t *testing.T) {
     target: 127.0.0.1:6667
     target: 127.0.0.1:6667
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -415,7 +415,7 @@ func TestIRCServerLoadConfig(t *testing.T) {
     port: 6667
     target: 127.0.0.1:6667
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -449,7 +449,7 @@ func TestIRCServerLoadConfig(t *testing.T) {
     target: 127.0.0.1:6667
     target: invalid-target-address
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 

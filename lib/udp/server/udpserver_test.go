@@ -348,7 +348,7 @@ func TestUDPServerLoadConfig(t *testing.T) {
     port: 9110
     target: 127.0.0.1:9999
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -406,7 +406,7 @@ func TestUDPServerLoadConfig(t *testing.T) {
     port: 9100
     target: 127.0.0.1:8080
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -439,7 +439,7 @@ func TestUDPServerLoadConfig(t *testing.T) {
     port: 9100
     target: 127.0.0.1:8080
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -472,7 +472,7 @@ func TestUDPServerLoadConfig(t *testing.T) {
     port: 9100
     target: invalid-target-no-port
 `
-		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
