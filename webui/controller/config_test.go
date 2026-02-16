@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-i2p/go-i2ptunnel/webui/templates"
 )
 
 // createTestConfig creates a temporary config file with the given parameters
@@ -187,5 +189,135 @@ func TestNewConfigInvalidFile(t *testing.T) {
 	}
 	if cfg != nil {
 		t.Error("Expected nil config for non-existent file")
+	}
+}
+
+// TestConfigTemplateTargetDestinationVisibility verifies that the Target Destination
+// field is rendered for all tunnel types that have a meaningful target, and hidden
+// for proxy types (httpclient, socks) which are one-to-many.
+//
+// This tests the fix for AUDIT finding #4: the condition was previously
+// `eq .Type "client"` which never matched any real tunnel type string.
+func TestConfigTemplateTargetDestinationVisibility(t *testing.T) {
+	typesWithTarget := []string{
+		"tcpclient", "udpclient", "ircclient",
+		"tcpserver", "httpserver", "ircserver", "udpserver",
+		"tcpbidirectional", "httpbidirectional", "udpbidirectional",
+	}
+	typesWithoutTarget := []string{
+		"httpclient", "socks",
+	}
+
+	for _, tunnelType := range typesWithTarget {
+		t.Run(tunnelType+"_shows_target", func(t *testing.T) {
+			data := ConfigData{
+				Name:    "test-tunnel",
+				ID:      "test-tunnel",
+				Type:    tunnelType,
+				Target:  "target.i2p",
+				Options: map[string]string{"port": "8080"},
+			}
+			var buf strings.Builder
+			if err := templates.I2PTunnelConfigTemplate.Execute(&buf, data); err != nil {
+				t.Fatalf("Template execution failed: %v", err)
+			}
+			body := buf.String()
+			if !strings.Contains(body, "Target Destination") {
+				t.Errorf("type %q should show Target Destination field", tunnelType)
+			}
+			if !strings.Contains(body, "target.i2p") {
+				t.Errorf("type %q should render the target value", tunnelType)
+			}
+		})
+	}
+
+	for _, tunnelType := range typesWithoutTarget {
+		t.Run(tunnelType+"_hides_target", func(t *testing.T) {
+			data := ConfigData{
+				Name:    "test-proxy",
+				ID:      "test-proxy",
+				Type:    tunnelType,
+				Target:  "",
+				Options: map[string]string{"port": "4444"},
+			}
+			var buf strings.Builder
+			if err := templates.I2PTunnelConfigTemplate.Execute(&buf, data); err != nil {
+				t.Fatalf("Template execution failed: %v", err)
+			}
+			body := buf.String()
+			if strings.Contains(body, "Target Destination") {
+				t.Errorf("type %q should NOT show Target Destination field", tunnelType)
+			}
+		})
+	}
+}
+
+// TestConfigTemplateBidirectionalTypesInDropdown verifies that bidirectional tunnel
+// types appear in the type dropdown. This tests the fix for AUDIT finding #5:
+// the dropdown previously omitted tcpbidirectional, httpbidirectional, udpbidirectional.
+func TestConfigTemplateBidirectionalTypesInDropdown(t *testing.T) {
+	bidirectionalTypes := []string{
+		"tcpbidirectional",
+		"httpbidirectional",
+		"udpbidirectional",
+	}
+
+	// Render template with a bidirectional type
+	data := ConfigData{
+		Name:    "test-bidir",
+		ID:      "test-bidir",
+		Type:    "tcpbidirectional",
+		Target:  "127.0.0.1:8080",
+		Options: map[string]string{"port": "7070"},
+	}
+	var buf strings.Builder
+	if err := templates.I2PTunnelConfigTemplate.Execute(&buf, data); err != nil {
+		t.Fatalf("Template execution failed: %v", err)
+	}
+	body := buf.String()
+
+	for _, bt := range bidirectionalTypes {
+		if !strings.Contains(body, fmt.Sprintf("value=\"%s\"", bt)) {
+			t.Errorf("dropdown should contain bidirectional type %q", bt)
+		}
+	}
+
+	// Verify the optgroup label exists
+	if !strings.Contains(body, "Bidirectional Tunnels") {
+		t.Error("dropdown should contain 'Bidirectional Tunnels' optgroup")
+	}
+
+	// Verify the selected bidirectional type has 'selected' attribute
+	if !strings.Contains(body, "value=\"tcpbidirectional\" selected") {
+		t.Error("tcpbidirectional should be selected")
+	}
+}
+
+// TestConfigTemplateAllTypesInDropdown verifies that every valid tunnel type
+// appears in the configuration form's type dropdown.
+func TestConfigTemplateAllTypesInDropdown(t *testing.T) {
+	allTypes := []string{
+		"tcpserver", "httpserver", "ircserver", "udpserver",
+		"tcpclient", "udpclient", "ircclient",
+		"httpclient", "socks",
+		"tcpbidirectional", "httpbidirectional", "udpbidirectional",
+	}
+
+	data := ConfigData{
+		Name:    "dropdown-test",
+		ID:      "dropdown-test",
+		Type:    "tcpclient",
+		Options: map[string]string{"port": "8080"},
+	}
+	var buf strings.Builder
+	if err := templates.I2PTunnelConfigTemplate.Execute(&buf, data); err != nil {
+		t.Fatalf("Template execution failed: %v", err)
+	}
+	body := buf.String()
+
+	for _, typ := range allTypes {
+		if !strings.Contains(body, fmt.Sprintf("value=\"%s\"", typ)) {
+			t.Errorf("dropdown should contain tunnel type %q", typ)
+		}
 	}
 }

@@ -37,6 +37,13 @@
                     <option value="socks" {{if eq .Type "socks"}}selected{{end}}>SOCKS Proxy</option>
                 </optgroup>
             
+                <!-- Bidirectional Types -->
+                <optgroup label="Bidirectional Tunnels">
+                    <option value="tcpbidirectional" {{if eq .Type "tcpbidirectional"}}selected{{end}}>TCP Bidirectional</option>
+                    <option value="httpbidirectional" {{if eq .Type "httpbidirectional"}}selected{{end}}>HTTP Bidirectional</option>
+                    <option value="udpbidirectional" {{if eq .Type "udpbidirectional"}}selected{{end}}>UDP Bidirectional</option>
+                </optgroup>
+            
                 <!-- Special Types -->
                 <!--<optgroup label="Special">
                     <option value="tunclient" {{if eq .Type "tunclient"}}selected{{end}}>TUN Device</option>
@@ -58,11 +65,11 @@
             <input type="number" name="port" value="{{.Options.port}}" required>
         </div>
 
-        {{if eq .Type "client"}}
+        {{if or (eq .Type "tcpclient") (eq .Type "udpclient") (eq .Type "ircclient") (eq .Type "tcpserver") (eq .Type "httpserver") (eq .Type "ircserver") (eq .Type "udpserver") (eq .Type "tcpbidirectional") (eq .Type "httpbidirectional") (eq .Type "udpbidirectional")}}
         <div class="form-group">
             <label>Target Destination <span class="required">*</span></label>
             <input type="text" name="destination" value="{{.Target}}">
-            <div class="help-text">I2P destination address</div>
+            <div class="help-text">I2P destination address (client) or local service address (server/bidirectional)</div>
         </div>
         {{end}}
     </fieldset>
