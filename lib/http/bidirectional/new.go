@@ -5,19 +5,21 @@ import (
 	"net"
 	"strings"
 
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	httpclient "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	httpClientSanitize "github.com/go-i2p/go-i2ptunnel/lib/http/client"
+	httpServerSanitize "github.com/go-i2p/go-i2ptunnel/lib/http/server"
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 )
 
 // NewHTTPBidirectional creates a new HTTP bidirectional tunnel.
 // It shares a single Garlic (I2P identity) for both the server-side HTTP
-// forwarding and the client-side SOCKS5 proxy.
+// forwarding and the client-side HTTP proxy.
 //
 // config.Target is the local HTTP service address for inbound I2P connections.
-// config.Port is the SOCKS5 proxy listen port for outbound connections.
-func NewHTTPBidirectional(config i2pconv.TunnelConfig, samAddr string) (*HTTPBidirectional, error) {
+// config.Port is the HTTP proxy listen port for outbound connections.
+func NewHTTPBidirectional(config httpclient.TunnelConfig, samAddr string) (*HTTPBidirectional, error) {
 	keys, options, err := config.SAMTunnel()
 	if err != nil {
 		return nil, err
@@ -40,6 +42,8 @@ func NewHTTPBidirectional(config i2pconv.TunnelConfig, samAddr string) (*HTTPBid
 		Garlic:          garlic,
 		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		ServerConfig:    httpServerSanitize.DefaultHTTPServerConfig(),
+		ClientConfig:    httpClientSanitize.DefaultHTTPClientConfig(),
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  1000,
 			RateLimit: 100,

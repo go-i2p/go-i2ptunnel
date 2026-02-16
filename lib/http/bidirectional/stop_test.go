@@ -180,7 +180,7 @@ func TestHTTPBidirectionalSetOptionsValidation(t *testing.T) {
 	}
 }
 
-// TestHTTPBidirectionalLocalAddress verifies LocalAddress returns the SOCKS proxy address.
+// TestHTTPBidirectionalLocalAddress verifies LocalAddress returns the HTTP proxy address.
 func TestHTTPBidirectionalLocalAddress(t *testing.T) {
 	tunnel := &HTTPBidirectional{
 		TunnelConfig: i2pconv.TunnelConfig{

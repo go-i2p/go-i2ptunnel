@@ -4,21 +4,23 @@ package httpbidirectional
 //
 // An HTTP bidirectional tunnel combines:
 // 1. An HTTP server tunnel (forwarding incoming I2P connections to a local HTTP service)
-// 2. A SOCKS5 proxy (allowing local apps to reach arbitrary I2P destinations)
+// 2. An HTTP proxy (allowing local apps to reach arbitrary I2P destinations via HTTP)
 //
 // Both sides share the same I2P identity (keys), meaning the tunnel's I2P address
-// is reachable for inbound HTTP connections while also providing a SOCKS5 proxy
+// is reachable for inbound HTTP connections while also providing an HTTP proxy
 // for outbound I2P access.
 
 import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
 
+	httpinspector "github.com/go-i2p/go-connfilter/http"
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
@@ -26,12 +28,13 @@ import (
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
-	"github.com/txthinking/socks5"
+
+	"github.com/elazarl/goproxy"
 )
 
 var implementHTTPBidirectional i2ptunnel.I2PTunnel = &HTTPBidirectional{}
 
-// HTTPBidirectional combines an HTTP server tunnel with a SOCKS5 proxy client
+// HTTPBidirectional combines an HTTP server tunnel with an HTTP proxy client
 // on the same I2P keys, enabling both inbound and outbound I2P connections.
 type HTTPBidirectional struct {
 	// I2P connection (shared for both server and client sides)
@@ -44,16 +47,27 @@ type HTTPBidirectional struct {
 	i2ptunnel.I2PTunnelStatus
 	// The rate-limiting configuration for the server side
 	limitedlistener.LimitedConfig
-	// SOCKS5 server instance for outbound connections
-	socksServer *socks5.Server
+	// Server-side HTTP filtering for inbound I2P connections
+	ServerConfig httpinspector.Config
+	// Client-side HTTP filtering for the outbound HTTP proxy
+	ClientConfig httpinspector.Config
+	// HTTP proxy server for outbound I2P connections
+	proxyServer *goproxy.ProxyHttpServer
+	// HTTP server wrapping the proxy
+	httpServer *http.Server
 	// Channel for shutdown signaling
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Mutex for server operations
+	mu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
+	// Context for graceful shutdown
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func (h *HTTPBidirectional) recordError(err error) {
@@ -80,7 +94,7 @@ func (h *HTTPBidirectional) Error() error {
 	return nil
 }
 
-// LocalAddress returns the SOCKS5 proxy listen address.
+// LocalAddress returns the HTTP proxy listen address.
 func (h *HTTPBidirectional) LocalAddress() (string, error) {
 	addr := net.JoinHostPort(h.TunnelConfig.Interface, strconv.Itoa(h.TunnelConfig.Port))
 	return addr, nil
@@ -92,11 +106,12 @@ func (h *HTTPBidirectional) Name() string {
 }
 
 // Start launches both the server-side I2P listener (forwarding to the local
-// HTTP service) and the client-side SOCKS5 proxy concurrently.
+// HTTP service) and the client-side HTTP proxy concurrently.
 func (h *HTTPBidirectional) Start() error {
 	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
+	h.ctx, h.cancel = context.WithCancel(context.Background())
 
-	// Start the server side: listen on I2P and forward to local HTTP service
+	// Server side: listen on I2P and forward to local HTTP service
 	i2pListener, err := h.Garlic.ListenStream()
 	if err != nil {
 		return fmt.Errorf("failed to start I2P listener: %w", err)
@@ -104,35 +119,44 @@ func (h *HTTPBidirectional) Start() error {
 	defer i2pListener.Close()
 	defer h.Stop()
 
-	// Create SOCKS5 proxy for outbound connections
-	socksAddr := net.JoinHostPort(h.TunnelConfig.Interface, strconv.Itoa(h.TunnelConfig.Port))
-	socksServer, err := socks5.NewClassicServer(socksAddr, "", "", "", 0, 0)
-	if err != nil {
-		return fmt.Errorf("failed to create SOCKS5 server: %w", err)
-	}
-	h.socksServer = socksServer
-	h.socksServer.Handle = &socksHandler{garlic: h.Garlic}
+	// Client side: create HTTP proxy for outbound I2P connections
+	proxy := goproxy.NewProxyHttpServer()
+	h.proxyServer = proxy
+	proxy.Tr.DialContext = h.DialContext
 
-	// Start SOCKS5 proxy in a background goroutine
-	socksErrCh := make(chan error, 1)
+	proxyAddr := net.JoinHostPort(h.TunnelConfig.Interface, strconv.Itoa(h.TunnelConfig.Port))
+	proxyListener, err := net.Listen("tcp", proxyAddr)
+	if err != nil {
+		return fmt.Errorf("failed to listen on %s: %w", proxyAddr, err)
+	}
+
+	// Wrap proxy listener with HTTP client-side filtering
+	filteredProxyListener := httpinspector.New(proxyListener, h.ClientConfig)
+
+	h.httpServer = &http.Server{Handler: proxy}
+
+	// Start HTTP proxy in background
+	proxyErrCh := make(chan error, 1)
 	go func() {
-		socksErrCh <- h.socksServer.ListenAndServe(h.socksServer.Handle)
+		proxyErrCh <- h.httpServer.Serve(filteredProxyListener)
 	}()
 
 	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
 
-	// Server-side accept loop with rate limiting
+	// Server side: wrap I2P listener with filtering and rate limiting
+	filteredI2PListener := httpinspector.New(i2pListener, h.ServerConfig)
 	limitedI2PListener := limitedlistener.NewLimitedListener(
-		i2pListener,
+		filteredI2PListener,
 		limitedlistener.WithMaxConnections(h.LimitedConfig.MaxConns),
 		limitedlistener.WithRateLimit(h.LimitedConfig.RateLimit),
 	)
+
 	for {
 		select {
 		case <-h.done:
 			return nil
-		case err := <-socksErrCh:
-			if err != nil {
+		case err := <-proxyErrCh:
+			if err != nil && err != http.ErrServerClosed {
 				h.recordError(err)
 			}
 			return err
@@ -170,13 +194,20 @@ func (h *HTTPBidirectional) Status() i2ptunnel.I2PTunnelStatus {
 	return h.I2PTunnelStatus
 }
 
-// Stop gracefully shuts down both the server and SOCKS5 proxy sides.
+// Stop gracefully shuts down both the server and HTTP proxy sides.
 // Safe to call multiple times.
 func (h *HTTPBidirectional) Stop() error {
 	h.stopOnce.Do(func() {
 		close(h.done)
-		if h.socksServer != nil {
-			h.socksServer.Shutdown()
+		if h.httpServer != nil {
+			shutdownCtx := h.ctx
+			if shutdownCtx == nil {
+				shutdownCtx = context.Background()
+			}
+			h.httpServer.Shutdown(shutdownCtx)
+		}
+		if h.cancel != nil {
+			h.cancel()
 		}
 	})
 	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
