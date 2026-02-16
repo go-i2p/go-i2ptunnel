@@ -14,6 +14,9 @@ func handler(r *http.Request) string {
 			if file == "home" {
 				return "group"
 			}
+			if file == "new" {
+				return "new"
+			}
 		} else {
 			if file == "config" {
 				return "config"

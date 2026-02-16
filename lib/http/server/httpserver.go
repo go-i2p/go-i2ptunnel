@@ -165,6 +165,9 @@ func (h *HTTPServer) Status() i2ptunnel.I2PTunnelStatus {
 func (h *HTTPServer) Stop() error {
 	h.stopOnce.Do(func() {
 		close(h.done)
+		if h.listener != nil {
+			h.listener.Close()
+		}
 		if h.Garlic != nil {
 			h.Garlic.Close()
 		}

@@ -1,7 +1,7 @@
 package templates
 
 import (
-	"embed"
+	_ "embed"
 	html "html/template"
 )
 
@@ -40,5 +40,3 @@ var I2PTunnelGroupTemplate, _ = html.New("i2ptunnelgroup").Parse(string(BytesI2P
 //go:embed footer.html
 var BytesFooterTemplate []byte
 var FooterTemplate, _ = html.New("footer").Parse(string(BytesFooterTemplate))
-
-var efs embed.FS

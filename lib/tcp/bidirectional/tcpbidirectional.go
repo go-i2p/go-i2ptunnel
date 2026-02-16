@@ -182,6 +182,9 @@ func (t *TCPBidirectional) Status() i2ptunnel.I2PTunnelStatus {
 func (t *TCPBidirectional) Stop() error {
 	t.stopOnce.Do(func() {
 		close(t.done)
+		if t.listener != nil {
+			t.listener.Close()
+		}
 		if t.socksServer != nil {
 			t.socksServer.Shutdown()
 		}

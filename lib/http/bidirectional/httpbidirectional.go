@@ -212,6 +212,9 @@ const shutdownTimeout = 30 * time.Second
 func (h *HTTPBidirectional) Stop() error {
 	h.stopOnce.Do(func() {
 		close(h.done)
+		if h.listener != nil {
+			h.listener.Close()
+		}
 		if h.httpServer != nil {
 			// Always use a timeout-bounded context for shutdown.
 			// Previously this used h.ctx (nil if Start() never ran) or

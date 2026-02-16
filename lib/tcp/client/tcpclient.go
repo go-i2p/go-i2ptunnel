@@ -160,6 +160,9 @@ func (t *TCPClient) Status() i2ptunnel.I2PTunnelStatus {
 func (t *TCPClient) Stop() error {
 	t.stopOnce.Do(func() {
 		close(t.done)
+		if t.listener != nil {
+			t.listener.Close()
+		}
 		if t.Garlic != nil {
 			t.Garlic.Close()
 		}

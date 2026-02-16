@@ -156,6 +156,9 @@ func (i *IRCServer) Status() i2ptunnel.I2PTunnelStatus {
 func (i *IRCServer) Stop() error {
 	i.stopOnce.Do(func() {
 		close(i.done)
+		if i.listener != nil {
+			i.listener.Close()
+		}
 		if i.Garlic != nil {
 			i.Garlic.Close()
 		}
