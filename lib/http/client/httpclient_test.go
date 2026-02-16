@@ -18,7 +18,7 @@ import (
 // Design: Uses mock SAM address since we're testing creation, not connection.
 func TestHTTPClientCreation(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-http-client",
+		Name:      "hc-creation",
 		Type:      "httpclient",
 		Port:      8080,
 		Interface: "127.0.0.1",
@@ -31,8 +31,8 @@ func TestHTTPClientCreation(t *testing.T) {
 	}
 
 	// Verify initial state
-	if client.Name() != "test-http-client" {
-		t.Errorf("Expected name 'test-http-client', got '%s'", client.Name())
+	if client.Name() != "hc-creation" {
+		t.Errorf("Expected name 'hc-creation', got '%s'", client.Name())
 	}
 	if client.Type() != "httpclient" {
 		t.Errorf("Expected type 'httpclient', got '%s'", client.Type())
@@ -47,7 +47,7 @@ func TestHTTPClientCreation(t *testing.T) {
 // Design: Tests both retrieval and modification of tunnel options.
 func TestHTTPClientOptions(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-options",
+		Name:      "hc-options",
 		Type:      "httpclient",
 		Port:      8118,
 		Interface: "127.0.0.1",
@@ -60,8 +60,8 @@ func TestHTTPClientOptions(t *testing.T) {
 
 	// Test Options() retrieval
 	opts := client.Options()
-	if opts["name"] != "test-options" {
-		t.Errorf("Expected name 'test-options', got '%s'", opts["name"])
+	if opts["name"] != "hc-options" {
+		t.Errorf("Expected name 'hc-options', got '%s'", opts["name"])
 	}
 	if opts["port"] != "8118" {
 		t.Errorf("Expected port '8118', got '%s'", opts["port"])
@@ -92,7 +92,7 @@ func TestHTTPClientOptions(t *testing.T) {
 // Design: Tests multiple validation scenarios with expected error cases.
 func TestHTTPClientSetOptionsValidation(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-validation",
+		Name:      "hc-validation",
 		Type:      "httpclient",
 		Port:      8118,
 		Interface: "127.0.0.1",
@@ -153,7 +153,7 @@ func TestHTTPClientSetOptionsValidation(t *testing.T) {
 // Design: Verifies ID is generated correctly from tunnel name.
 func TestHTTPClientID(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "My HTTP Proxy",
+		Name:      "hc-id-proxy",
 		Type:      "httpclient",
 		Port:      8118,
 		Interface: "127.0.0.1",
@@ -176,7 +176,7 @@ func TestHTTPClientID(t *testing.T) {
 // Design: Verifies correct host:port formatting.
 func TestHTTPClientLocalAddress(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-address",
+		Name:      "hc-localaddr",
 		Type:      "httpclient",
 		Port:      8118,
 		Interface: "127.0.0.1",
@@ -203,7 +203,7 @@ func TestHTTPClientLocalAddress(t *testing.T) {
 // Design: Verifies the method returns empty string for proxy tunnels.
 func TestHTTPClientTarget(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-target",
+		Name:      "hc-target",
 		Type:      "httpclient",
 		Port:      8118,
 		Interface: "127.0.0.1",
@@ -243,7 +243,7 @@ func TestHTTPClientLoadConfig(t *testing.T) {
 		}
 
 		client, err := NewHTTPClient(i2pconv.TunnelConfig{
-			Name:      "original",
+			Name:      "hc-lcfg-yaml",
 			Type:      "httpclient",
 			Port:      8080,
 			Interface: "127.0.0.1",
@@ -268,7 +268,7 @@ func TestHTTPClientLoadConfig(t *testing.T) {
 	// Test case 2: Reject config load while running
 	t.Run("reject load while running", func(t *testing.T) {
 		client, err := NewHTTPClient(i2pconv.TunnelConfig{
-			Name:      "test",
+			Name:      "hc-lcfg-run",
 			Type:      "httpclient",
 			Port:      8080,
 			Interface: "127.0.0.1",
@@ -301,7 +301,7 @@ func TestHTTPClientLoadConfig(t *testing.T) {
 	// Test case 3: Reject wrong tunnel type
 	t.Run("reject wrong type", func(t *testing.T) {
 		client, err := NewHTTPClient(i2pconv.TunnelConfig{
-			Name:      "test",
+			Name:      "hc-lcfg-type",
 			Type:      "httpclient",
 			Port:      8080,
 			Interface: "127.0.0.1",
@@ -332,7 +332,7 @@ func TestHTTPClientLoadConfig(t *testing.T) {
 	// Test case 4: Handle invalid file
 	t.Run("invalid file", func(t *testing.T) {
 		client, err := NewHTTPClient(i2pconv.TunnelConfig{
-			Name:      "test",
+			Name:      "hc-lcfg-inv",
 			Type:      "httpclient",
 			Port:      8080,
 			Interface: "127.0.0.1",
@@ -353,7 +353,7 @@ func TestHTTPClientLoadConfig(t *testing.T) {
 // Design: Tests error history tracking and Error() method.
 func TestHTTPClientErrorTracking(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-errors",
+		Name:      "hc-errors",
 		Type:      "httpclient",
 		Port:      8118,
 		Interface: "127.0.0.1",
@@ -387,7 +387,7 @@ func TestHTTPClientErrorTracking(t *testing.T) {
 // Design: Verifies Stop() is idempotent and doesn't panic.
 func TestHTTPClientStopBeforeStart(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-stop",
+		Name:      "hc-stop",
 		Type:      "httpclient",
 		Port:      8118,
 		Interface: "127.0.0.1",
@@ -420,7 +420,7 @@ func TestHTTPClientPortAllocation(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	config := i2pconv.TunnelConfig{
-		Name:      "test-port",
+		Name:      "hc-port",
 		Type:      "httpclient",
 		Port:      port,
 		Interface: "127.0.0.1",

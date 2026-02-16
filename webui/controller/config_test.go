@@ -40,14 +40,14 @@ func createTestConfig(t *testing.T, name, tunnelType, target string, port int) s
 
 // TestConfigServeHTTPGet tests the GET request for configuration display
 func TestConfigServeHTTPGet(t *testing.T) {
-	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
+	configFile := createTestConfig(t, "wcc-get", "tcpclient", "example.i2p", 8080)
 
 	cfg, err := NewConfig(configFile)
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/test-tcp-client/config", nil)
+	req := httptest.NewRequest(http.MethodGet, "/wcc-get/config", nil)
 	w := httptest.NewRecorder()
 
 	cfg.ServeHTTP(w, req)
@@ -57,14 +57,14 @@ func TestConfigServeHTTPGet(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if !strings.Contains(body, "test-tcp-client") {
+	if !strings.Contains(body, "wcc-get") {
 		t.Errorf("Response should contain tunnel name")
 	}
 }
 
 // TestConfigServeHTTPPost tests saving configuration changes
 func TestConfigServeHTTPPost(t *testing.T) {
-	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
+	configFile := createTestConfig(t, "wcc-post", "tcpclient", "example.i2p", 8080)
 
 	cfg, err := NewConfig(configFile)
 	if err != nil {
@@ -76,7 +76,7 @@ func TestConfigServeHTTPPost(t *testing.T) {
 	formData.Set("host", "localhost")
 	formData.Set("port", "9090")
 
-	req := httptest.NewRequest(http.MethodPost, "/test-tcp-client/config", strings.NewReader(formData.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/wcc-post/config", strings.NewReader(formData.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
@@ -91,7 +91,7 @@ func TestConfigServeHTTPPost(t *testing.T) {
 
 // TestConfigServeHTTPPostInvalidPort tests validation of invalid port numbers
 func TestConfigServeHTTPPostInvalidPort(t *testing.T) {
-	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
+	configFile := createTestConfig(t, "wcc-invport", "tcpclient", "example.i2p", 8080)
 
 	cfg, err := NewConfig(configFile)
 	if err != nil {
@@ -113,7 +113,7 @@ func TestConfigServeHTTPPostInvalidPort(t *testing.T) {
 			formData := url.Values{}
 			formData.Set("port", tc.port)
 
-			req := httptest.NewRequest(http.MethodPost, "/test-tcp-client/config", strings.NewReader(formData.Encode()))
+			req := httptest.NewRequest(http.MethodPost, "/wcc-invport/config", strings.NewReader(formData.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			w := httptest.NewRecorder()
 
@@ -128,7 +128,7 @@ func TestConfigServeHTTPPostInvalidPort(t *testing.T) {
 
 // TestConfigServeHTTPPostWhileRunning tests that config cannot be changed while tunnel is running
 func TestConfigServeHTTPPostWhileRunning(t *testing.T) {
-	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
+	configFile := createTestConfig(t, "wcc-running", "tcpclient", "example.i2p", 8080)
 
 	cfg, err := NewConfig(configFile)
 	if err != nil {
@@ -145,7 +145,7 @@ func TestConfigServeHTTPPostWhileRunning(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("port", "9090")
 
-	req := httptest.NewRequest(http.MethodPost, "/test-tcp-client/config", strings.NewReader(formData.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/wcc-running/config", strings.NewReader(formData.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
@@ -161,7 +161,7 @@ func TestConfigServeHTTPPostWhileRunning(t *testing.T) {
 	}
 } // TestNewConfig tests config creation from file
 func TestNewConfig(t *testing.T) {
-	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
+	configFile := createTestConfig(t, "wcc-newcfg", "tcpclient", "example.i2p", 8080)
 
 	cfg, err := NewConfig(configFile)
 	if err != nil {

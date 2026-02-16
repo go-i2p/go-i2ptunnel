@@ -11,14 +11,14 @@ import (
 
 // TestControllerServeHTTPGet tests the GET request for control page
 func TestControllerServeHTTPGet(t *testing.T) {
-	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
+	configFile := createTestConfig(t, "wcl-get", "tcpclient", "example.i2p", 8080)
 
 	controller, err := NewController(configFile)
 	if err != nil {
 		t.Fatalf("Failed to create controller: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/test-tcp-client/control", nil)
+	req := httptest.NewRequest(http.MethodGet, "/wcl-get/control", nil)
 	w := httptest.NewRecorder()
 
 	controller.ServeHTTP(w, req)
@@ -28,7 +28,7 @@ func TestControllerServeHTTPGet(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if !strings.Contains(body, "test-tcp-client") {
+	if !strings.Contains(body, "wcl-get") {
 		t.Errorf("Response should contain tunnel name")
 	}
 	if !strings.Contains(body, "stopped") {
@@ -38,7 +38,7 @@ func TestControllerServeHTTPGet(t *testing.T) {
 
 // TestControllerStart tests starting a tunnel via POST
 func TestControllerStart(t *testing.T) {
-	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
+	configFile := createTestConfig(t, "wcl-start", "tcpclient", "example.i2p", 8080)
 
 	controller, err := NewController(configFile)
 	if err != nil {
@@ -49,7 +49,7 @@ func TestControllerStart(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("action", "Start")
 
-	req := httptest.NewRequest(http.MethodPost, "/test-tcp-client/control", strings.NewReader(formData.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/wcl-start/control", strings.NewReader(formData.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
@@ -74,7 +74,7 @@ func TestControllerStart(t *testing.T) {
 
 // TestControllerStop tests stopping a running tunnel
 func TestControllerStop(t *testing.T) {
-	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
+	configFile := createTestConfig(t, "wcl-stop", "tcpclient", "example.i2p", 8080)
 
 	controller, err := NewController(configFile)
 	if err != nil {
@@ -87,7 +87,7 @@ func TestControllerStop(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("action", "Stop")
 
-	req := httptest.NewRequest(http.MethodPost, "/test-tcp-client/control", strings.NewReader(formData.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/wcl-stop/control", strings.NewReader(formData.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
@@ -107,7 +107,7 @@ func TestControllerStop(t *testing.T) {
 
 // TestControllerRestart tests restarting a tunnel
 func TestControllerRestart(t *testing.T) {
-	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
+	configFile := createTestConfig(t, "wcl-restart", "tcpclient", "example.i2p", 8080)
 
 	controller, err := NewController(configFile)
 	if err != nil {
@@ -121,7 +121,7 @@ func TestControllerRestart(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("action", "Restart")
 
-	req := httptest.NewRequest(http.MethodPost, "/test-tcp-client/control", strings.NewReader(formData.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/wcl-restart/control", strings.NewReader(formData.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
@@ -141,7 +141,7 @@ func TestControllerRestart(t *testing.T) {
 
 // TestControllerInvalidAction tests handling of invalid actions
 func TestControllerInvalidAction(t *testing.T) {
-	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
+	configFile := createTestConfig(t, "wcl-invact", "tcpclient", "example.i2p", 8080)
 
 	controller, err := NewController(configFile)
 	if err != nil {
@@ -151,7 +151,7 @@ func TestControllerInvalidAction(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("action", "InvalidAction")
 
-	req := httptest.NewRequest(http.MethodPost, "/test-tcp-client/control", strings.NewReader(formData.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/wcl-invact/control", strings.NewReader(formData.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
@@ -169,7 +169,7 @@ func TestControllerInvalidAction(t *testing.T) {
 
 // TestMiniServeHTTP tests the mini control widget rendering
 func TestMiniServeHTTP(t *testing.T) {
-	configFile := createTestConfig(t, "test-tcp-client", "tcpclient", "example.i2p", 8080)
+	configFile := createTestConfig(t, "wcl-mini", "tcpclient", "example.i2p", 8080)
 
 	controller, err := NewController(configFile)
 	if err != nil {
@@ -186,7 +186,7 @@ func TestMiniServeHTTP(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if !strings.Contains(body, "test-tcp-client") {
+	if !strings.Contains(body, "wcl-mini") {
 		t.Errorf("Response should contain tunnel name")
 	}
 }
@@ -194,7 +194,7 @@ func TestMiniServeHTTP(t *testing.T) {
 // TestHandleStartNonBlocking verifies that the Start action returns immediately
 // instead of blocking the HTTP handler indefinitely.
 func TestHandleStartNonBlocking(t *testing.T) {
-	configFile := createTestConfig(t, "test-nonblock", "tcpclient", "example.i2p", 8081)
+	configFile := createTestConfig(t, "wcl-nonblock", "tcpclient", "example.i2p", 8081)
 
 	controller, err := NewController(configFile)
 	if err != nil {
@@ -205,7 +205,7 @@ func TestHandleStartNonBlocking(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("action", "Start")
 
-	req := httptest.NewRequest(http.MethodPost, "/test-nonblock/control", strings.NewReader(formData.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/wcl-nonblock/control", strings.NewReader(formData.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
@@ -231,7 +231,7 @@ func TestHandleStartNonBlocking(t *testing.T) {
 
 // TestHandleStartAlreadyRunning verifies that starting an already-running tunnel returns an error.
 func TestHandleStartAlreadyRunning(t *testing.T) {
-	configFile := createTestConfig(t, "test-already-running", "tcpclient", "example.i2p", 8082)
+	configFile := createTestConfig(t, "wcl-already", "tcpclient", "example.i2p", 8082)
 
 	controller, err := NewController(configFile)
 	if err != nil {
@@ -247,7 +247,7 @@ func TestHandleStartAlreadyRunning(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("action", "Start")
 
-	req := httptest.NewRequest(http.MethodPost, "/test-already-running/control", strings.NewReader(formData.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/wcl-already/control", strings.NewReader(formData.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 

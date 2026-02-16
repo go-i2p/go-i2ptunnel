@@ -30,7 +30,7 @@ func TestLoadConfig_Success(t *testing.T) {
 
 	// Create a stopped tunnel
 	initialConfig := i2pconv.TunnelConfig{
-		Name:      "initial-tunnel",
+		Name:      "tclc-success",
 		Type:      "tcpclient",
 		Interface: "0.0.0.0",
 		Port:      8888,
@@ -80,7 +80,7 @@ func TestLoadConfig_RunningTunnel(t *testing.T) {
 	}
 
 	initialConfig := i2pconv.TunnelConfig{
-		Name:      "running-tunnel",
+		Name:      "tclc-running",
 		Type:      "tcpclient",
 		Interface: "0.0.0.0",
 		Port:      8888,
@@ -108,7 +108,7 @@ func TestLoadConfig_RunningTunnel(t *testing.T) {
 } // TestLoadConfig_InvalidFile verifies LoadConfig handles missing files gracefully
 func TestLoadConfig_InvalidFile(t *testing.T) {
 	initialConfig := i2pconv.TunnelConfig{
-		Name:      "test-tunnel",
+		Name:      "tclc-invfile",
 		Type:      "tcpclient",
 		Interface: "0.0.0.0",
 		Port:      8888,
@@ -148,7 +148,7 @@ func TestLoadConfig_WrongType(t *testing.T) {
 	}
 
 	initialConfig := i2pconv.TunnelConfig{
-		Name:      "test-tunnel",
+		Name:      "tclc-wrongtype",
 		Type:      "tcpclient",
 		Interface: "0.0.0.0",
 		Port:      8888,
@@ -192,7 +192,7 @@ func TestLoadConfig_InvalidTarget(t *testing.T) {
 	}
 
 	initialConfig := i2pconv.TunnelConfig{
-		Name:      "test-tunnel",
+		Name:      "tclc-invtarget",
 		Type:      "tcpclient",
 		Interface: "0.0.0.0",
 		Port:      8888,
@@ -231,7 +231,7 @@ targetDestination=ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p
 	}
 
 	initialConfig := i2pconv.TunnelConfig{
-		Name:      "initial-tunnel",
+		Name:      "tclc-props",
 		Type:      "tcpclient",
 		Interface: "0.0.0.0",
 		Port:      8888,

@@ -49,7 +49,7 @@ func TestTCPTunnel(t *testing.T) {
 	// Setup server config
 	t.Log("Setting up server configuration...")
 	serverConfig := i2pconv.TunnelConfig{
-		Name:      "test-server",
+		Name:      "tcpt-server",
 		Type:      "tcpserver",
 		Port:      sport,
 		Interface: "127.0.0.1",
@@ -78,7 +78,7 @@ func TestTCPTunnel(t *testing.T) {
 	// Setup client config
 	t.Log("Setting up client configuration...")
 	clientConfig := i2pconv.TunnelConfig{
-		Name:      "test-client",
+		Name:      "tcpt-client",
 		Type:      "tcpclient",
 		Port:      cport,
 		Interface: "127.0.0.1",

@@ -18,12 +18,12 @@ import (
 // Design: Uses mock SAM address since we're testing creation, not connection.
 func TestIRCClientCreation(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-irc-client",
+		Name:      "ic-creation",
 		Type:      "ircclient",
 		Port:      6667,
-	Interface: "127.0.0.1",
-	Target:    "ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p",
-}
+		Interface: "127.0.0.1",
+		Target:    "ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p",
+	}
 
 	// NewIRCClient should create instance even without SAM available (connection happens on Start)
 	client, err := NewIRCClient(config, "127.0.0.1:7656")
@@ -32,8 +32,8 @@ func TestIRCClientCreation(t *testing.T) {
 	}
 
 	// Verify initial state
-	if client.Name() != "test-irc-client" {
-		t.Errorf("Expected name 'test-irc-client', got '%s'", client.Name())
+	if client.Name() != "ic-creation" {
+		t.Errorf("Expected name 'ic-creation', got '%s'", client.Name())
 	}
 	if client.Type() != "ircclient" {
 		t.Errorf("Expected type 'ircclient', got '%s'", client.Type())
@@ -48,7 +48,7 @@ func TestIRCClientCreation(t *testing.T) {
 // Design: Tests both retrieval and modification of tunnel options.
 func TestIRCClientOptions(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-options",
+		Name:      "ic-options",
 		Type:      "ircclient",
 		Port:      6667,
 		Interface: "127.0.0.1",
@@ -62,8 +62,8 @@ func TestIRCClientOptions(t *testing.T) {
 
 	// Test Options() retrieval
 	opts := client.Options()
-	if opts["name"] != "test-options" {
-		t.Errorf("Expected name 'test-options', got '%s'", opts["name"])
+	if opts["name"] != "ic-options" {
+		t.Errorf("Expected name 'ic-options', got '%s'", opts["name"])
 	}
 	if opts["port"] != "6667" {
 		t.Errorf("Expected port '6667', got '%s'", opts["port"])
@@ -94,7 +94,7 @@ func TestIRCClientOptions(t *testing.T) {
 // Design: Tests multiple validation scenarios with expected error cases.
 func TestIRCClientSetOptionsValidation(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-validation",
+		Name:      "ic-validation",
 		Type:      "ircclient",
 		Port:      6667,
 		Interface: "127.0.0.1",
@@ -156,7 +156,7 @@ func TestIRCClientSetOptionsValidation(t *testing.T) {
 // Design: Verifies ID is generated correctly from tunnel name.
 func TestIRCClientID(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "My IRC Proxy",
+		Name:      "ic-id-proxy",
 		Type:      "ircclient",
 		Port:      6667,
 		Interface: "127.0.0.1",
@@ -179,7 +179,7 @@ func TestIRCClientID(t *testing.T) {
 // Design: Verifies correct host:port formatting.
 func TestIRCClientLocalAddress(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-address",
+		Name:      "ic-localaddr",
 		Type:      "ircclient",
 		Port:      6667,
 		Interface: "127.0.0.1",
@@ -206,7 +206,7 @@ func TestIRCClientLocalAddress(t *testing.T) {
 // Design: Verifies the method returns the target I2P address.
 func TestIRCClientTarget(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-target",
+		Name:      "ic-target",
 		Type:      "ircclient",
 		Port:      6667,
 		Interface: "127.0.0.1",
@@ -252,7 +252,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 		}
 
 		client, err := NewIRCClient(i2pconv.TunnelConfig{
-			Name:      "original",
+			Name:      "ic-lcfg-yaml",
 			Type:      "ircclient",
 			Port:      6667,
 			Interface: "127.0.0.1",
@@ -278,7 +278,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 	// Test case 2: Reject config load while running
 	t.Run("reject load while running", func(t *testing.T) {
 		client, err := NewIRCClient(i2pconv.TunnelConfig{
-			Name:      "test",
+			Name:      "ic-lcfg-run",
 			Type:      "ircclient",
 			Port:      6667,
 			Interface: "127.0.0.1",
@@ -312,7 +312,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 	// Test case 3: Reject wrong tunnel type
 	t.Run("reject wrong type", func(t *testing.T) {
 		client, err := NewIRCClient(i2pconv.TunnelConfig{
-			Name:      "test",
+			Name:      "ic-lcfg-type",
 			Type:      "ircclient",
 			Port:      6667,
 			Interface: "127.0.0.1",
@@ -343,7 +343,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 	// Test case 4: Handle invalid file
 	t.Run("invalid file", func(t *testing.T) {
 		client, err := NewIRCClient(i2pconv.TunnelConfig{
-			Name:      "test",
+			Name:      "ic-lcfg-inv",
 			Type:      "ircclient",
 			Port:      6667,
 			Interface: "127.0.0.1",
@@ -364,7 +364,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 // Design: Tests error history tracking and Error() method.
 func TestIRCClientErrorTracking(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-errors",
+		Name:      "ic-errors",
 		Type:      "ircclient",
 		Port:      6667,
 		Interface: "127.0.0.1",
@@ -398,7 +398,7 @@ func TestIRCClientErrorTracking(t *testing.T) {
 // Design: Verifies Stop() is idempotent and doesn't panic.
 func TestIRCClientStopBeforeStart(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "test-stop",
+		Name:      "ic-stop",
 		Type:      "ircclient",
 		Port:      6667,
 		Interface: "127.0.0.1",
@@ -431,7 +431,7 @@ func TestIRCClientPortAllocation(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	config := i2pconv.TunnelConfig{
-		Name:      "test-port",
+		Name:      "ic-port",
 		Type:      "ircclient",
 		Port:      port,
 		Interface: "127.0.0.1",
