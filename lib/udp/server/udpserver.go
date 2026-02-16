@@ -211,6 +211,16 @@ func (u *UDPServer) SetOptions(opts map[string]string) error {
 		}
 		u.TunnelConfig.Port = port
 	}
+	if target, ok := opts["target"]; ok {
+		if err := validate.NetworkAddress(target); err != nil {
+			return err
+		}
+		addr, err := net.ResolveUDPAddr("udp", target)
+		if err != nil {
+			return fmt.Errorf("invalid target address %q: %w", target, err)
+		}
+		u.Addr = addr
+	}
 	return nil
 }
 

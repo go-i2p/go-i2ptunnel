@@ -240,6 +240,16 @@ func (h *HTTPServer) SetOptions(opts map[string]string) error {
 		}
 		h.LimitedConfig.RateLimit = ratelimit
 	}
+	if target, ok := opts["target"]; ok {
+		if err := validate.NetworkAddress(target); err != nil {
+			return err
+		}
+		addr, err := net.ResolveTCPAddr("tcp", target)
+		if err != nil {
+			return fmt.Errorf("invalid target address %q: %w", target, err)
+		}
+		h.Addr = addr
+	}
 	return nil
 }
 
