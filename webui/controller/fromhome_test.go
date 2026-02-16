@@ -14,6 +14,7 @@ func TestHandlerFunction(t *testing.T) {
 		expected string
 	}{
 		{"home page", "/home", "group"},
+		{"new tunnel page", "/new", "new"},
 		{"root", "/", "group"},
 		{"config page", "/my-tunnel/config", "config"},
 		{"control page", "/my-tunnel/control", "control"},

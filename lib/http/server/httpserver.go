@@ -62,6 +62,9 @@ type HTTPServer struct {
 	stopOnce sync.Once
 	// Listener reference for clean shutdown — closing unblocks Accept()
 	listener net.Listener
+	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
+	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
+	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 
@@ -109,13 +112,16 @@ func (h *HTTPServer) Name() string {
 // Each incoming I2P connection is forwarded to the local HTTP service in a separate goroutine.
 // Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (h *HTTPServer) Start() error {
+	h.lifeMu.Lock()
 	h.done = make(chan struct{})
 	h.stopOnce = sync.Once{}
 	i2pListener, err := h.Garlic.ListenStream()
 	if err != nil {
+		h.lifeMu.Unlock()
 		return err
 	}
 	h.listener = i2pListener
+	h.lifeMu.Unlock()
 	defer i2pListener.Close()
 	defer h.Stop()
 	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
@@ -163,6 +169,8 @@ func (h *HTTPServer) Status() i2ptunnel.I2PTunnelStatus {
 // Stop the tunnel. Safe to call multiple times.
 // Closes the Garlic (I2P SAM session) to release network resources.
 func (h *HTTPServer) Stop() error {
+	h.lifeMu.Lock()
+	defer h.lifeMu.Unlock()
 	h.stopOnce.Do(func() {
 		close(h.done)
 		if h.listener != nil {

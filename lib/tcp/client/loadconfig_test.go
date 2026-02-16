@@ -41,6 +41,7 @@ func TestLoadConfig_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create tunnel: %v", err)
 	}
+	defer tunnel.Garlic.Close()
 
 	// Ensure tunnel is stopped
 	tunnel.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
@@ -91,6 +92,7 @@ func TestLoadConfig_RunningTunnel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create tunnel: %v", err)
 	}
+	defer tunnel.Garlic.Close()
 
 	// Set tunnel to running state
 	tunnel.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
@@ -119,6 +121,7 @@ func TestLoadConfig_InvalidFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create tunnel: %v", err)
 	}
+	defer tunnel.Garlic.Close()
 
 	tunnel.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 
@@ -159,6 +162,7 @@ func TestLoadConfig_WrongType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create tunnel: %v", err)
 	}
+	defer tunnel.Garlic.Close()
 
 	tunnel.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 
@@ -203,6 +207,7 @@ func TestLoadConfig_InvalidTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create tunnel: %v", err)
 	}
+	defer tunnel.Garlic.Close()
 
 	tunnel.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 
@@ -242,6 +247,7 @@ targetDestination=ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p
 	if err != nil {
 		t.Fatalf("Failed to create tunnel: %v", err)
 	}
+	defer tunnel.Garlic.Close()
 
 	tunnel.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 

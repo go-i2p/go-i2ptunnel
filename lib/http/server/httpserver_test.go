@@ -29,6 +29,7 @@ func TestHTTPServerCreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create HTTP server: %v", err)
 	}
+	defer server.Garlic.Close()
 
 	// Verify initial state
 	if server.Name() != "hs-creation" {
@@ -58,6 +59,7 @@ func TestHTTPServerOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	defer server.Garlic.Close()
 
 	// Test Options() retrieval
 	opts := server.Options()
@@ -111,6 +113,7 @@ func TestHTTPServerSetOptionsValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	defer server.Garlic.Close()
 
 	tests := []struct {
 		name      string
@@ -193,6 +196,7 @@ func TestHTTPServerSetOptionsTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	defer server.Garlic.Close()
 
 	origTarget := server.Target()
 
@@ -235,6 +239,7 @@ func TestHTTPServerID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	defer server.Garlic.Close()
 
 	id := server.ID()
 	// ID should be cleaned version of name
@@ -259,6 +264,7 @@ func TestHTTPServerLocalAddress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	defer server.Garlic.Close()
 
 	addr, err := server.LocalAddress()
 	if err != nil {
@@ -276,7 +282,7 @@ func TestHTTPServerLocalAddress(t *testing.T) {
 // Design: Verifies the target address reflects the configured forward target.
 func TestHTTPServerTarget(t *testing.T) {
 	config := i2pconv.TunnelConfig{
-		Name:      "hs-target",
+		Name:      "hs-target2",
 		Type:      "httpserver",
 		Port:      8080,
 		Interface: "127.0.0.1",
@@ -287,6 +293,7 @@ func TestHTTPServerTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	defer server.Garlic.Close()
 
 	target := server.Target()
 	// Target() should return the forward target address from config
@@ -329,6 +336,7 @@ func TestHTTPServerLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create server: %v", err)
 		}
+		defer server.Garlic.Close()
 
 		if err := server.LoadConfig(configPath); err != nil {
 			t.Fatalf("Failed to load config: %v", err)
@@ -358,6 +366,7 @@ func TestHTTPServerLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create server: %v", err)
 		}
+		defer server.Garlic.Close()
 
 		// Simulate running state
 		server.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
@@ -393,6 +402,7 @@ func TestHTTPServerLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create server: %v", err)
 		}
+		defer server.Garlic.Close()
 
 		configPath := filepath.Join(tmpDir, "wrong-type.yaml")
 		configContent := `tunnels:
@@ -424,6 +434,7 @@ func TestHTTPServerLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create server: %v", err)
 		}
+		defer server.Garlic.Close()
 
 		configPath := filepath.Join(tmpDir, "invalid-target.yaml")
 		configContent := `tunnels:
@@ -456,6 +467,7 @@ func TestHTTPServerLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create server: %v", err)
 		}
+		defer server.Garlic.Close()
 
 		err = server.LoadConfig("/nonexistent/path/config.yaml")
 		if err == nil {
@@ -480,6 +492,7 @@ func TestHTTPServerErrorTracking(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	defer server.Garlic.Close()
 
 	// Initially no errors
 	if server.Error() != nil {
@@ -515,6 +528,7 @@ func TestHTTPServerStopBeforeStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	defer server.Garlic.Close()
 
 	// Stop should not panic on non-started tunnel
 	if err := server.Stop(); err != nil {
@@ -538,6 +552,7 @@ func TestHTTPServerRateLimiting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	defer server.Garlic.Close()
 
 	// Set rate limiting options
 	opts := map[string]string{
@@ -585,6 +600,7 @@ func TestHTTPServerPortAllocation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	defer server.Garlic.Close()
 
 	addr, err := server.LocalAddress()
 	if err != nil {

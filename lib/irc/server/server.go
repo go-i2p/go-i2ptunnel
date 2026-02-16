@@ -52,6 +52,9 @@ type IRCServer struct {
 	stopOnce sync.Once
 	// Listener reference for clean shutdown — closing unblocks Accept()
 	listener net.Listener
+	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
+	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
+	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 
@@ -99,13 +102,16 @@ func (i *IRCServer) Name() string {
 // Each incoming I2P connection is forwarded to the local IRC service in a separate goroutine.
 // Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (i *IRCServer) Start() error {
+	i.lifeMu.Lock()
 	i.done = make(chan struct{})
 	i.stopOnce = sync.Once{}
 	i2pListener, err := i.Garlic.ListenStream()
 	if err != nil {
+		i.lifeMu.Unlock()
 		return err
 	}
 	i.listener = i2pListener
+	i.lifeMu.Unlock()
 	defer i2pListener.Close()
 	defer i.Stop()
 	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
@@ -154,6 +160,8 @@ func (i *IRCServer) Status() i2ptunnel.I2PTunnelStatus {
 // Stop the tunnel. Safe to call multiple times.
 // Closes the Garlic (I2P SAM session) to release network resources.
 func (i *IRCServer) Stop() error {
+	i.lifeMu.Lock()
+	defer i.lifeMu.Unlock()
 	i.stopOnce.Do(func() {
 		close(i.done)
 		if i.listener != nil {

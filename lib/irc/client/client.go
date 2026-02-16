@@ -50,6 +50,9 @@ type IRCClient struct {
 	stopOnce sync.Once
 	// Listener reference for clean shutdown — closing unblocks Accept()
 	listener net.Listener
+	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
+	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
+	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 
@@ -98,14 +101,17 @@ func (i *IRCClient) Name() string {
 // Connections are handled concurrently in separate goroutines.
 // Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (i *IRCClient) Start() error {
+	i.lifeMu.Lock()
 	i.done = make(chan struct{})
 	i.stopOnce = sync.Once{}
 	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
 	listener, err := net.Listen("tcp", net.JoinHostPort(i.Interface, strconv.Itoa(i.Port)))
 	if err != nil {
+		i.lifeMu.Unlock()
 		return err
 	}
 	i.listener = listener
+	i.lifeMu.Unlock()
 	defer listener.Close()
 	defer i.Stop()
 	filteredListener := ircinspector.New(listener, i.Config)
@@ -154,6 +160,8 @@ func (i *IRCClient) Status() i2ptunnel.I2PTunnelStatus {
 // Stop the tunnel. Safe to call multiple times.
 // Closes the Garlic (I2P SAM session) to release network resources.
 func (i *IRCClient) Stop() error {
+	i.lifeMu.Lock()
+	defer i.lifeMu.Unlock()
 	i.stopOnce.Do(func() {
 		close(i.done)
 		if i.listener != nil {

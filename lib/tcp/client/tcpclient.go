@@ -55,6 +55,9 @@ type TCPClient struct {
 	stopOnce sync.Once
 	// Listener reference for clean shutdown — closing unblocks Accept()
 	listener net.Listener
+	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
+	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
+	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 
@@ -103,14 +106,17 @@ func (t *TCPClient) Name() string {
 // Connections are handled concurrently in separate goroutines.
 // Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (t *TCPClient) Start() error {
+	t.lifeMu.Lock()
 	t.done = make(chan struct{})
 	t.stopOnce = sync.Once{}
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
 	listener, err := net.Listen("tcp", net.JoinHostPort(t.Interface, strconv.Itoa(t.Port)))
 	if err != nil {
+		t.lifeMu.Unlock()
 		return err
 	}
 	t.listener = listener
+	t.lifeMu.Unlock()
 	defer listener.Close()
 	defer t.Stop()
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
@@ -158,6 +164,8 @@ func (t *TCPClient) Status() i2ptunnel.I2PTunnelStatus {
 // Stop the tunnel. Safe to call multiple times.
 // Closes the Garlic (I2P SAM session) to release network resources.
 func (t *TCPClient) Stop() error {
+	t.lifeMu.Lock()
+	defer t.lifeMu.Unlock()
 	t.stopOnce.Do(func() {
 		close(t.done)
 		if t.listener != nil {

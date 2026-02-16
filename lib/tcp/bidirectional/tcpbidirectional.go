@@ -51,6 +51,9 @@ type TCPBidirectional struct {
 	stopOnce sync.Once
 	// Listener reference for clean shutdown — closing unblocks Accept()
 	listener net.Listener
+	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
+	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
+	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 	// Error history of the tunnel
@@ -97,6 +100,7 @@ func (t *TCPBidirectional) Name() string {
 // tunnel is stopped.
 // Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (t *TCPBidirectional) Start() error {
+	t.lifeMu.Lock()
 	t.done = make(chan struct{})
 	t.stopOnce = sync.Once{}
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
@@ -104,9 +108,11 @@ func (t *TCPBidirectional) Start() error {
 	// Start the server side: listen on I2P and forward to local target
 	i2pListener, err := t.Garlic.ListenStream()
 	if err != nil {
+		t.lifeMu.Unlock()
 		return fmt.Errorf("failed to start I2P listener: %w", err)
 	}
 	t.listener = i2pListener
+	t.lifeMu.Unlock()
 	defer i2pListener.Close()
 	defer t.Stop()
 
@@ -180,6 +186,8 @@ func (t *TCPBidirectional) Status() i2ptunnel.I2PTunnelStatus {
 // Safe to call multiple times.
 // Closes the Garlic (I2P SAM session) to release network resources.
 func (t *TCPBidirectional) Stop() error {
+	t.lifeMu.Lock()
+	defer t.lifeMu.Unlock()
 	t.stopOnce.Do(func() {
 		close(t.done)
 		if t.listener != nil {

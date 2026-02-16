@@ -30,6 +30,7 @@ func TestIRCClientCreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create IRC client: %v", err)
 	}
+	defer client.Garlic.Close()
 
 	// Verify initial state
 	if client.Name() != "ic-creation" {
@@ -59,6 +60,7 @@ func TestIRCClientOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
+	defer client.Garlic.Close()
 
 	// Test Options() retrieval
 	opts := client.Options()
@@ -105,6 +107,7 @@ func TestIRCClientSetOptionsValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
+	defer client.Garlic.Close()
 
 	tests := []struct {
 		name      string
@@ -167,6 +170,7 @@ func TestIRCClientID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
+	defer client.Garlic.Close()
 
 	id := client.ID()
 	// ID should be cleaned version of name
@@ -191,6 +195,7 @@ func TestIRCClientLocalAddress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
+	defer client.Garlic.Close()
 
 	addr, err := client.LocalAddress()
 	if err != nil {
@@ -219,6 +224,7 @@ func TestIRCClientTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
+	defer client.Garlic.Close()
 
 	target := client.Target()
 	if target == "" {
@@ -263,6 +269,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
 		}
+		defer client.Garlic.Close()
 
 		if err := client.LoadConfig(configPath); err != nil {
 			t.Fatalf("Failed to load config: %v", err)
@@ -289,6 +296,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
 		}
+		defer client.Garlic.Close()
 
 		// Simulate running state
 		client.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
@@ -324,6 +332,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
 		}
+		defer client.Garlic.Close()
 
 		configPath := filepath.Join(tmpDir, "wrong-type.yaml")
 		configContent := `tunnels:
@@ -356,6 +365,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
 		}
+		defer client.Garlic.Close()
 
 		err = client.LoadConfig("/nonexistent/path/config.yaml")
 		if err == nil {
@@ -380,6 +390,7 @@ func TestIRCClientErrorTracking(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
+	defer client.Garlic.Close()
 
 	// Initially no errors
 	if client.Error() != nil {
@@ -415,6 +426,7 @@ func TestIRCClientStopBeforeStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
+	defer client.Garlic.Close()
 
 	// Stop should not error on non-started tunnel
 	if err := client.Stop(); err != nil {
@@ -449,6 +461,7 @@ func TestIRCClientPortAllocation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
+	defer client.Garlic.Close()
 
 	addr, err := client.LocalAddress()
 	if err != nil {

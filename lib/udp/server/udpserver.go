@@ -55,6 +55,9 @@ type UDPServer struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Mutex protecting lifecycle fields (done, stopOnce) during Start/Stop transitions.
+	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
+	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 
@@ -102,8 +105,10 @@ func (u *UDPServer) Name() string {
 // Forwards incoming I2P datagrams to the local UDP service.
 // Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (u *UDPServer) Start() error {
+	u.lifeMu.Lock()
 	u.done = make(chan struct{})
 	u.stopOnce = sync.Once{}
+	u.lifeMu.Unlock()
 	i2pListener, err := u.Garlic.ListenPacket()
 	if err != nil {
 		return err
@@ -157,6 +162,8 @@ func (u *UDPServer) Status() i2ptunnel.I2PTunnelStatus {
 // Stop the tunnel. Safe to call multiple times.
 // Closes the Garlic (I2P SAM session) to release network resources.
 func (u *UDPServer) Stop() error {
+	u.lifeMu.Lock()
+	defer u.lifeMu.Unlock()
 	u.stopOnce.Do(func() {
 		close(u.done)
 		if u.Garlic != nil {

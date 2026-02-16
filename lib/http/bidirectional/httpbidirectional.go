@@ -63,6 +63,9 @@ type HTTPBidirectional struct {
 	listener net.Listener
 	// Mutex for server operations
 	mu sync.Mutex
+	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
+	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
+	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 	// Error history of the tunnel
@@ -111,6 +114,7 @@ func (h *HTTPBidirectional) Name() string {
 // HTTP service) and the client-side HTTP proxy concurrently.
 // Safe to call after Stop() — done channel and stopOnce are reset for restartability.
 func (h *HTTPBidirectional) Start() error {
+	h.lifeMu.Lock()
 	h.done = make(chan struct{})
 	h.stopOnce = sync.Once{}
 	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
@@ -119,9 +123,11 @@ func (h *HTTPBidirectional) Start() error {
 	// Server side: listen on I2P and forward to local HTTP service
 	i2pListener, err := h.Garlic.ListenStream()
 	if err != nil {
+		h.lifeMu.Unlock()
 		return fmt.Errorf("failed to start I2P listener: %w", err)
 	}
 	h.listener = i2pListener
+	h.lifeMu.Unlock()
 	defer i2pListener.Close()
 	defer h.Stop()
 
@@ -210,6 +216,8 @@ const shutdownTimeout = 30 * time.Second
 // Uses a bounded timeout context to prevent indefinite blocking on lingering connections.
 // Closes the Garlic (I2P SAM session) to release network resources.
 func (h *HTTPBidirectional) Stop() error {
+	h.lifeMu.Lock()
+	defer h.lifeMu.Unlock()
 	h.stopOnce.Do(func() {
 		close(h.done)
 		if h.listener != nil {

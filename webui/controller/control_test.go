@@ -366,3 +366,180 @@ func TestHandleStartAlreadyRunning(t *testing.T) {
 		t.Errorf("Error message should indicate tunnel is already running/starting")
 	}
 }
+
+// TestHandleNewGetRendersConfigTemplate verifies that GET /new renders
+// the config template with default values for creating a new tunnel.
+func TestHandleNewGetRendersConfigTemplate(t *testing.T) {
+	cg := &ControllerGroup{
+		I2PTunnels: []Controller{},
+		configDir:  t.TempDir(),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/new", nil)
+	w := httptest.NewRecorder()
+
+	// We need to go through ServeHTTP which adds header/footer
+	cg.HandleNew(req, w)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// Config template should contain the tunnel type dropdown
+	if !strings.Contains(body, "tcpclient") {
+		t.Errorf("Expected config template to contain tunnel type options, got: %s", body[:min(200, len(body))])
+	}
+	// Should contain the form for configuring a tunnel
+	if !strings.Contains(body, "<form") {
+		t.Errorf("Expected config template to contain a form")
+	}
+}
+
+// TestHandleNewPostCreatesTunnel verifies that POST /new creates a new
+// tunnel config file and adds it to the controller group.
+func TestHandleNewPostCreatesTunnel(t *testing.T) {
+	configDir := t.TempDir()
+	cg := &ControllerGroup{
+		I2PTunnels: []Controller{},
+		configDir:  configDir,
+	}
+
+	formData := url.Values{}
+	formData.Set("name", "test-new-tunnel")
+	formData.Set("type", "tcpclient")
+	formData.Set("destination", "example.i2p")
+	formData.Set("port", "8888")
+	formData.Set("interface", "127.0.0.1")
+
+	req := httptest.NewRequest(http.MethodPost, "/new", strings.NewReader(formData.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	cg.HandleNew(req, w)
+
+	// Should redirect to the new tunnel's control page
+	if w.Code != http.StatusSeeOther {
+		t.Errorf("Expected redirect (303), got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	// Tunnel should be added to the group
+	if len(cg.I2PTunnels) != 1 {
+		t.Fatalf("Expected 1 tunnel in group, got %d", len(cg.I2PTunnels))
+	}
+
+	if cg.I2PTunnels[0].Name() != "test-new-tunnel" {
+		t.Errorf("Expected tunnel name 'test-new-tunnel', got %q", cg.I2PTunnels[0].Name())
+	}
+}
+
+// TestHandleNewPostRejectsDuplicate verifies that POST /new rejects
+// creation of a tunnel with a name that already exists.
+func TestHandleNewPostRejectsDuplicate(t *testing.T) {
+	configDir := t.TempDir()
+
+	// Create an initial tunnel
+	configFile := createTestConfig(t, "existing-tunnel", "tcpclient", "example.i2p", 8080)
+	controller, err := NewController(configFile)
+	if err != nil {
+		t.Fatalf("Failed to create controller: %v", err)
+	}
+
+	cg := &ControllerGroup{
+		I2PTunnels: []Controller{*controller},
+		configDir:  configDir,
+	}
+
+	formData := url.Values{}
+	formData.Set("name", "existing-tunnel")
+	formData.Set("type", "tcpserver")
+
+	req := httptest.NewRequest(http.MethodPost, "/new", strings.NewReader(formData.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	cg.HandleNew(req, w)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400 for duplicate name, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "already exists") {
+		t.Errorf("Expected 'already exists' error message, got: %s", body[:min(200, len(body))])
+	}
+}
+
+// TestHandleNewPostRequiresName verifies that POST /new rejects
+// creation without a tunnel name.
+func TestHandleNewPostRequiresName(t *testing.T) {
+	cg := &ControllerGroup{
+		I2PTunnels: []Controller{},
+		configDir:  t.TempDir(),
+	}
+
+	formData := url.Values{}
+	formData.Set("type", "tcpclient")
+
+	req := httptest.NewRequest(http.MethodPost, "/new", strings.NewReader(formData.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	cg.HandleNew(req, w)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400 for missing name, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "name is required") {
+		t.Errorf("Expected 'name is required' error, got: %s", body[:min(200, len(body))])
+	}
+}
+
+// TestGroupTemplateRendered verifies that HandleGroup renders the
+// I2PTunnelGroupTemplate (with the "Add New Tunnel" button).
+func TestGroupTemplateRendered(t *testing.T) {
+	cg := &ControllerGroup{
+		I2PTunnels: []Controller{},
+		configDir:  t.TempDir(),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/home", nil)
+	w := httptest.NewRecorder()
+
+	cg.HandleGroup(req, w)
+
+	body := w.Body.String()
+	// The group template contains "Add New Tunnel" and a link to /new
+	if !strings.Contains(body, "Add New Tunnel") {
+		t.Errorf("Expected group template to contain 'Add New Tunnel', got: %s", body)
+	}
+	if !strings.Contains(body, "/new") {
+		t.Errorf("Expected group template to contain '/new' link, got: %s", body)
+	}
+}
+
+// TestNewRouteDispatch verifies that the /new URL is routed correctly
+// through ControllerGroup.ServeHTTP.
+func TestNewRouteDispatch(t *testing.T) {
+	cg := &ControllerGroup{
+		I2PTunnels: []Controller{},
+		configDir:  t.TempDir(),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/new", nil)
+	w := httptest.NewRecorder()
+
+	cg.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// Should render the config template (which contains tunnel type dropdown)
+	if !strings.Contains(body, "tcpclient") {
+		t.Errorf("Expected /new to render config form with tunnel types")
+	}
+}
