@@ -2,7 +2,6 @@ package validate
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -221,7 +220,7 @@ func MaxConnections(maxConns int) error {
 	}
 	// Warn about very high connection limits (but allow them)
 	if maxConns > 10000 {
-		log.Printf("Warning: maxconns is very high (%d > 10000); high connection limits may cause resource exhaustion", maxConns)
+		log.WithField("maxconns", maxConns).Warn("maxconns is very high (> 10000); high connection limits may cause resource exhaustion")
 	}
 	return nil
 }

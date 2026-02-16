@@ -59,6 +59,8 @@ type HTTPBidirectional struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Listener reference for clean shutdown — closing unblocks Accept()
+	listener net.Listener
 	// Mutex for server operations
 	mu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
@@ -119,6 +121,7 @@ func (h *HTTPBidirectional) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to start I2P listener: %w", err)
 	}
+	h.listener = i2pListener
 	defer i2pListener.Close()
 	defer h.Stop()
 

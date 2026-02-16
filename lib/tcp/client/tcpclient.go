@@ -53,6 +53,8 @@ type TCPClient struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Listener reference for clean shutdown — closing unblocks Accept()
+	listener net.Listener
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 
@@ -108,6 +110,7 @@ func (t *TCPClient) Start() error {
 	if err != nil {
 		return err
 	}
+	t.listener = listener
 	defer listener.Close()
 	defer t.Stop()
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning

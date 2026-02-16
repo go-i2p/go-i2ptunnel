@@ -48,6 +48,8 @@ type IRCClient struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Listener reference for clean shutdown — closing unblocks Accept()
+	listener net.Listener
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 
@@ -103,6 +105,7 @@ func (i *IRCClient) Start() error {
 	if err != nil {
 		return err
 	}
+	i.listener = listener
 	defer listener.Close()
 	defer i.Stop()
 	filteredListener := ircinspector.New(listener, i.Config)

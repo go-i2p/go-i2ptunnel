@@ -50,6 +50,8 @@ type IRCServer struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Listener reference for clean shutdown — closing unblocks Accept()
+	listener net.Listener
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 
@@ -103,6 +105,7 @@ func (i *IRCServer) Start() error {
 	if err != nil {
 		return err
 	}
+	i.listener = i2pListener
 	defer i2pListener.Close()
 	defer i.Stop()
 	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning

@@ -60,6 +60,8 @@ type HTTPServer struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Listener reference for clean shutdown — closing unblocks Accept()
+	listener net.Listener
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 
@@ -113,6 +115,7 @@ func (h *HTTPServer) Start() error {
 	if err != nil {
 		return err
 	}
+	h.listener = i2pListener
 	defer i2pListener.Close()
 	defer h.Stop()
 	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning

@@ -152,6 +152,13 @@ func (u *UDPBidirectional) Start() error {
 				ctx := context.Background()
 				packet.Forward(ctx, i2pListener, lCon, config.DefaultConfig())
 			}()
+			// Brief pause between forwarding attempts to prevent rapid socket
+			// churn when packet.Forward returns quickly (e.g., on error or timeout).
+			select {
+			case <-u.done:
+				return nil
+			case <-time.After(100 * time.Millisecond):
+			}
 		}
 	}
 }

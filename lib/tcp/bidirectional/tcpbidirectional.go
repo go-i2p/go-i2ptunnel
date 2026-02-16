@@ -49,6 +49,8 @@ type TCPBidirectional struct {
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
 	stopOnce sync.Once
+	// Listener reference for clean shutdown — closing unblocks Accept()
+	listener net.Listener
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
 	// Error history of the tunnel
@@ -104,6 +106,7 @@ func (t *TCPBidirectional) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to start I2P listener: %w", err)
 	}
+	t.listener = i2pListener
 	defer i2pListener.Close()
 	defer t.Stop()
 
