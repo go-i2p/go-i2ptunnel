@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -229,6 +230,105 @@ func TestHandleStartNonBlocking(t *testing.T) {
 
 	if w.Code != http.StatusSeeOther {
 		t.Errorf("Expected status 303 (redirect), got %d", w.Code)
+	}
+}
+
+// TestMiniControlTemplateLinkURL verifies that the mini control widget renders
+// the tunnel name as a link to the correct control page URL pattern.
+// Why: Finding #6 — the link previously pointed to /tunnel/<name> which matched
+// no route handler; it now points to /<name>/control.
+func TestMiniControlTemplateLinkURL(t *testing.T) {
+	tests := []struct {
+		name       string
+		tunnelName string
+		tunnelType string
+		target     string
+		wantHref   string
+	}{
+		{"simple name", "my-tunnel", "tcpclient", "example.i2p", `/my-tunnel/control`},
+		{"server tunnel", "web-server", "httpserver", "127.0.0.1:8080", `/web-server/control`},
+		{"bidirectional", "bidir-tun", "tcpbidirectional", "127.0.0.1:9090", `/bidir-tun/control`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configFile := createTestConfig(t,
+				tt.tunnelName, tt.tunnelType, tt.target, 8080)
+
+			controller, err := NewController(configFile)
+			if err != nil {
+				t.Fatalf("Failed to create controller: %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodGet, "/home", nil)
+			w := httptest.NewRecorder()
+
+			controller.MiniServeHTTP(w, req)
+
+			body := w.Body.String()
+			expectedLink := fmt.Sprintf(`href="%s"`, tt.wantHref)
+			if !strings.Contains(body, expectedLink) {
+				t.Errorf("Mini control should contain %s, got:\n%s",
+					expectedLink, body)
+			}
+
+			// Verify the OLD broken pattern is NOT present
+			if strings.Contains(body, `/tunnel/`) {
+				t.Errorf("Mini control should not contain /tunnel/ pattern")
+			}
+		})
+	}
+}
+
+// TestMiniControlTemplateFormAction verifies that the Start/Stop form in the
+// mini control widget POSTs to the correct control endpoint.
+// Why: Finding #6 — the form previously had no action attribute, so it POSTed
+// to the current page (/home) which just re-rendered the dashboard.
+func TestMiniControlTemplateFormAction(t *testing.T) {
+	configFile := createTestConfig(t, "mini-form", "tcpclient", "example.i2p", 8080)
+
+	controller, err := NewController(configFile)
+	if err != nil {
+		t.Fatalf("Failed to create controller: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/home", nil)
+	w := httptest.NewRecorder()
+
+	controller.MiniServeHTTP(w, req)
+
+	body := w.Body.String()
+	expectedAction := `action="/mini-form/control"`
+	if !strings.Contains(body, expectedAction) {
+		t.Errorf("Form should contain %s, got:\n%s", expectedAction, body)
+	}
+}
+
+// TestMiniControlFormActionRoutesToControl verifies that the form action URL
+// is correctly recognized by the URL routing as a "control" handler.
+// This is an integration test ensuring the template and router agree.
+func TestMiniControlFormActionRoutesToControl(t *testing.T) {
+	tunnelNames := []string{"my-tunnel", "web-server", "irc-relay"}
+
+	for _, name := range tunnelNames {
+		t.Run(name, func(t *testing.T) {
+			// Build the URL the form action generates
+			actionURL := "/" + name + "/control"
+
+			req := httptest.NewRequest(http.MethodPost, actionURL, nil)
+
+			// The routing function should recognize this as "control"
+			result := handler(req)
+			if result != "control" {
+				t.Errorf("handler(%q) = %q, want %q", actionURL, result, "control")
+			}
+
+			// The tunnel name should be correctly extracted
+			tunnelName := tunnel(req)
+			if tunnelName != name {
+				t.Errorf("tunnel(%q) = %q, want %q", actionURL, tunnelName, name)
+			}
+		})
 	}
 }
 
