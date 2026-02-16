@@ -147,6 +147,21 @@ func TestIRCServerSetOptionsValidation(t *testing.T) {
 			opts:      map[string]string{"name": ""},
 			wantError: true,
 		},
+		{
+			name:      "valid target",
+			opts:      map[string]string{"target": "127.0.0.1:3000"},
+			wantError: false,
+		},
+		{
+			name:      "invalid target - no port",
+			opts:      map[string]string{"target": "127.0.0.1"},
+			wantError: true,
+		},
+		{
+			name:      "invalid target - empty",
+			opts:      map[string]string{"target": ""},
+			wantError: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -159,6 +174,48 @@ func TestIRCServerSetOptionsValidation(t *testing.T) {
 				t.Errorf("Expected no error for %s, got %v", tt.name, err)
 			}
 		})
+	}
+}
+
+// TestIRCServerSetOptionsTarget verifies that SetOptions correctly updates the
+// target address and that the change is reflected in Options() output.
+// Why: Finding #7 — target was previously silently dropped by SetOptions.
+func TestIRCServerSetOptionsTarget(t *testing.T) {
+	config := i2pconv.TunnelConfig{
+		Name:      "is-target",
+		Type:      "ircserver",
+		Port:      6667,
+		Interface: "127.0.0.1",
+		Target:    "127.0.0.1:6667",
+	}
+
+	server, err := NewIRCServer(config, "127.0.0.1:7656")
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+
+	origTarget := server.Target()
+
+	// Change target via SetOptions
+	newTarget := "192.168.1.100:6669"
+	if err := server.SetOptions(map[string]string{"target": newTarget}); err != nil {
+		t.Fatalf("SetOptions with valid target failed: %v", err)
+	}
+
+	// Verify Target() returns the new value
+	if server.Target() != newTarget {
+		t.Errorf("Target() = %q, want %q", server.Target(), newTarget)
+	}
+
+	// Verify Options() reflects the new value
+	opts := server.Options()
+	if opts["target"] != newTarget {
+		t.Errorf("Options()[target] = %q, want %q", opts["target"], newTarget)
+	}
+
+	// Verify it actually changed from the original
+	if server.Target() == origTarget {
+		t.Error("Target was not actually updated from original value")
 	}
 }
 
