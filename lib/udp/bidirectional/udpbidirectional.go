@@ -163,11 +163,15 @@ func (u *UDPBidirectional) Status() i2ptunnel.I2PTunnelStatus {
 
 // Stop gracefully shuts down both the server and SOCKS5 proxy sides.
 // Safe to call multiple times.
+// Closes the Garlic (I2P SAM session) to release network resources.
 func (u *UDPBidirectional) Stop() error {
 	u.stopOnce.Do(func() {
 		close(u.done)
 		if u.socksServer != nil {
 			u.socksServer.Shutdown()
+		}
+		if u.Garlic != nil {
+			u.Garlic.Close()
 		}
 	})
 	u.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped

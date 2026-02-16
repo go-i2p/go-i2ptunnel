@@ -205,6 +205,7 @@ const shutdownTimeout = 30 * time.Second
 // Stop gracefully shuts down both the server and HTTP proxy sides.
 // Safe to call multiple times.
 // Uses a bounded timeout context to prevent indefinite blocking on lingering connections.
+// Closes the Garlic (I2P SAM session) to release network resources.
 func (h *HTTPBidirectional) Stop() error {
 	h.stopOnce.Do(func() {
 		close(h.done)
@@ -216,6 +217,9 @@ func (h *HTTPBidirectional) Stop() error {
 			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 			defer shutdownCancel()
 			h.httpServer.Shutdown(shutdownCtx)
+		}
+		if h.Garlic != nil {
+			h.Garlic.Close()
 		}
 		if h.cancel != nil {
 			h.cancel()

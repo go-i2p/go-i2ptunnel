@@ -148,9 +148,13 @@ func (t *TCPServer) Status() i2ptunnel.I2PTunnelStatus {
 }
 
 // Stop the tunnel. Safe to call multiple times.
+// Closes the Garlic (I2P SAM session) to release network resources.
 func (t *TCPServer) Stop() error {
 	t.stopOnce.Do(func() {
 		close(t.done)
+		if t.Garlic != nil {
+			t.Garlic.Close()
+		}
 	})
 	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil

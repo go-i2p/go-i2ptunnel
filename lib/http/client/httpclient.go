@@ -148,6 +148,7 @@ const shutdownTimeout = 30 * time.Second
 
 // Stop the tunnel. Safe to call multiple times.
 // Uses a bounded timeout context to prevent indefinite blocking on lingering connections.
+// Closes the Garlic (I2P SAM session) to release network resources.
 func (h *HTTPClient) Stop() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -166,6 +167,9 @@ func (h *HTTPClient) Stop() error {
 		if err := h.Server.Shutdown(shutdownCtx); err != nil {
 			h.recordError(err)
 			return err
+		}
+		if h.Garlic != nil {
+			h.Garlic.Close()
 		}
 		if h.cancel != nil {
 			h.cancel()

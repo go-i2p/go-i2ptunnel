@@ -152,6 +152,7 @@ func (s *SOCKS) Status() i2ptunnel.I2PTunnelStatus {
 }
 
 // Stop the tunnel. Safe to call multiple times.
+// Closes the Garlic (I2P SAM session) to release network resources.
 func (s *SOCKS) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -167,6 +168,9 @@ func (s *SOCKS) Stop() error {
 		if err := s.Server.Shutdown(); err != nil {
 			s.recordError(err)
 			return err
+		}
+		if s.Garlic != nil {
+			s.Garlic.Close()
 		}
 		s.Server = nil
 		s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped

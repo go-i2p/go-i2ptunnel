@@ -149,9 +149,13 @@ func (u *UDPClient) Status() i2ptunnel.I2PTunnelStatus {
 }
 
 // Stop the tunnel. Safe to call multiple times.
+// Closes the Garlic (I2P SAM session) to release network resources.
 func (u *UDPClient) Stop() error {
 	u.stopOnce.Do(func() {
 		close(u.done)
+		if u.Garlic != nil {
+			u.Garlic.Close()
+		}
 	})
 	u.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
