@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/onramp"
 )
 
 // TestStopIdempotent verifies that calling Stop() multiple times does not panic.
@@ -101,5 +102,29 @@ func TestRestartAfterStop(t *testing.T) {
 	}
 	if tunnel.Status() != i2ptunnel.I2PTunnelStatusStopped {
 		t.Errorf("Expected status stopped after restart cycle, got %v", tunnel.Status())
+	}
+}
+
+// TestStopClosesGarlic verifies that Stop() calls Garlic.Close() when Garlic is non-nil.
+// A zero-value onramp.Garlic panics on Close() because its internal SAM sessions are nil.
+// We use this behavior to prove the Close() call path was reached.
+func TestStopClosesGarlic(t *testing.T) {
+	tunnel := &TCPClient{
+		done: make(chan struct{}),
+	}
+	tunnel.Garlic = &onramp.Garlic{}
+
+	didPanic := func() (panicked bool) {
+		defer func() {
+			if r := recover(); r != nil {
+				panicked = true
+			}
+		}()
+		tunnel.Stop()
+		return false
+	}()
+
+	if !didPanic {
+		t.Fatal("expected Stop() to call Garlic.Close() on non-nil Garlic")
 	}
 }

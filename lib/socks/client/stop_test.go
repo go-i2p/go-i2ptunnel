@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/onramp"
+	"github.com/txthinking/socks5"
 )
 
 // TestStopIdempotent verifies that calling Stop() multiple times does not panic.
@@ -94,5 +96,36 @@ func TestRestartAfterStop(t *testing.T) {
 	case <-tunnel.done:
 	default:
 		t.Fatal("done channel should be closed after second stop cycle")
+	}
+}
+
+// TestStopClosesGarlic verifies that Stop() calls Garlic.Close() when Garlic is non-nil.
+// SOCKS requires Server != nil for Stop() to enter the shutdown path.
+// After successful SOCKS server shutdown, Garlic.Close() is called.
+// A zero-value Garlic panics on Close() (nil SAM sessions), proving the call was reached.
+func TestStopClosesGarlic(t *testing.T) {
+	srv, err := socks5.NewClassicServer("127.0.0.1:0", "", "", "", 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tunnel := &SOCKS{
+		done: make(chan struct{}),
+	}
+	tunnel.Server = srv
+	tunnel.Garlic = &onramp.Garlic{}
+
+	didPanic := func() (panicked bool) {
+		defer func() {
+			if r := recover(); r != nil {
+				panicked = true
+			}
+		}()
+		tunnel.Stop()
+		return false
+	}()
+
+	if !didPanic {
+		t.Fatal("expected Stop() to call Garlic.Close() on non-nil Garlic")
 	}
 }

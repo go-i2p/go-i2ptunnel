@@ -8,6 +8,7 @@ import (
 	"time"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/onramp"
 )
 
 // TestStopIdempotent verifies that calling Stop() multiple times does not panic.
@@ -100,5 +101,40 @@ func TestStopWithServerUsesTimeout(t *testing.T) {
 
 	if tunnel.Status() != i2ptunnel.I2PTunnelStatusStopped {
 		t.Errorf("Expected status stopped, got %v", tunnel.Status())
+	}
+}
+
+// TestStopClosesGarlic verifies that Stop() calls Garlic.Close() when Garlic is non-nil.
+// HTTPClient requires Server != nil for Stop() to enter the shutdown path.
+// After successful HTTP server shutdown, Garlic.Close() is called.
+// A zero-value Garlic panics on Close() (nil SAM sessions), proving the call was reached.
+func TestStopClosesGarlic(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	srv := &http.Server{Addr: ln.Addr().String()}
+	go srv.Serve(ln)
+
+	tunnel := &HTTPClient{
+		done: make(chan struct{}),
+	}
+	tunnel.Server = srv
+	tunnel.Garlic = &onramp.Garlic{}
+
+	didPanic := func() (panicked bool) {
+		defer func() {
+			if r := recover(); r != nil {
+				panicked = true
+			}
+		}()
+		tunnel.Stop()
+		return false
+	}()
+
+	if !didPanic {
+		t.Fatal("expected Stop() to call Garlic.Close() on non-nil Garlic")
 	}
 }
