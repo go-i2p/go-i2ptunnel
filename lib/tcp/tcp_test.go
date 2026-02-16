@@ -75,6 +75,12 @@ func TestTCPTunnel(t *testing.T) {
 	t.Log("Waiting for server startup...")
 	time.Sleep(2 * time.Second)
 
+	// Verify the server obtained an I2P address (requires PersistentKey or key provisioning)
+	serverAddr := srv.Address()
+	if serverAddr == "" {
+		t.Skip("Skipping integration test: server has no I2P address (keys not provisioned)")
+	}
+
 	// Setup client config
 	t.Log("Setting up client configuration...")
 	clientConfig := i2pconv.TunnelConfig{

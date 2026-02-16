@@ -84,6 +84,9 @@ func TestControllerStop(t *testing.T) {
 	// Start tunnel in background goroutine (Start blocks)
 	go controller.Start()
 
+	// Give the tunnel time to enter running state before stopping
+	time.Sleep(200 * time.Millisecond)
+
 	formData := url.Values{}
 	formData.Set("action", "Stop")
 

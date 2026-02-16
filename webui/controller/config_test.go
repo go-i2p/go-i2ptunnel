@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // createTestConfig creates a temporary config file with the given parameters
@@ -135,11 +136,12 @@ func TestConfigServeHTTPPostWhileRunning(t *testing.T) {
 		t.Fatalf("Failed to create config: %v", err)
 	}
 
-	// Start the tunnel
-	if err := cfg.Start(); err != nil {
-		t.Fatalf("Failed to start tunnel: %v", err)
-	}
+	// Start the tunnel in a goroutine since Start() blocks in accept loop
+	go cfg.Start()
 	defer cfg.Stop()
+
+	// Give the tunnel time to enter running state
+	time.Sleep(200 * time.Millisecond)
 
 	// Try to modify config while running
 	formData := url.Values{}

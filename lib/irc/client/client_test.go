@@ -160,6 +160,7 @@ func TestIRCClientID(t *testing.T) {
 		Type:      "ircclient",
 		Port:      6667,
 		Interface: "127.0.0.1",
+		Target:    "ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p",
 	}
 
 	client, err := NewIRCClient(config, "127.0.0.1:7656")
@@ -183,6 +184,7 @@ func TestIRCClientLocalAddress(t *testing.T) {
 		Type:      "ircclient",
 		Port:      6667,
 		Interface: "127.0.0.1",
+		Target:    "ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p",
 	}
 
 	client, err := NewIRCClient(config, "127.0.0.1:7656")
@@ -282,6 +284,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 			Type:      "ircclient",
 			Port:      6667,
 			Interface: "127.0.0.1",
+			Target:    "ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p",
 		}, "127.0.0.1:7656")
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
@@ -316,6 +319,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 			Type:      "ircclient",
 			Port:      6667,
 			Interface: "127.0.0.1",
+			Target:    "ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p",
 		}, "127.0.0.1:7656")
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
@@ -347,6 +351,7 @@ func TestIRCClientLoadConfig(t *testing.T) {
 			Type:      "ircclient",
 			Port:      6667,
 			Interface: "127.0.0.1",
+			Target:    "ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p",
 		}, "127.0.0.1:7656")
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
@@ -368,6 +373,7 @@ func TestIRCClientErrorTracking(t *testing.T) {
 		Type:      "ircclient",
 		Port:      6667,
 		Interface: "127.0.0.1",
+		Target:    "ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p",
 	}
 
 	client, err := NewIRCClient(config, "127.0.0.1:7656")
@@ -402,6 +408,7 @@ func TestIRCClientStopBeforeStart(t *testing.T) {
 		Type:      "ircclient",
 		Port:      6667,
 		Interface: "127.0.0.1",
+		Target:    "ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p",
 	}
 
 	client, err := NewIRCClient(config, "127.0.0.1:7656")
@@ -435,6 +442,7 @@ func TestIRCClientPortAllocation(t *testing.T) {
 		Type:      "ircclient",
 		Port:      port,
 		Interface: "127.0.0.1",
+		Target:    "ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p",
 	}
 
 	client, err := NewIRCClient(config, "127.0.0.1:7656")
