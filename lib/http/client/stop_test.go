@@ -1,8 +1,11 @@
 package httpclient
 
 import (
+	"net"
+	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 )
@@ -56,5 +59,46 @@ func TestRestartAfterStop(t *testing.T) {
 	tunnel.Stop()
 	if tunnel.Status() != i2ptunnel.I2PTunnelStatusStopped {
 		t.Errorf("Expected status stopped after restart cycle, got %v", tunnel.Status())
+	}
+}
+
+// TestStopWithServerUsesTimeout verifies that Stop() on an HTTPClient with a
+// real http.Server but no ctx (simulating Start() never being called) completes
+// promptly instead of blocking indefinitely. Before this fix, the fallback to
+// context.Background() had no timeout and could hang forever.
+func TestStopWithServerUsesTimeout(t *testing.T) {
+	// Create a real HTTP server on a random port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})}
+	go srv.Serve(listener)
+
+	tunnel := &HTTPClient{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		Server:          srv,
+		done:            make(chan struct{}),
+		// ctx is intentionally nil — simulates Stop() called without Start()
+	}
+
+	// Stop should complete well under 5 seconds (the server has no connections)
+	done := make(chan error, 1)
+	go func() {
+		done <- tunnel.Stop()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Stop() returned error: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop() blocked for >5s — shutdown context is not timeout-bounded")
+	}
+
+	if tunnel.Status() != i2ptunnel.I2PTunnelStatusStopped {
+		t.Errorf("Expected status stopped, got %v", tunnel.Status())
 	}
 }

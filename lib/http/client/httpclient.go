@@ -30,6 +30,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	httpinspector "github.com/go-i2p/go-connfilter/http"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
@@ -140,7 +141,13 @@ func (h *HTTPClient) Status() i2ptunnel.I2PTunnelStatus {
 	return h.I2PTunnelStatus
 }
 
+// shutdownTimeout is the maximum time to wait for graceful HTTP server shutdown.
+// After this duration, Shutdown returns context.DeadlineExceeded and in-flight
+// connections are abandoned. 30 seconds is generous for most HTTP workloads.
+const shutdownTimeout = 30 * time.Second
+
 // Stop the tunnel. Safe to call multiple times.
+// Uses a bounded timeout context to prevent indefinite blocking on lingering connections.
 func (h *HTTPClient) Stop() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -150,11 +157,12 @@ func (h *HTTPClient) Stop() error {
 		h.stopOnce.Do(func() {
 			close(h.done)
 		})
-		// Use a fresh context for shutdown if Start() was never called (h.ctx is nil)
-		shutdownCtx := h.ctx
-		if shutdownCtx == nil {
-			shutdownCtx = context.Background()
-		}
+		// Always use a timeout-bounded context for shutdown.
+		// Previously this used h.ctx (which could be nil if Start() never ran)
+		// or fell back to context.Background() (which has no deadline).
+		// Either path could block indefinitely with lingering connections.
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer shutdownCancel()
 		if err := h.Server.Shutdown(shutdownCtx); err != nil {
 			h.recordError(err)
 			return err

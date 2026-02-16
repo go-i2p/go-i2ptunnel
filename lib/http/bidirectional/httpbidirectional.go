@@ -197,16 +197,24 @@ func (h *HTTPBidirectional) Status() i2ptunnel.I2PTunnelStatus {
 	return h.I2PTunnelStatus
 }
 
+// shutdownTimeout is the maximum time to wait for graceful HTTP server shutdown.
+// After this duration, Shutdown returns context.DeadlineExceeded and in-flight
+// connections are abandoned. 30 seconds is generous for most HTTP workloads.
+const shutdownTimeout = 30 * time.Second
+
 // Stop gracefully shuts down both the server and HTTP proxy sides.
 // Safe to call multiple times.
+// Uses a bounded timeout context to prevent indefinite blocking on lingering connections.
 func (h *HTTPBidirectional) Stop() error {
 	h.stopOnce.Do(func() {
 		close(h.done)
 		if h.httpServer != nil {
-			shutdownCtx := h.ctx
-			if shutdownCtx == nil {
-				shutdownCtx = context.Background()
-			}
+			// Always use a timeout-bounded context for shutdown.
+			// Previously this used h.ctx (nil if Start() never ran) or
+			// fell back to context.Background() (no deadline), either of
+			// which could block indefinitely with lingering connections.
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+			defer shutdownCancel()
 			h.httpServer.Shutdown(shutdownCtx)
 		}
 		if h.cancel != nil {
