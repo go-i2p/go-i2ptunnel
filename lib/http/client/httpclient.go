@@ -66,6 +66,8 @@ type HTTPClient struct {
 	errMu sync.Mutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
+	// Jump service client for resolving human-readable .i2p hostnames
+	Jump *JumpService
 	// Context for cleanup
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -204,6 +206,9 @@ func (h *HTTPClient) Options() map[string]string {
 	options["type"] = h.TunnelConfig.Type
 	options["interface"] = h.TunnelConfig.Interface
 	options["port"] = strconv.Itoa(h.TunnelConfig.Port)
+	if h.Jump != nil {
+		options["jumpservice"] = h.Jump.URL()
+	}
 	i2ptunnel.MergeI2CPOptions(h.TunnelConfig.I2CP, options)
 	return options
 }
@@ -229,6 +234,20 @@ func (h *HTTPClient) SetOptions(opts map[string]string) error {
 			return err
 		}
 		h.TunnelConfig.Port = port
+	}
+	// Configure jump service URL for human-readable .i2p hostname resolution
+	if jumpURL, ok := opts["jumpservice"]; ok {
+		if jumpURL == "" {
+			// Disable jump service
+			h.Jump = nil
+		} else {
+			if h.Jump != nil {
+				// Update existing jump service URL by recreating it
+				h.Jump = NewJumpService(h.Jump.client, jumpURL)
+			} else {
+				h.Jump = NewJumpService(nil, jumpURL)
+			}
+		}
 	}
 	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
 	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {

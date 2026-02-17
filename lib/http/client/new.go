@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"context"
+	"log"
 	"net"
 	"strings"
 
@@ -28,14 +29,46 @@ func NewHTTPClient(config i2pconv.TunnelConfig, samAddr string) (*HTTPClient, er
 		Config:          DefaultHTTPClientConfig(),
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		done:            make(chan struct{}),
+		Jump:            NewJumpService(nil, DefaultJumpServiceURL),
 	}
 	return h, nil
 }
 
 func (h *HTTPClient) DialContext(ctx context.Context, network, addr string) (c net.Conn, err error) {
+	// Resolve human-readable .i2p hostnames via jump service before dialing.
+	// Base32 addresses (*.b32.i2p) bypass this — SAM handles them directly.
+	addr = h.resolveJump(addr)
 	return h.Garlic.DialContext(ctx, network, addr)
 }
 
 func (h *HTTPClient) Dial(network, addr string) (c net.Conn, err error) {
+	// Resolve human-readable .i2p hostnames via jump service before dialing.
+	addr = h.resolveJump(addr)
 	return h.Garlic.Dial(network, addr)
+}
+
+// resolveJump attempts to resolve a human-readable .i2p hostname using
+// the configured jump service. If the jump service is disabled or the
+// hostname doesn't need resolution, the original address is returned.
+func (h *HTTPClient) resolveJump(addr string) string {
+	if h.Jump == nil {
+		return addr
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+		port = ""
+	}
+	if !NeedsJump(host) {
+		return addr
+	}
+	dest, err := h.Jump.Lookup(host)
+	if err != nil {
+		log.Printf("jump service lookup failed for %s: %v", host, err)
+		return addr
+	}
+	if port != "" {
+		return net.JoinHostPort(dest, port)
+	}
+	return dest
 }
