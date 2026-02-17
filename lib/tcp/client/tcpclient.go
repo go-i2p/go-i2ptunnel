@@ -205,6 +205,7 @@ func (t *TCPClient) Options() map[string]string {
 	if t.I2PAddr != nil {
 		options["target"] = t.I2PAddr.Base32()
 	}
+	i2ptunnel.MergeI2CPOptions(t.TunnelConfig.I2CP, options)
 	return options
 }
 
@@ -239,6 +240,15 @@ func (t *TCPClient) SetOptions(opts map[string]string) error {
 			return fmt.Errorf("invalid target address: %w", err)
 		}
 		t.I2PAddr = addr
+	}
+	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
+	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
+		if t.TunnelConfig.I2CP == nil {
+			t.TunnelConfig.I2CP = make(map[string]interface{})
+		}
+		for k, v := range i2cpOpts {
+			t.TunnelConfig.I2CP[k] = v
+		}
 	}
 	return nil
 }

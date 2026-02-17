@@ -203,6 +203,7 @@ func (i *IRCServer) Options() map[string]string {
 	if i.Addr != nil {
 		options["target"] = i.Addr.String()
 	}
+	i2ptunnel.MergeI2CPOptions(i.TunnelConfig.I2CP, options)
 	return options
 }
 
@@ -254,6 +255,15 @@ func (i *IRCServer) SetOptions(opts map[string]string) error {
 			return fmt.Errorf("invalid target address %q: %w", target, err)
 		}
 		i.Addr = addr
+	}
+	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
+	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
+		if i.TunnelConfig.I2CP == nil {
+			i.TunnelConfig.I2CP = make(map[string]interface{})
+		}
+		for k, v := range i2cpOpts {
+			i.TunnelConfig.I2CP[k] = v
+		}
 	}
 	return nil
 }

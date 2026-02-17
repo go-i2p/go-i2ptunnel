@@ -231,6 +231,7 @@ func (t *TCPBidirectional) Options() map[string]string {
 	if t.Addr != nil {
 		options["target"] = t.Addr.String()
 	}
+	i2ptunnel.MergeI2CPOptions(t.TunnelConfig.I2CP, options)
 	return options
 }
 
@@ -281,6 +282,15 @@ func (t *TCPBidirectional) SetOptions(opts map[string]string) error {
 			return fmt.Errorf("invalid target address %q: %w", target, err)
 		}
 		t.Addr = addr
+	}
+	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
+	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
+		if t.TunnelConfig.I2CP == nil {
+			t.TunnelConfig.I2CP = make(map[string]interface{})
+		}
+		for k, v := range i2cpOpts {
+			t.TunnelConfig.I2CP[k] = v
+		}
 	}
 	return nil
 }

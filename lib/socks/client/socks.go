@@ -201,6 +201,7 @@ func (s *SOCKS) Options() map[string]string {
 	options["type"] = s.TunnelConfig.Type
 	options["interface"] = s.TunnelConfig.Interface
 	options["port"] = strconv.Itoa(s.TunnelConfig.Port)
+	i2ptunnel.MergeI2CPOptions(s.TunnelConfig.I2CP, options)
 	return options
 }
 
@@ -225,6 +226,15 @@ func (s *SOCKS) SetOptions(opts map[string]string) error {
 			return err
 		}
 		s.TunnelConfig.Port = port
+	}
+	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
+	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
+		if s.TunnelConfig.I2CP == nil {
+			s.TunnelConfig.I2CP = make(map[string]interface{})
+		}
+		for k, v := range i2cpOpts {
+			s.TunnelConfig.I2CP[k] = v
+		}
 	}
 	return nil
 }

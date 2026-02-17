@@ -200,6 +200,7 @@ func (u *UDPServer) Options() map[string]string {
 	if u.Addr != nil {
 		options["target"] = u.Addr.String()
 	}
+	i2ptunnel.MergeI2CPOptions(u.TunnelConfig.I2CP, options)
 	return options
 }
 
@@ -234,6 +235,15 @@ func (u *UDPServer) SetOptions(opts map[string]string) error {
 			return fmt.Errorf("invalid target address %q: %w", target, err)
 		}
 		u.Addr = addr
+	}
+	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
+	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
+		if u.TunnelConfig.I2CP == nil {
+			u.TunnelConfig.I2CP = make(map[string]interface{})
+		}
+		for k, v := range i2cpOpts {
+			u.TunnelConfig.I2CP[k] = v
+		}
 	}
 	return nil
 }

@@ -270,6 +270,7 @@ func (h *HTTPBidirectional) Options() map[string]string {
 	if h.Addr != nil {
 		options["target"] = h.Addr.String()
 	}
+	i2ptunnel.MergeI2CPOptions(h.TunnelConfig.I2CP, options)
 	return options
 }
 
@@ -320,6 +321,15 @@ func (h *HTTPBidirectional) SetOptions(opts map[string]string) error {
 			return fmt.Errorf("invalid target address %q: %w", target, err)
 		}
 		h.Addr = addr
+	}
+	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
+	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
+		if h.TunnelConfig.I2CP == nil {
+			h.TunnelConfig.I2CP = make(map[string]interface{})
+		}
+		for k, v := range i2cpOpts {
+			h.TunnelConfig.I2CP[k] = v
+		}
 	}
 	return nil
 }

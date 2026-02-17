@@ -204,6 +204,7 @@ func (h *HTTPClient) Options() map[string]string {
 	options["type"] = h.TunnelConfig.Type
 	options["interface"] = h.TunnelConfig.Interface
 	options["port"] = strconv.Itoa(h.TunnelConfig.Port)
+	i2ptunnel.MergeI2CPOptions(h.TunnelConfig.I2CP, options)
 	return options
 }
 
@@ -228,6 +229,15 @@ func (h *HTTPClient) SetOptions(opts map[string]string) error {
 			return err
 		}
 		h.TunnelConfig.Port = port
+	}
+	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
+	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
+		if h.TunnelConfig.I2CP == nil {
+			h.TunnelConfig.I2CP = make(map[string]interface{})
+		}
+		for k, v := range i2cpOpts {
+			h.TunnelConfig.I2CP[k] = v
+		}
 	}
 	return nil
 }
