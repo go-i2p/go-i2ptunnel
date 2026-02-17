@@ -92,6 +92,44 @@
         </div>
     </fieldset>
 
+    <fieldset>
+        <legend>Encrypted LeaseSet</legend>
+
+        <div class="form-group">
+            <label>LeaseSet Type</label>
+            {{$leaseSetType := index .Options "i2cp.leaseSetType"}}
+            <select name="i2cp.leaseSetType">
+                <option value="1" {{if or (eq $leaseSetType "") (eq $leaseSetType "1")}}selected{{end}}>Standard (1)</option>
+                <option value="3" {{if eq $leaseSetType "3"}}selected{{end}}>Encrypted (3)</option>
+                <option value="5" {{if eq $leaseSetType "5"}}selected{{end}}>Meta (5)</option>
+            </select>
+            <div class="help-text">Standard for most uses. Encrypted hides the service destination. Meta for advanced multihoming.</div>
+        </div>
+
+        <div class="form-group">
+            <label>Encryption Type</label>
+            <input type="text" name="i2cp.leaseSetEncType" value="{{index .Options "i2cp.leaseSetEncType"}}" placeholder="4,0">
+            <div class="help-text">Encryption algorithms (default: 4,0 = ECIES-X25519 + ElGamal)</div>
+        </div>
+
+        <div class="form-group">
+            <label>Authentication Type</label>
+            {{$authType := index .Options "i2cp.leaseSetAuthType"}}
+            <select name="i2cp.leaseSetAuthType">
+                <option value="0" {{if or (eq $authType "") (eq $authType "0")}}selected{{end}}>None</option>
+                <option value="1" {{if eq $authType "1"}}selected{{end}}>DH (Diffie-Hellman)</option>
+                <option value="2" {{if eq $authType "2"}}selected{{end}}>PSK (Pre-Shared Key)</option>
+            </select>
+            <div class="help-text">Require clients to authenticate before accessing this service</div>
+        </div>
+
+        <div class="form-group">
+            <label>LeaseSet Private Key</label>
+            <input type="text" name="i2cp.leaseSetPrivKey" value="{{index .Options "i2cp.leaseSetPrivKey"}}" placeholder="">
+            <div class="help-text">Private key for encrypted LeaseSet (leave empty to auto-generate)</div>
+        </div>
+    </fieldset>
+
     {{if .Error}}
     <div class="error">
         {{.Error}}

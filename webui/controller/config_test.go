@@ -321,3 +321,91 @@ func TestConfigTemplateAllTypesInDropdown(t *testing.T) {
 		}
 	}
 }
+
+// TestConfigTemplateEncryptedLeaseSetFields verifies that the configuration form
+// renders the Encrypted LeaseSet fieldset with all required fields:
+// LeaseSet Type, Encryption Type, Authentication Type, and Private Key.
+func TestConfigTemplateEncryptedLeaseSetFields(t *testing.T) {
+	data := ConfigData{
+		Name:   "test-els",
+		ID:     "test-els",
+		Type:   "tcpserver",
+		Target: "127.0.0.1:8080",
+		Options: map[string]string{
+			"port":                  "8080",
+			"i2cp.leaseSetType":     "3",
+			"i2cp.leaseSetEncType":  "4,0",
+			"i2cp.leaseSetAuthType": "2",
+			"i2cp.leaseSetPrivKey":  "testkey123",
+		},
+	}
+	var buf strings.Builder
+	if err := templates.I2PTunnelConfigTemplate.Execute(&buf, data); err != nil {
+		t.Fatalf("Template execution failed: %v", err)
+	}
+	body := buf.String()
+
+	// Verify fieldset exists
+	if !strings.Contains(body, "Encrypted LeaseSet") {
+		t.Error("template should contain 'Encrypted LeaseSet' fieldset")
+	}
+
+	// Verify LeaseSet Type dropdown renders with Encrypted selected
+	if !strings.Contains(body, "name=\"i2cp.leaseSetType\"") {
+		t.Error("template should contain leaseSetType field")
+	}
+	// "3" is Encrypted — should be selected
+	if !strings.Contains(body, "value=\"3\" selected") {
+		t.Error("Encrypted (3) should be selected when leaseSetType=3")
+	}
+
+	// Verify Encryption Type input renders with value
+	if !strings.Contains(body, "name=\"i2cp.leaseSetEncType\"") {
+		t.Error("template should contain leaseSetEncType field")
+	}
+	if !strings.Contains(body, "value=\"4,0\"") {
+		t.Error("leaseSetEncType should show value 4,0")
+	}
+
+	// Verify Authentication Type dropdown renders with PSK selected
+	if !strings.Contains(body, "name=\"i2cp.leaseSetAuthType\"") {
+		t.Error("template should contain leaseSetAuthType field")
+	}
+	if !strings.Contains(body, "value=\"2\" selected") {
+		t.Error("PSK (2) should be selected when leaseSetAuthType=2")
+	}
+
+	// Verify Private Key field renders with value
+	if !strings.Contains(body, "name=\"i2cp.leaseSetPrivKey\"") {
+		t.Error("template should contain leaseSetPrivKey field")
+	}
+	if !strings.Contains(body, "testkey123") {
+		t.Error("leaseSetPrivKey should show the configured value")
+	}
+}
+
+// TestConfigTemplateEncryptedLeaseSetDefaults verifies that the Encrypted LeaseSet
+// fields show sensible defaults when no I2CP options are configured.
+func TestConfigTemplateEncryptedLeaseSetDefaults(t *testing.T) {
+	data := ConfigData{
+		Name:    "test-defaults",
+		ID:      "test-defaults",
+		Type:    "tcpserver",
+		Options: map[string]string{"port": "8080"},
+	}
+	var buf strings.Builder
+	if err := templates.I2PTunnelConfigTemplate.Execute(&buf, data); err != nil {
+		t.Fatalf("Template execution failed: %v", err)
+	}
+	body := buf.String()
+
+	// Standard (1) should be selected by default when leaseSetType is empty
+	if !strings.Contains(body, "value=\"1\" selected") {
+		t.Error("Standard (1) should be selected by default")
+	}
+
+	// None (0) should be selected by default for auth type
+	if !strings.Contains(body, "value=\"0\" selected") {
+		t.Error("None (0) auth type should be selected by default")
+	}
+}

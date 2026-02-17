@@ -160,6 +160,12 @@ func (c *Config) saveConfig() error {
 		tunnelConfig["interface"] = iface
 	}
 
+	// Persist I2CP options (encrypted LeaseSet, authentication, etc.)
+	i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts)
+	if i2cpOpts != nil {
+		tunnelConfig["i2cp"] = i2cpOpts
+	}
+
 	// Wrap in the "tunnels:" top-level key expected by the parser
 	config := map[string]interface{}{
 		"tunnels": map[string]interface{}{
