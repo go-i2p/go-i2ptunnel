@@ -8,16 +8,31 @@ import (
 	"strconv"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	templates "github.com/go-i2p/go-i2ptunnel/webui/templates"
 	"gopkg.in/yaml.v2"
 )
 
 type ControllerGroup struct {
-	I2PTunnels []Controller
-	configDir  string
+	I2PTunnels     []Controller
+	configDir      string
+	metricsHandler *metrics.Handler
 }
 
 func (cg *ControllerGroup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// API endpoints return JSON/text — no HTML wrapper.
+	switch r.URL.Path {
+	case "/metrics":
+		cg.metricsHandler.HandleMetrics(w, r)
+		return
+	case "/healthz":
+		cg.metricsHandler.HandleHealth(w, r)
+		return
+	case "/api/status":
+		cg.metricsHandler.HandleStatus(w, r)
+		return
+	}
+
 	cg.HandleHTMLHeader(r, w)
 	defer cg.HandleHTMLFooter(r, w)
 	switch handler(r) {
@@ -170,6 +185,9 @@ func (cg *ControllerGroup) handlePostNew(w http.ResponseWriter, r *http.Request)
 
 	cg.I2PTunnels = append(cg.I2PTunnels, *controller)
 
+	// Register new tunnel in metrics registry.
+	cg.metricsHandler.Registry.Register(controller.Name(), controller.ID(), controller.Type())
+
 	// Redirect to the new tunnel's control page
 	http.Redirect(w, r, fmt.Sprintf("/%s/control", controller.ID()), http.StatusSeeOther)
 }
@@ -191,6 +209,8 @@ func NewControllerGroup(directory string) (*ControllerGroup, error) {
 		return nil, err
 	}
 
+	registry := metrics.NewRegistry()
+
 	group := &ControllerGroup{
 		I2PTunnels: make([]Controller, 0),
 		configDir:  directory,
@@ -203,8 +223,33 @@ func NewControllerGroup(directory string) (*ControllerGroup, error) {
 				return nil, err
 			}
 			group.I2PTunnels = append(group.I2PTunnels, *controller)
+			registry.Register(controller.Name(), controller.ID(), controller.Type())
 		}
 	}
 
+	group.metricsHandler = metrics.NewHandler(registry, group.tunnelStatus)
+
 	return group, nil
+}
+
+// tunnelStatus returns the live state of all tunnels for the metrics handler.
+func (cg *ControllerGroup) tunnelStatus() []metrics.TunnelStatus {
+	statuses := make([]metrics.TunnelStatus, 0, len(cg.I2PTunnels))
+	for _, c := range cg.I2PTunnels {
+		localAddr, _ := c.LocalAddress()
+		ts := metrics.TunnelStatus{
+			Name:         c.Name(),
+			ID:           c.ID(),
+			Type:         c.Type(),
+			Status:       string(c.Status()),
+			Address:      c.Address(),
+			Target:       c.Target(),
+			LocalAddress: localAddr,
+		}
+		if err := c.Error(); err != nil {
+			ts.Error = err.Error()
+		}
+		statuses = append(statuses, ts)
+	}
+	return statuses
 }
