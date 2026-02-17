@@ -165,7 +165,11 @@ var gaugeMetrics = []prometheusMetric{
 
 func writePrometheusMetrics(w io.Writer, snapshots []MetricSnapshot) error {
 	// Write integer-valued metrics (counters and gauges).
-	allMetrics := append(counterMetrics, gaugeMetrics...)
+	// Pre-allocate a fresh slice to avoid mutating the package-level
+	// counterMetrics or gaugeMetrics slices via append side effects.
+	allMetrics := make([]prometheusMetric, 0, len(counterMetrics)+len(gaugeMetrics))
+	allMetrics = append(allMetrics, counterMetrics...)
+	allMetrics = append(allMetrics, gaugeMetrics...)
 	for _, m := range allMetrics {
 		if _, err := fmt.Fprintf(w, "# HELP %s %s\n", m.name, m.help); err != nil {
 			return err

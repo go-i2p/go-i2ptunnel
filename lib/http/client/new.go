@@ -4,7 +4,9 @@ import (
 	"context"
 	"log"
 	"net"
+	"net/http"
 	"strings"
+	"time"
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
@@ -23,13 +25,22 @@ func NewHTTPClient(config i2pconv.TunnelConfig, samAddr string) (*HTTPClient, er
 		return nil, err
 	}
 	garlic.ServiceKeys = keys
+	// Create an HTTP client that routes through I2P so the jump service
+	// (which lives at stats.i2p) can be reached. Without this, lookups
+	// for human-readable .i2p hostnames would fail with DNS errors.
+	jumpClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: garlic.DialContext,
+		},
+		Timeout: 30 * time.Second,
+	}
 	h := &HTTPClient{
 		TunnelConfig:    config,
 		Garlic:          garlic,
 		Config:          DefaultHTTPClientConfig(),
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		done:            make(chan struct{}),
-		Jump:            NewJumpService(nil, DefaultJumpServiceURL),
+		Jump:            NewJumpService(jumpClient, DefaultJumpServiceURL),
 		Outproxy:        &Outproxy{},
 	}
 	return h, nil

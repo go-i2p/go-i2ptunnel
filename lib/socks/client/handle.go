@@ -13,10 +13,7 @@ import (
 	"github.com/txthinking/socks5"
 )
 
-var (
-	socksHandler  socks5.Handler = &SOCKS{}
-	forwardConfig                = udpconst.DatagramForwardConfig
-)
+var socksHandler socks5.Handler = &SOCKS{}
 
 // TCPHandle implements socks5.Handler.
 func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Request) error {
@@ -28,7 +25,7 @@ func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Reque
 	defer i2pConn.Close()
 
 	ctx := context.Background()
-	err = stream.Forward(ctx, conn, i2pConn, forwardConfig)
+	err = stream.Forward(ctx, conn, i2pConn, udpconst.NewDatagramForwardConfig())
 	return err
 }
 
@@ -60,5 +57,5 @@ func (s *SOCKS) UDPHandle(_ *socks5.Server, addr *net.UDPAddr, data *socks5.Data
 
 	// Forward subsequent packets
 	ctx := context.Background()
-	return packet.Forward(ctx, conn, i2pConn.(*datagram.DatagramSession), forwardConfig)
+	return packet.Forward(ctx, conn, i2pConn.(*datagram.DatagramSession), udpconst.NewDatagramForwardConfig())
 }

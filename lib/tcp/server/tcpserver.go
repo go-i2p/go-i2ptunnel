@@ -55,15 +55,28 @@ type TCPServer struct {
 	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
+	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
+	statusMu sync.RWMutex
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 }
 
+const maxErrors = 100
+
 func (t *TCPServer) recordError(err error) {
 	t.errMu.Lock()
 	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
+	if len(t.Errors) > maxErrors {
+		t.Errors = append([]i2ptunnel.I2PTunnelError(nil), t.Errors[len(t.Errors)-maxErrors:]...)
+	}
 	t.errMu.Unlock()
+}
+
+func (t *TCPServer) setStatus(s i2ptunnel.I2PTunnelStatus) {
+	t.statusMu.Lock()
+	t.I2PTunnelStatus = s
+	t.statusMu.Unlock()
 }
 
 // Get the tunnel's I2P address
@@ -115,7 +128,7 @@ func (t *TCPServer) Start() error {
 	t.lifeMu.Unlock()
 	defer i2pListener.Close()
 	defer t.Stop()
-	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	t.setStatus(i2ptunnel.I2PTunnelStatusRunning)
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(t.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(t.LimitedConfig.RateLimit))
 	for {
 		select {
@@ -153,6 +166,8 @@ func (t *TCPServer) handleConnection(con net.Conn) {
 
 // Get the tunnel's status
 func (t *TCPServer) Status() i2ptunnel.I2PTunnelStatus {
+	t.statusMu.RLock()
+	defer t.statusMu.RUnlock()
 	return t.I2PTunnelStatus
 }
 
@@ -169,8 +184,8 @@ func (t *TCPServer) Stop() error {
 		if t.Garlic != nil {
 			t.Garlic.Close()
 		}
+		t.setStatus(i2ptunnel.I2PTunnelStatusStopped)
 	})
-	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }
 
@@ -275,9 +290,10 @@ func (t *TCPServer) SetOptions(opts map[string]string) error {
 // Design: Uses go-i2ptunnel-config library for parsing. Preserves SAM connection and I2P keys.
 func (t *TCPServer) LoadConfig(path string) error {
 	// Prevent config changes while tunnel is running to avoid race conditions
-	if t.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusRunning ||
-		t.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", t.I2PTunnelStatus)
+	status := t.Status()
+	if status == i2ptunnel.I2PTunnelStatusRunning ||
+		status == i2ptunnel.I2PTunnelStatusStarting {
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
 	}
 
 	// Parse config file using the converter library

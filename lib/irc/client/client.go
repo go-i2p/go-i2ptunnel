@@ -55,15 +55,28 @@ type IRCClient struct {
 	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
+	// Mutex protecting the I2PTunnelStatus field from concurrent access
+	statusMu sync.RWMutex
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 }
 
+const maxErrors = 100
+
 func (t *IRCClient) recordError(err error) {
 	t.errMu.Lock()
 	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
+	if len(t.Errors) > maxErrors {
+		t.Errors = t.Errors[len(t.Errors)-maxErrors:]
+	}
 	t.errMu.Unlock()
+}
+
+func (t *IRCClient) setStatus(s i2ptunnel.I2PTunnelStatus) {
+	t.statusMu.Lock()
+	t.I2PTunnelStatus = s
+	t.statusMu.Unlock()
 }
 
 // Get the tunnel's I2P address
@@ -104,7 +117,7 @@ func (i *IRCClient) Start() error {
 	i.lifeMu.Lock()
 	i.done = make(chan struct{})
 	i.stopOnce = sync.Once{}
-	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
+	i.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	listener, err := net.Listen("tcp", net.JoinHostPort(i.Interface, strconv.Itoa(i.Port)))
 	if err != nil {
 		i.lifeMu.Unlock()
@@ -117,7 +130,7 @@ func (i *IRCClient) Start() error {
 	filteredListener := ircinspector.New(listener, i.Config)
 	ApplyIRCClientFilterRules(filteredListener, i.Address())
 	defer filteredListener.Close()
-	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	i.setStatus(i2ptunnel.I2PTunnelStatusRunning)
 	for {
 		select {
 		case <-i.done:
@@ -154,6 +167,8 @@ func (i *IRCClient) handleConnection(con net.Conn) {
 
 // Get the tunnel's status
 func (i *IRCClient) Status() i2ptunnel.I2PTunnelStatus {
+	i.statusMu.RLock()
+	defer i.statusMu.RUnlock()
 	return i.I2PTunnelStatus
 }
 
@@ -170,8 +185,8 @@ func (i *IRCClient) Stop() error {
 		if i.Garlic != nil {
 			i.Garlic.Close()
 		}
+		i.setStatus(i2ptunnel.I2PTunnelStatusStopped)
 	})
-	i.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }
 
@@ -254,9 +269,10 @@ func (i *IRCClient) SetOptions(opts map[string]string) error {
 // Supported formats: .properties, .ini, .yaml/.yml
 func (i *IRCClient) LoadConfig(path string) error {
 	// Prevent config changes while tunnel is running to avoid race conditions
-	if i.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusRunning ||
-		i.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", i.I2PTunnelStatus)
+	status := i.Status()
+	if status == i2ptunnel.I2PTunnelStatusRunning ||
+		status == i2ptunnel.I2PTunnelStatusStarting {
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
 	}
 
 	// Parse config file using the converter library

@@ -562,6 +562,46 @@ func TestMetricSnapshot_JSON(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Regression: writePrometheusMetrics must not mutate package-level slices
+// ---------------------------------------------------------------------------
+
+func TestWritePrometheus_NoSliceMutation(t *testing.T) {
+	// Record the original lengths of the package-level metric slices.
+	origCounterLen := len(counterMetrics)
+	origGaugeLen := len(gaugeMetrics)
+
+	// Take copies of the first element names for comparison.
+	origCounterFirst := counterMetrics[0].name
+	origGaugeLast := gaugeMetrics[len(gaugeMetrics)-1].name
+
+	r := NewRegistry()
+	m := r.Register("mutate-test", "mt-1", "tcpclient")
+	m.RecordConnection()
+
+	// Call WritePrometheus multiple times to expose any append side effects.
+	for i := 0; i < 10; i++ {
+		var buf strings.Builder
+		if err := r.WritePrometheus(&buf); err != nil {
+			t.Fatalf("WritePrometheus call %d: %v", i, err)
+		}
+	}
+
+	// Verify the package-level slices were not modified.
+	if len(counterMetrics) != origCounterLen {
+		t.Errorf("counterMetrics length changed: got %d, want %d", len(counterMetrics), origCounterLen)
+	}
+	if len(gaugeMetrics) != origGaugeLen {
+		t.Errorf("gaugeMetrics length changed: got %d, want %d", len(gaugeMetrics), origGaugeLen)
+	}
+	if counterMetrics[0].name != origCounterFirst {
+		t.Errorf("counterMetrics[0].name changed: got %q, want %q", counterMetrics[0].name, origCounterFirst)
+	}
+	if gaugeMetrics[len(gaugeMetrics)-1].name != origGaugeLast {
+		t.Errorf("gaugeMetrics last element changed: got %q, want %q", gaugeMetrics[len(gaugeMetrics)-1].name, origGaugeLast)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // DefaultRegistry test
 // ---------------------------------------------------------------------------
 

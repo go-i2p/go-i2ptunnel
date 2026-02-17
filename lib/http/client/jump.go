@@ -101,6 +101,18 @@ func NewJumpService(client *http.Client, url string) *JumpService {
 	}
 }
 
+// SetClient replaces the HTTP client used for jump service lookups.
+// Call this after the I2P Garlic session is initialized to provide a
+// client that routes through I2P instead of the clearnet.
+func (j *JumpService) SetClient(client *http.Client) {
+	if client == nil {
+		return
+	}
+	j.mu.Lock()
+	j.client = client
+	j.mu.Unlock()
+}
+
 // SetCacheTTL changes how long resolved addresses stay cached.
 // Zero or negative values disable caching.
 func (j *JumpService) SetCacheTTL(ttl time.Duration) {
