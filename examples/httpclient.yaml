@@ -17,3 +17,10 @@ tunnels:
     # Default: http://stats.i2p/cgi-bin/jump.cgi
     # Set to empty string to disable jump service lookups
     # jumpservice: ""
+    #
+    # Outproxy for accessing clearnet websites through I2P.
+    # An outproxy is an I2P service that forwards your requests to the
+    # regular internet. SECURITY NOTE: The outproxy operator can see your
+    # clearnet traffic (but not your IP address).
+    # Uncomment to enable:
+    # outproxy: "exit.stormycloud.i2p"

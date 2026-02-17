@@ -30,11 +30,21 @@ func NewHTTPClient(config i2pconv.TunnelConfig, samAddr string) (*HTTPClient, er
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		done:            make(chan struct{}),
 		Jump:            NewJumpService(nil, DefaultJumpServiceURL),
+		Outproxy:        &Outproxy{},
 	}
 	return h, nil
 }
 
 func (h *HTTPClient) DialContext(ctx context.Context, network, addr string) (c net.Conn, err error) {
+	host, _, _ := net.SplitHostPort(addr)
+	if host == "" {
+		host = addr
+	}
+	// Clearnet addresses (non-.i2p) are routed through the outproxy.
+	// I2P addresses are dialed directly after jump service resolution.
+	if !IsI2PAddress(host) {
+		return h.dialOutproxy(ctx, network, addr)
+	}
 	// Resolve human-readable .i2p hostnames via jump service before dialing.
 	// Base32 addresses (*.b32.i2p) bypass this — SAM handles them directly.
 	addr = h.resolveJump(addr)
@@ -42,6 +52,14 @@ func (h *HTTPClient) DialContext(ctx context.Context, network, addr string) (c n
 }
 
 func (h *HTTPClient) Dial(network, addr string) (c net.Conn, err error) {
+	host, _, _ := net.SplitHostPort(addr)
+	if host == "" {
+		host = addr
+	}
+	// Clearnet addresses route through outproxy; I2P addresses dial directly.
+	if !IsI2PAddress(host) {
+		return h.dialOutproxy(context.Background(), network, addr)
+	}
 	// Resolve human-readable .i2p hostnames via jump service before dialing.
 	addr = h.resolveJump(addr)
 	return h.Garlic.Dial(network, addr)

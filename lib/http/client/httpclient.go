@@ -68,6 +68,8 @@ type HTTPClient struct {
 	Errors []i2ptunnel.I2PTunnelError
 	// Jump service client for resolving human-readable .i2p hostnames
 	Jump *JumpService
+	// Outproxy for routing clearnet HTTP requests through I2P
+	Outproxy *Outproxy
 	// Context for cleanup
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -77,6 +79,21 @@ func (h *HTTPClient) recordError(err error) {
 	h.errMu.Lock()
 	h.Errors = append(h.Errors, i2ptunnel.NewError(h, err))
 	h.errMu.Unlock()
+}
+
+// connectDial handles HTTPS CONNECT method requests.
+// Routes I2P addresses directly and clearnet addresses through the outproxy.
+// Used as goproxy's ConnectDial callback.
+func (h *HTTPClient) connectDial(network, addr string) (net.Conn, error) {
+	host, _, _ := net.SplitHostPort(addr)
+	if host == "" {
+		host = addr
+	}
+	if !IsI2PAddress(host) {
+		return h.dialOutproxyNoCtx(network, addr)
+	}
+	addr = h.resolveJump(addr)
+	return h.Garlic.Dial(network, addr)
 }
 
 // Get the tunnel's I2P address
@@ -125,6 +142,9 @@ func (h *HTTPClient) Start() error {
 	proxy := goproxy.NewProxyHttpServer()
 	h.ProxyHttpServer = proxy
 	h.ProxyHttpServer.Tr.DialContext = h.DialContext
+	// Route HTTPS CONNECT requests through outproxy for clearnet addresses.
+	// Without this, only plain HTTP requests would be outproxied.
+	h.ProxyHttpServer.ConnectDial = h.connectDial
 	// set up local listener
 	listener, err := net.Listen("tcp", net.JoinHostPort(h.Interface, strconv.Itoa(h.Port)))
 	if err != nil {
@@ -209,6 +229,14 @@ func (h *HTTPClient) Options() map[string]string {
 	if h.Jump != nil {
 		options["jumpservice"] = h.Jump.URL()
 	}
+	if h.Outproxy != nil && h.Outproxy.Address != "" {
+		options["outproxy"] = h.Outproxy.Address
+		if h.Outproxy.Enabled {
+			options["outproxy.enabled"] = "true"
+		} else {
+			options["outproxy.enabled"] = "false"
+		}
+	}
 	i2ptunnel.MergeI2CPOptions(h.TunnelConfig.I2CP, options)
 	return options
 }
@@ -248,6 +276,29 @@ func (h *HTTPClient) SetOptions(opts map[string]string) error {
 				h.Jump = NewJumpService(nil, jumpURL)
 			}
 		}
+	}
+	// Configure outproxy for clearnet HTTP access via I2P
+	if outAddr, ok := opts["outproxy"]; ok {
+		if h.Outproxy == nil {
+			h.Outproxy = &Outproxy{}
+		}
+		if outAddr == "" {
+			// Disable outproxy
+			h.Outproxy.Address = ""
+			h.Outproxy.Enabled = false
+		} else {
+			if !IsI2PAddress(outAddr) {
+				return fmt.Errorf("outproxy address must be an I2P address (.i2p), got %q", outAddr)
+			}
+			h.Outproxy.Address = outAddr
+			h.Outproxy.Enabled = true
+		}
+	}
+	if enabledStr, ok := opts["outproxy.enabled"]; ok {
+		if h.Outproxy == nil {
+			h.Outproxy = &Outproxy{}
+		}
+		h.Outproxy.Enabled = enabledStr == "true" || enabledStr == "1" || enabledStr == "yes"
 	}
 	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
 	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {

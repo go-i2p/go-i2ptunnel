@@ -110,3 +110,27 @@ and HTTP
 func (h *HTTPClient) Type() string
 ```
 Get the tunnel's type
+
+#### type Outproxy
+
+```go
+type Outproxy struct {
+	// Address is the I2P destination of the outproxy service.
+	Address string
+	// Enabled controls whether clearnet requests are forwarded.
+	Enabled bool
+}
+```
+
+Outproxy holds the configuration for routing clearnet requests through an I2P
+outproxy service. When enabled, non-I2P HTTP requests are tunneled through the
+specified I2P destination instead of being rejected.
+
+#### func IsI2PAddress
+
+```go
+func IsI2PAddress(host string) bool
+```
+
+IsI2PAddress reports whether the given host is an I2P network address. Returns
+true for any address ending in ".i2p".
