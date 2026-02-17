@@ -21,16 +21,18 @@ type ControllerGroup struct {
 
 func (cg *ControllerGroup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// API endpoints return JSON/text — no HTML wrapper.
-	switch r.URL.Path {
-	case "/metrics":
-		cg.metricsHandler.HandleMetrics(w, r)
-		return
-	case "/healthz":
-		cg.metricsHandler.HandleHealth(w, r)
-		return
-	case "/api/status":
-		cg.metricsHandler.HandleStatus(w, r)
-		return
+	if cg.metricsHandler != nil {
+		switch r.URL.Path {
+		case "/metrics":
+			cg.metricsHandler.HandleMetrics(w, r)
+			return
+		case "/healthz":
+			cg.metricsHandler.HandleHealth(w, r)
+			return
+		case "/api/status":
+			cg.metricsHandler.HandleStatus(w, r)
+			return
+		}
 	}
 
 	cg.HandleHTMLHeader(r, w)
@@ -186,7 +188,9 @@ func (cg *ControllerGroup) handlePostNew(w http.ResponseWriter, r *http.Request)
 	cg.I2PTunnels = append(cg.I2PTunnels, *controller)
 
 	// Register new tunnel in metrics registry.
-	cg.metricsHandler.Registry.Register(controller.Name(), controller.ID(), controller.Type())
+	if cg.metricsHandler != nil {
+		cg.metricsHandler.Registry.Register(controller.Name(), controller.ID(), controller.Type())
+	}
 
 	// Redirect to the new tunnel's control page
 	http.Redirect(w, r, fmt.Sprintf("/%s/control", controller.ID()), http.StatusSeeOther)

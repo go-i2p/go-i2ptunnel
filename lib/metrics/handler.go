@@ -125,26 +125,42 @@ type prometheusMetric struct {
 
 // counterMetrics are cumulative totals.
 var counterMetrics = []prometheusMetric{
-	{"i2ptunnel_connections_accepted_total", "Total accepted connections", "counter",
-		func(s MetricSnapshot) int64 { return s.ConnectionsAccepted }},
-	{"i2ptunnel_connections_failed_total", "Total failed connection attempts", "counter",
-		func(s MetricSnapshot) int64 { return s.ConnectionsFailed }},
-	{"i2ptunnel_bytes_received_total", "Total bytes received", "counter",
-		func(s MetricSnapshot) int64 { return s.BytesIn }},
-	{"i2ptunnel_bytes_sent_total", "Total bytes sent", "counter",
-		func(s MetricSnapshot) int64 { return s.BytesOut }},
-	{"i2ptunnel_errors_total", "Total errors encountered", "counter",
-		func(s MetricSnapshot) int64 { return s.ErrorCount }},
-	{"i2ptunnel_rate_limit_hits_total", "Total rate limit rejections", "counter",
-		func(s MetricSnapshot) int64 { return s.RateLimitHits }},
-	{"i2ptunnel_filter_blocks_total", "Total filter blocks", "counter",
-		func(s MetricSnapshot) int64 { return s.FilterBlocks }},
+	{
+		"i2ptunnel_connections_accepted_total", "Total accepted connections", "counter",
+		func(s MetricSnapshot) int64 { return s.ConnectionsAccepted },
+	},
+	{
+		"i2ptunnel_connections_failed_total", "Total failed connection attempts", "counter",
+		func(s MetricSnapshot) int64 { return s.ConnectionsFailed },
+	},
+	{
+		"i2ptunnel_bytes_received_total", "Total bytes received", "counter",
+		func(s MetricSnapshot) int64 { return s.BytesIn },
+	},
+	{
+		"i2ptunnel_bytes_sent_total", "Total bytes sent", "counter",
+		func(s MetricSnapshot) int64 { return s.BytesOut },
+	},
+	{
+		"i2ptunnel_errors_total", "Total errors encountered", "counter",
+		func(s MetricSnapshot) int64 { return s.ErrorCount },
+	},
+	{
+		"i2ptunnel_rate_limit_hits_total", "Total rate limit rejections", "counter",
+		func(s MetricSnapshot) int64 { return s.RateLimitHits },
+	},
+	{
+		"i2ptunnel_filter_blocks_total", "Total filter blocks", "counter",
+		func(s MetricSnapshot) int64 { return s.FilterBlocks },
+	},
 }
 
 // gaugeMetrics are point-in-time values.
 var gaugeMetrics = []prometheusMetric{
-	{"i2ptunnel_active_connections", "Currently active connections", "gauge",
-		func(s MetricSnapshot) int64 { return s.ActiveConnections }},
+	{
+		"i2ptunnel_active_connections", "Currently active connections", "gauge",
+		func(s MetricSnapshot) int64 { return s.ActiveConnections },
+	},
 }
 
 func writePrometheusMetrics(w io.Writer, snapshots []MetricSnapshot) error {
