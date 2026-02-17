@@ -1,0 +1,23 @@
+# HTTP Server Tunnel
+# Exposes a local web server on the I2P network.
+# Use case: Host a website accessible via I2P.
+#
+# Run: go run ./cmd/http/server -config examples/httpserver.yaml
+# Requires a local web server running on the target port.
+
+tunnels:
+  my-website:
+    name: "my-website"
+    type: "httpserver"
+    # Local web server to forward I2P requests to
+    target: "localhost:8080"
+    # Bind to localhost only
+    interface: "127.0.0.1"
+    # Limit concurrent connections
+    maxconns: 200
+    # Limit new connections per second
+    ratelimit: 50.0
+    # Optional: Enable encrypted LeaseSet for extra privacy
+    # i2cp:
+    #   leaseSetType: "3"
+    #   leaseSetEncType: "4,0"

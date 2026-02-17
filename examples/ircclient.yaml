@@ -1,0 +1,18 @@
+# IRC Client Tunnel
+# Connects a local port to an I2P IRC server.
+# Use case: Use your favorite IRC client to connect to I2P IRC networks.
+# Includes automatic DCC blocking and privacy filtering.
+#
+# Run: go run ./cmd/irc/client -config examples/ircclient.yaml
+# Then point your IRC client at 127.0.0.1:6668
+
+tunnels:
+  irc:
+    name: "irc"
+    type: "ircclient"
+    # Remote I2P IRC server (replace with actual address)
+    target: "irc.echelon.i2p"
+    # Local port for your IRC client
+    port: 6668
+    # Bind to localhost only
+    interface: "127.0.0.1"

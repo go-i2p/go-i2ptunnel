@@ -1,0 +1,18 @@
+# TCP Server Tunnel
+# Exposes a local TCP service on the I2P network.
+# Use case: Make a local SSH, database, or custom service reachable over I2P.
+#
+# Run: go run ./cmd/tcp/server -config examples/tcpserver.yaml
+
+tunnels:
+  tcp-server:
+    name: "tcp-server"
+    type: "tcpserver"
+    # Local service to forward I2P traffic to
+    target: "localhost:22"
+    # Bind to localhost only
+    interface: "127.0.0.1"
+    # Limit concurrent connections (0 = unlimited)
+    maxconns: 100
+    # Limit new connections per second (0 = no limit)
+    ratelimit: 20.0

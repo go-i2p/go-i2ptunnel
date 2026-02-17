@@ -1,0 +1,22 @@
+# UDP Bidirectional Tunnel
+# Combines a UDP server and a SOCKS5 proxy on the same I2P identity (keys).
+# Use case: P2P UDP applications that need both inbound and outbound datagrams.
+# Note: Non-standard — uses onramp "hybrid2" mode.
+#
+# Run: go run ./cmd/udp/bidirectional -config examples/udpbidirectional.yaml
+# Server component forwards I2P datagrams to localhost:7701
+# SOCKS5 proxy listens on port 4447 for outbound connections
+
+tunnels:
+  udp-p2p:
+    name: "udp-p2p"
+    type: "udpbidirectional"
+    # Local UDP service for the server component
+    target: "localhost:7701"
+    # Local port for the SOCKS5 proxy component
+    port: 4447
+    # Bind to localhost only
+    interface: "127.0.0.1"
+    # Rate limiting applies to the server component
+    maxconns: 100
+    ratelimit: 50.0

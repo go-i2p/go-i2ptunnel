@@ -1,0 +1,19 @@
+# HTTP Client (Proxy) Tunnel
+# Acts as an HTTP/HTTPS proxy for browsing I2P websites.
+# Use case: Configure your browser to use this as an HTTP proxy.
+#
+# Run: go run ./cmd/http/client -config examples/httpclient.yaml
+# Then set your browser HTTP proxy to 127.0.0.1:4444
+
+tunnels:
+  http-proxy:
+    name: "http-proxy"
+    type: "httpclient"
+    # Local proxy port (browser connects here)
+    port: 4444
+    # Bind to localhost only
+    interface: "127.0.0.1"
+    # Jump service for resolving human-readable .i2p names
+    # Default: http://stats.i2p/cgi-bin/jump.cgi
+    # Set to empty string to disable jump service lookups
+    # jumpservice: ""

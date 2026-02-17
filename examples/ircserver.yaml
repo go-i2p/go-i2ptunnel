@@ -1,0 +1,20 @@
+# IRC Server Tunnel
+# Exposes a local IRC server on the I2P network.
+# Use case: Host an IRC server accessible via I2P.
+# Includes hostname masking and admin command filtering.
+#
+# Run: go run ./cmd/irc/server -config examples/ircserver.yaml
+# Requires a local IRC server (e.g., InspIRCd, UnrealIRCd) on the target port.
+
+tunnels:
+  irc-server:
+    name: "irc-server"
+    type: "ircserver"
+    # Local IRC server to forward to
+    target: "localhost:6667"
+    # Bind to localhost only
+    interface: "127.0.0.1"
+    # Limit concurrent connections
+    maxconns: 500
+    # Limit new connections per second
+    ratelimit: 30.0

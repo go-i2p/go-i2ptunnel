@@ -1,0 +1,20 @@
+# UDP Server Tunnel
+# Receives datagrams from I2P and forwards them to a local UDP service.
+# Use case: Expose a local UDP service on I2P.
+# Note: Non-standard — uses onramp "hybrid1" mode.
+#
+# Run: go run ./cmd/udp/server -config examples/udpserver.yaml
+# Requires a local UDP service running on the target port.
+
+tunnels:
+  udp-server:
+    name: "udp-server"
+    type: "udpserver"
+    # Local UDP service to forward to
+    target: "localhost:7701"
+    # Bind to localhost only
+    interface: "127.0.0.1"
+    # Limit concurrent connections
+    maxconns: 100
+    # Limit new connections per second
+    ratelimit: 50.0

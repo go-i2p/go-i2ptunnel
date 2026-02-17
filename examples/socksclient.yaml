@@ -1,0 +1,15 @@
+# SOCKS5 Client Tunnel
+# Acts as a SOCKS5 proxy for connecting to arbitrary I2P destinations.
+# Use case: Any application that supports SOCKS5 can connect to I2P.
+#
+# Run: go run ./cmd/socks/client -config examples/socksclient.yaml
+# Then configure your application's SOCKS5 proxy to 127.0.0.1:4447
+
+tunnels:
+  socks-proxy:
+    name: "socks-proxy"
+    type: "socksclient"
+    # Local SOCKS5 proxy port
+    port: 4447
+    # Bind to localhost only
+    interface: "127.0.0.1"

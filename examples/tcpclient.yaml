@@ -1,0 +1,16 @@
+# TCP Client Tunnel
+# Connects a local port to a fixed I2P TCP destination.
+# Use case: Access an I2P service (SSH, database, etc.) from localhost.
+#
+# Run: go run ./cmd/tcp/client -config examples/tcpclient.yaml
+
+tunnels:
+  tcp-client:
+    name: "tcp-client"
+    type: "tcpclient"
+    # Remote I2P destination (replace with actual .b32.i2p address)
+    target: "example.b32.i2p"
+    # Local port to listen on
+    port: 4488
+    # Bind to localhost only (recommended for security)
+    interface: "127.0.0.1"

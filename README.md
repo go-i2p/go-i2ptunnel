@@ -77,6 +77,13 @@ The logger provides:
 - Rich metadata support with `WithField()` and `WithFields()`
 - Integration with logrus for advanced features
 
+## Documentation
+
+- **[Quick Start Guide](doc/QUICKSTART.md)** — Get running in minutes with examples for every tunnel type
+- **[Configuration Reference](doc/CONFIGURATION.md)** — Complete option documentation
+- **[Deployment Guide](doc/DEPLOYMENT.md)** — Production setup with systemd, logging, security
+- **[Example Configs](examples/)** — Ready-to-use YAML configs for all 12 tunnel types
+
 ## Contributing
 
 1. Check our [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -93,8 +100,6 @@ go test ./...
 ```
 
 Review test output and ensure all tunnel types function correctly.
-
-**Note**: Currently experiencing a dependency version conflict with `onramp@v0.33.93-0.20251019222841-39bbd6584c39` that prevents tests from building. This is a pre-existing environment issue not related to the test implementations. Tests are comprehensively implemented and ready to run once the dependency is updated.
 
 ## License
 

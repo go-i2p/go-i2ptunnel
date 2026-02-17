@@ -1,0 +1,21 @@
+# HTTP Bidirectional Tunnel
+# Combines an HTTP server and an HTTP proxy on the same I2P identity (keys).
+# Use case: Host a website and browse I2P from the same identity.
+#
+# Run: go run ./cmd/http/bidirectional -config examples/httpbidirectional.yaml
+# Server component forwards I2P HTTP requests to localhost:8080
+# HTTP proxy listens on port 4444 for outbound browsing
+
+tunnels:
+  http-p2p:
+    name: "http-p2p"
+    type: "httpbidirectional"
+    # Local web server for the server component
+    target: "localhost:8080"
+    # Local port for the HTTP proxy component
+    port: 4444
+    # Bind to localhost only
+    interface: "127.0.0.1"
+    # Rate limiting applies to the server component
+    maxconns: 200
+    ratelimit: 50.0

@@ -1,0 +1,17 @@
+# UDP Client Tunnel
+# Forwards local UDP datagrams to an I2P destination.
+# Use case: Send datagrams to an I2P UDP service.
+# Note: Non-standard — uses onramp "hybrid1" mode.
+#
+# Run: go run ./cmd/udp/client -config examples/udpclient.yaml
+
+tunnels:
+  udp-client:
+    name: "udp-client"
+    type: "udpclient"
+    # Remote I2P destination (replace with actual .b32.i2p address)
+    target: "example.b32.i2p"
+    # Local port to listen on
+    port: 7700
+    # Bind to localhost only
+    interface: "127.0.0.1"

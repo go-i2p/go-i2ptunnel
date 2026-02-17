@@ -1,0 +1,21 @@
+# TCP Bidirectional Tunnel
+# Combines a TCP server and a SOCKS5 proxy on the same I2P identity (keys).
+# Use case: P2P applications that need both inbound and outbound connections.
+#
+# Run: go run ./cmd/tcp/bidirectional -config examples/tcpbidirectional.yaml
+# Server component forwards I2P traffic to localhost:8080
+# SOCKS5 proxy listens on port 4447 for outbound connections
+
+tunnels:
+  tcp-p2p:
+    name: "tcp-p2p"
+    type: "tcpbidirectional"
+    # Local service for the server component
+    target: "localhost:8080"
+    # Local port for the SOCKS5 proxy component
+    port: 4447
+    # Bind to localhost only
+    interface: "127.0.0.1"
+    # Rate limiting applies to the server component
+    maxconns: 200
+    ratelimit: 30.0
