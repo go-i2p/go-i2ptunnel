@@ -68,6 +68,8 @@ type HTTPBidirectional struct {
 	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
+	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
+	statusMu sync.RWMutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 	// Context for graceful shutdown
@@ -75,10 +77,21 @@ type HTTPBidirectional struct {
 	cancel context.CancelFunc
 }
 
+const maxErrors = 100
+
 func (h *HTTPBidirectional) recordError(err error) {
 	h.errMu.Lock()
 	h.Errors = append(h.Errors, i2ptunnel.NewError(h, err))
+	if len(h.Errors) > maxErrors {
+		h.Errors = append([]i2ptunnel.I2PTunnelError(nil), h.Errors[len(h.Errors)-maxErrors:]...)
+	}
 	h.errMu.Unlock()
+}
+
+func (h *HTTPBidirectional) setStatus(s i2ptunnel.I2PTunnelStatus) {
+	h.statusMu.Lock()
+	h.I2PTunnelStatus = s
+	h.statusMu.Unlock()
 }
 
 // Address returns the tunnel's I2P address.
@@ -117,7 +130,7 @@ func (h *HTTPBidirectional) Start() error {
 	h.lifeMu.Lock()
 	h.done = make(chan struct{})
 	h.stopOnce = sync.Once{}
-	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
+	h.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	h.ctx, h.cancel = context.WithCancel(context.Background())
 
 	// Server side: listen on I2P and forward to local HTTP service
@@ -153,7 +166,7 @@ func (h *HTTPBidirectional) Start() error {
 		proxyErrCh <- h.httpServer.Serve(filteredProxyListener)
 	}()
 
-	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	h.setStatus(i2ptunnel.I2PTunnelStatusRunning)
 
 	// Server side: wrap I2P listener with filtering and rate limiting
 	filteredI2PListener := httpinspector.New(i2pListener, h.ServerConfig)
@@ -203,6 +216,8 @@ func (h *HTTPBidirectional) handleServerConnection(con net.Conn) {
 
 // Status returns the current tunnel status.
 func (h *HTTPBidirectional) Status() i2ptunnel.I2PTunnelStatus {
+	h.statusMu.RLock()
+	defer h.statusMu.RUnlock()
 	return h.I2PTunnelStatus
 }
 
@@ -238,8 +253,8 @@ func (h *HTTPBidirectional) Stop() error {
 		if h.cancel != nil {
 			h.cancel()
 		}
+		h.setStatus(i2ptunnel.I2PTunnelStatusStopped)
 	})
-	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }
 
@@ -336,9 +351,10 @@ func (h *HTTPBidirectional) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file. The tunnel must be stopped first.
 func (h *HTTPBidirectional) LoadConfig(path string) error {
-	if h.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusRunning ||
-		h.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", h.I2PTunnelStatus)
+	status := h.Status()
+	if status == i2ptunnel.I2PTunnelStatusRunning ||
+		status == i2ptunnel.I2PTunnelStatusStarting {
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
 	}
 
 	conv := i2pconv.Converter{}

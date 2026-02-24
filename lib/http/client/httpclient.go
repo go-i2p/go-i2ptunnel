@@ -64,6 +64,8 @@ type HTTPClient struct {
 	mu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
+	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
+	statusMu sync.RWMutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 	// Jump service client for resolving human-readable .i2p hostnames
@@ -75,10 +77,21 @@ type HTTPClient struct {
 	cancel context.CancelFunc
 }
 
+const maxErrors = 100
+
 func (h *HTTPClient) recordError(err error) {
 	h.errMu.Lock()
 	h.Errors = append(h.Errors, i2ptunnel.NewError(h, err))
+	if len(h.Errors) > maxErrors {
+		h.Errors = append([]i2ptunnel.I2PTunnelError(nil), h.Errors[len(h.Errors)-maxErrors:]...)
+	}
 	h.errMu.Unlock()
+}
+
+func (h *HTTPClient) setStatus(s i2ptunnel.I2PTunnelStatus) {
+	h.statusMu.Lock()
+	h.I2PTunnelStatus = s
+	h.statusMu.Unlock()
 }
 
 // connectDial handles HTTPS CONNECT method requests.
@@ -154,12 +167,14 @@ func (h *HTTPClient) Start() error {
 	listenerInspector := httpinspector.New(listener, h.Config)
 	h.Server = &http.Server{}
 	h.Server.Handler = h.ProxyHttpServer
-	h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	h.setStatus(i2ptunnel.I2PTunnelStatusRunning)
 	return h.Server.Serve(listenerInspector)
 }
 
 // Get the tunnel's status
 func (h *HTTPClient) Status() i2ptunnel.I2PTunnelStatus {
+	h.statusMu.RLock()
+	defer h.statusMu.RUnlock()
 	return h.I2PTunnelStatus
 }
 
@@ -176,7 +191,7 @@ func (h *HTTPClient) Stop() error {
 	defer h.mu.Unlock()
 
 	if h.Server != nil {
-		h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopping
+		h.setStatus(i2ptunnel.I2PTunnelStatusStopping)
 		h.stopOnce.Do(func() {
 			close(h.done)
 		})
@@ -198,7 +213,7 @@ func (h *HTTPClient) Stop() error {
 		}
 		h.Server = nil
 		h.ProxyHttpServer = nil
-		h.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
+		h.setStatus(i2ptunnel.I2PTunnelStatusStopped)
 	}
 	return nil
 }
@@ -320,9 +335,10 @@ func (h *HTTPClient) SetOptions(opts map[string]string) error {
 // Design: Uses go-i2ptunnel-config library for parsing. Preserves SAM connection and I2P keys.
 func (h *HTTPClient) LoadConfig(path string) error {
 	// Prevent config changes while tunnel is running to avoid race conditions
-	if h.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusRunning ||
-		h.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", h.I2PTunnelStatus)
+	status := h.Status()
+	if status == i2ptunnel.I2PTunnelStatusRunning ||
+		status == i2ptunnel.I2PTunnelStatusStarting {
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
 	}
 
 	// Parse config file using the converter library

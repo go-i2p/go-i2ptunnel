@@ -56,14 +56,27 @@ type TCPBidirectional struct {
 	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
+	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
+	statusMu sync.RWMutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 }
 
+const maxErrors = 100
+
 func (t *TCPBidirectional) recordError(err error) {
 	t.errMu.Lock()
 	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
+	if len(t.Errors) > maxErrors {
+		t.Errors = append([]i2ptunnel.I2PTunnelError(nil), t.Errors[len(t.Errors)-maxErrors:]...)
+	}
 	t.errMu.Unlock()
+}
+
+func (t *TCPBidirectional) setStatus(s i2ptunnel.I2PTunnelStatus) {
+	t.statusMu.Lock()
+	t.I2PTunnelStatus = s
+	t.statusMu.Unlock()
 }
 
 // Address returns the tunnel's I2P address.
@@ -103,7 +116,7 @@ func (t *TCPBidirectional) Start() error {
 	t.lifeMu.Lock()
 	t.done = make(chan struct{})
 	t.stopOnce = sync.Once{}
-	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
+	t.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 
 	// Start the server side: listen on I2P and forward to local target
 	i2pListener, err := t.Garlic.ListenStream()
@@ -131,7 +144,7 @@ func (t *TCPBidirectional) Start() error {
 		socksErrCh <- t.socksServer.ListenAndServe(t.socksServer.Handle)
 	}()
 
-	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	t.setStatus(i2ptunnel.I2PTunnelStatusRunning)
 
 	// Server-side accept loop with rate limiting
 	limitedI2PListener := limitedlistener.NewLimitedListener(
@@ -179,6 +192,8 @@ func (t *TCPBidirectional) handleServerConnection(con net.Conn) {
 
 // Status returns the current tunnel status.
 func (t *TCPBidirectional) Status() i2ptunnel.I2PTunnelStatus {
+	t.statusMu.RLock()
+	defer t.statusMu.RUnlock()
 	return t.I2PTunnelStatus
 }
 
@@ -199,8 +214,8 @@ func (t *TCPBidirectional) Stop() error {
 		if t.Garlic != nil {
 			t.Garlic.Close()
 		}
+		t.setStatus(i2ptunnel.I2PTunnelStatusStopped)
 	})
-	t.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }
 
@@ -297,9 +312,10 @@ func (t *TCPBidirectional) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file. The tunnel must be stopped first.
 func (t *TCPBidirectional) LoadConfig(path string) error {
-	if t.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusRunning ||
-		t.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", t.I2PTunnelStatus)
+	status := t.Status()
+	if status == i2ptunnel.I2PTunnelStatusRunning ||
+		status == i2ptunnel.I2PTunnelStatusStarting {
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
 	}
 
 	conv := i2pconv.Converter{}

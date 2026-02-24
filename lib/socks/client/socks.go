@@ -73,6 +73,8 @@ type SOCKS struct {
 	mu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
+	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
+	statusMu sync.RWMutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 	// Context for cleanup
@@ -80,10 +82,21 @@ type SOCKS struct {
 	cancel context.CancelFunc
 }
 
+const maxErrors = 100
+
 func (s *SOCKS) recordError(err error) {
 	s.errMu.Lock()
 	s.Errors = append(s.Errors, i2ptunnel.NewError(s, err))
+	if len(s.Errors) > maxErrors {
+		s.Errors = append([]i2ptunnel.I2PTunnelError(nil), s.Errors[len(s.Errors)-maxErrors:]...)
+	}
 	s.errMu.Unlock()
+}
+
+func (s *SOCKS) setStatus(s2 i2ptunnel.I2PTunnelStatus) {
+	s.statusMu.Lock()
+	s.I2PTunnelStatus = s2
+	s.statusMu.Unlock()
 }
 
 // Get the tunnel's I2P address
@@ -139,15 +152,17 @@ func (s *SOCKS) Start() error {
 	}
 
 	s.Server = server
-	s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
+	s.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	s.Server.Handle = s
-	s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	s.setStatus(i2ptunnel.I2PTunnelStatusRunning)
 
 	return s.Server.ListenAndServe(s)
 }
 
 // Get the tunnel's status
 func (s *SOCKS) Status() i2ptunnel.I2PTunnelStatus {
+	s.statusMu.RLock()
+	defer s.statusMu.RUnlock()
 	return s.I2PTunnelStatus
 }
 
@@ -158,7 +173,7 @@ func (s *SOCKS) Stop() error {
 	defer s.mu.Unlock()
 
 	if s.Server != nil {
-		s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopping
+		s.setStatus(i2ptunnel.I2PTunnelStatusStopping)
 		s.stopOnce.Do(func() {
 			close(s.done)
 		})
@@ -173,7 +188,7 @@ func (s *SOCKS) Stop() error {
 			s.Garlic.Close()
 		}
 		s.Server = nil
-		s.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
+		s.setStatus(i2ptunnel.I2PTunnelStatusStopped)
 	}
 	return nil
 }
@@ -247,9 +262,10 @@ func (s *SOCKS) SetOptions(opts map[string]string) error {
 // Design: Uses go-i2ptunnel-config library for parsing. Preserves SAM connection and I2P keys.
 func (s *SOCKS) LoadConfig(path string) error {
 	// Prevent config changes while tunnel is running to avoid race conditions
-	if s.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusRunning ||
-		s.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", s.I2PTunnelStatus)
+	status := s.Status()
+	if status == i2ptunnel.I2PTunnelStatusRunning ||
+		status == i2ptunnel.I2PTunnelStatusStarting {
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
 	}
 
 	// Parse config file using the converter library

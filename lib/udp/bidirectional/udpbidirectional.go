@@ -51,14 +51,27 @@ type UDPBidirectional struct {
 	lifeMu sync.Mutex
 	// Mutex protecting the Errors slice from concurrent access
 	errMu sync.Mutex
+	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
+	statusMu sync.RWMutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
 }
 
+const maxErrors = 100
+
 func (u *UDPBidirectional) recordError(err error) {
 	u.errMu.Lock()
 	u.Errors = append(u.Errors, i2ptunnel.NewError(u, err))
+	if len(u.Errors) > maxErrors {
+		u.Errors = append([]i2ptunnel.I2PTunnelError(nil), u.Errors[len(u.Errors)-maxErrors:]...)
+	}
 	u.errMu.Unlock()
+}
+
+func (u *UDPBidirectional) setStatus(s i2ptunnel.I2PTunnelStatus) {
+	u.statusMu.Lock()
+	u.I2PTunnelStatus = s
+	u.statusMu.Unlock()
 }
 
 // Address returns the tunnel's I2P address.
@@ -97,7 +110,7 @@ func (u *UDPBidirectional) Start() error {
 	u.lifeMu.Lock()
 	u.done = make(chan struct{})
 	u.stopOnce = sync.Once{}
-	u.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStarting
+	u.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	u.lifeMu.Unlock()
 
 	// Start the server side: listen for I2P datagrams
@@ -123,7 +136,7 @@ func (u *UDPBidirectional) Start() error {
 		socksErrCh <- u.socksServer.ListenAndServe(u.socksServer.Handle)
 	}()
 
-	u.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusRunning
+	u.setStatus(i2ptunnel.I2PTunnelStatusRunning)
 
 	// Resolve target address once before entering the loop
 	raddr, err := net.ResolveUDPAddr("udp", u.Target())
@@ -170,6 +183,8 @@ func (u *UDPBidirectional) Start() error {
 
 // Status returns the current tunnel status.
 func (u *UDPBidirectional) Status() i2ptunnel.I2PTunnelStatus {
+	u.statusMu.RLock()
+	defer u.statusMu.RUnlock()
 	return u.I2PTunnelStatus
 }
 
@@ -187,8 +202,8 @@ func (u *UDPBidirectional) Stop() error {
 		if u.Garlic != nil {
 			u.Garlic.Close()
 		}
+		u.setStatus(i2ptunnel.I2PTunnelStatusStopped)
 	})
-	u.I2PTunnelStatus = i2ptunnel.I2PTunnelStatusStopped
 	return nil
 }
 
@@ -266,9 +281,10 @@ func (u *UDPBidirectional) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file. The tunnel must be stopped first.
 func (u *UDPBidirectional) LoadConfig(path string) error {
-	if u.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusRunning ||
-		u.I2PTunnelStatus == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", u.I2PTunnelStatus)
+	status := u.Status()
+	if status == i2ptunnel.I2PTunnelStatusRunning ||
+		status == i2ptunnel.I2PTunnelStatusStarting {
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
 	}
 
 	conv := i2pconv.Converter{}

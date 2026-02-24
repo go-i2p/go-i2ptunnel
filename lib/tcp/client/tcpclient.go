@@ -161,16 +161,24 @@ func (t *TCPClient) Start() error {
 
 // handleConnection forwards a single local connection over its own I2P stream.
 // Both connections are closed when forwarding completes.
+// Forwarding errors are recorded so operators and the web UI can observe them.
 func (t *TCPClient) handleConnection(con net.Conn) {
 	defer con.Close()
-	i2pConn, err := t.Garlic.Dial("tcp", t.Target())
+	target := t.Target()
+	if target == "" {
+		t.recordError(fmt.Errorf("handleConnection: no target I2P address configured"))
+		return
+	}
+	i2pConn, err := t.Garlic.Dial("tcp", target)
 	if err != nil {
 		t.recordError(err)
 		return
 	}
 	defer i2pConn.Close()
 	ctx := context.Background()
-	stream.Forward(ctx, con, i2pConn, config.DefaultConfig())
+	if err := stream.Forward(ctx, con, i2pConn, config.DefaultConfig()); err != nil {
+		t.recordError(err)
+	}
 }
 
 // Get the tunnel's status
@@ -198,8 +206,13 @@ func (t *TCPClient) Stop() error {
 	return nil
 }
 
-// Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
+// Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP.
+// Returns empty string when no target address has been set, matching the nil-safe
+// behaviour of Address() and avoiding a panic in handleConnection goroutines.
 func (t *TCPClient) Target() string {
+	if t.I2PAddr == nil {
+		return ""
+	}
 	return t.I2PAddr.Base32()
 }
 
@@ -229,39 +242,67 @@ func (t *TCPClient) Options() map[string]string {
 }
 
 // Set the tunnel's options
+//
+// Design: All values are validated first without holding any lock, since i2pkeys.Lookup
+// may perform network I/O. Only after all validation passes are the writes applied under
+// lifeMu to prevent a data race with Start() reading Interface/Port to bind the listener.
 func (t *TCPClient) SetOptions(opts map[string]string) error {
-	// Apply configuration options from the map with validation
-	if name, ok := opts["name"]; ok {
-		if err := validate.RequiredString("name", name); err != nil {
+	// Phase 1 — validate everything before acquiring the mutex.
+	var (
+		newName                             string
+		newIface                            string
+		newPort                             int
+		newAddr                             *i2pkeys.I2PAddr
+		i2cpOpts                            map[string]interface{}
+		setName, setIface, setPort, setAddr bool
+	)
+	if v, ok := opts["name"]; ok {
+		if err := validate.RequiredString("name", v); err != nil {
 			return err
 		}
-		t.TunnelConfig.Name = name
+		newName, setName = v, true
 	}
-	if iface, ok := opts["interface"]; ok {
-		if err := validate.Interface(iface); err != nil {
+	if v, ok := opts["interface"]; ok {
+		if err := validate.Interface(v); err != nil {
 			return err
 		}
-		t.TunnelConfig.Interface = iface
+		newIface, setIface = v, true
 	}
-	if portStr, ok := opts["port"]; ok {
-		port, err := validate.PortString(portStr)
+	if v, ok := opts["port"]; ok {
+		port, err := validate.PortString(v)
 		if err != nil {
 			return err
 		}
-		t.TunnelConfig.Port = port
+		newPort, setPort = port, true
 	}
-	if target, ok := opts["target"]; ok {
-		if err := validate.I2PAddress(target); err != nil {
+	if v, ok := opts["target"]; ok {
+		if err := validate.I2PAddress(v); err != nil {
 			return err
 		}
-		addr, err := i2pkeys.Lookup(target)
+		addr, err := i2pkeys.Lookup(v)
 		if err != nil {
 			return fmt.Errorf("invalid target address: %w", err)
 		}
-		t.I2PAddr = addr
+		newAddr, setAddr = addr, true
 	}
-	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
-	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
+	i2cpOpts = i2ptunnel.ExtractI2CPOptions(opts)
+
+	// Phase 2 — apply validated values under lifeMu to prevent races with Start().
+	t.lifeMu.Lock()
+	defer t.lifeMu.Unlock()
+	if setName {
+		t.TunnelConfig.Name = newName
+	}
+	if setIface {
+		t.TunnelConfig.Interface = newIface
+	}
+	if setPort {
+		t.TunnelConfig.Port = newPort
+	}
+	if setAddr {
+		t.I2PAddr = newAddr
+	}
+	if i2cpOpts != nil {
 		if t.TunnelConfig.I2CP == nil {
 			t.TunnelConfig.I2CP = make(map[string]interface{})
 		}
@@ -283,11 +324,13 @@ func (t *TCPClient) SetOptions(opts map[string]string) error {
 // then updates only the mutable fields. SAM connection is preserved to maintain tunnel identity.
 // The Garlic (I2P connection) is NOT reloaded - it maintains the existing keys and SAM session.
 func (t *TCPClient) LoadConfig(path string) error {
-	// Prevent config changes while tunnel is running to avoid race conditions
+	// Prevent config changes while tunnel is running to avoid race conditions.
+	// Use the value returned by the mutex-protected Status() call rather than accessing
+	// t.I2PTunnelStatus directly, which would be a data race.
 	status := t.Status()
 	if status == i2ptunnel.I2PTunnelStatusRunning ||
 		status == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", t.I2PTunnelStatus)
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
 	}
 
 	// Parse config file using the converter library
