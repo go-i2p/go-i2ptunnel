@@ -31,5 +31,6 @@ func NewTCPClient(config i2pconv.TunnelConfig, samAddr string) (*TCPClient, erro
 		I2PAddr:         addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		done:            make(chan struct{}),
+		dialTimeout:     defaultDialTimeout,
 	}, nil
 }

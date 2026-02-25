@@ -62,6 +62,14 @@ type TCPClient struct {
 	errMu sync.Mutex
 	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
 	statusMu sync.RWMutex
+	// dialTimeout limits how long handleConnection waits to establish an I2P stream.
+	// Zero means no timeout. Default: defaultDialTimeout. Modified only under lifeMu.
+	dialTimeout time.Duration
+	// connSem is a counting semaphore for limiting concurrent in-flight connections.
+	// nil means unlimited (maxConns == 0). Modified only under lifeMu.
+	// Each accept iteration snapshots the channel reference (snapshotConnSem) so that
+	// a concurrent SetOptions rebuild does not cause mismatched acquire/release pairs.
+	connSem chan struct{}
 
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
@@ -70,6 +78,12 @@ type TCPClient struct {
 // maxErrors is the maximum number of errors retained in memory.
 // Only the most recent errors are kept to prevent unbounded memory growth.
 const maxErrors = 100
+
+// defaultDialTimeout is the maximum time allowed to establish an I2P stream to the target.
+// I2P connections traverse multiple encrypted hops and can be slower than clearnet;
+// 30 seconds is a conservative bound that avoids permanently blocked goroutines while
+// accommodating normal I2P routing delays.
+const defaultDialTimeout = 30 * time.Second
 
 func (t *TCPClient) recordError(err error) {
 	t.errMu.Lock()
@@ -154,7 +168,26 @@ func (t *TCPClient) Start() error {
 				time.Sleep(50 * time.Millisecond)
 				continue
 			}
-			go t.handleConnection(con)
+			// Snapshot the semaphore before spawning: each goroutine holds a reference
+			// to the channel it acquired from, so a SetOptions rebuild is safe.
+			sem := t.snapshotConnSem()
+			if sem != nil {
+				select {
+				case sem <- struct{}{}:
+					// Acquired a slot; the goroutine releases it on exit.
+				default:
+					// At capacity — reject immediately so the local client gets a fast error.
+					t.recordError(fmt.Errorf("connection rejected: at capacity (%d max concurrent)", cap(sem)))
+					con.Close()
+					continue
+				}
+			}
+			go func() {
+				if sem != nil {
+					defer func() { <-sem }()
+				}
+				t.handleConnection(con)
+			}()
 		}
 	}
 }
@@ -169,16 +202,39 @@ func (t *TCPClient) handleConnection(con net.Conn) {
 		t.recordError(fmt.Errorf("handleConnection: no target I2P address configured"))
 		return
 	}
-	i2pConn, err := t.Garlic.Dial("tcp", target)
+	dialCtx, dialCancel := t.dialContext()
+	defer dialCancel()
+	i2pConn, err := t.Garlic.DialContext(dialCtx, "tcp", target)
 	if err != nil {
 		t.recordError(err)
 		return
 	}
 	defer i2pConn.Close()
-	ctx := context.Background()
-	if err := stream.Forward(ctx, con, i2pConn, config.DefaultConfig()); err != nil {
+	if err := stream.Forward(context.Background(), con, i2pConn, config.DefaultConfig()); err != nil {
 		t.recordError(err)
 	}
+}
+
+// dialContext returns a context for the outgoing I2P Dial, applying dialTimeout when set.
+// A zero timeout means no deadline (context.Background is returned).
+// The returned CancelFunc must always be called (via defer) to release timer resources.
+func (t *TCPClient) dialContext() (context.Context, context.CancelFunc) {
+	t.lifeMu.Lock()
+	timeout := t.dialTimeout
+	t.lifeMu.Unlock()
+	if timeout > 0 {
+		return context.WithTimeout(context.Background(), timeout)
+	}
+	return context.Background(), func() {}
+}
+
+// snapshotConnSem returns the current connSem under the lifecycle lock.
+// Callers must use the returned channel directly — not re-read t.connSem — so that
+// a concurrent SetOptions rebuild does not cause mismatched acquire/release pairs.
+func (t *TCPClient) snapshotConnSem() chan struct{} {
+	t.lifeMu.Lock()
+	defer t.lifeMu.Unlock()
+	return t.connSem
 }
 
 // Get the tunnel's status
@@ -237,6 +293,10 @@ func (t *TCPClient) Options() map[string]string {
 	if t.I2PAddr != nil {
 		options["target"] = t.I2PAddr.Base32()
 	}
+	t.lifeMu.Lock()
+	options["maxconns"] = strconv.Itoa(cap(t.connSem)) // 0 means unlimited
+	options["dialtimeout"] = t.dialTimeout.String()
+	t.lifeMu.Unlock()
 	i2ptunnel.MergeI2CPOptions(t.TunnelConfig.I2CP, options)
 	return options
 }
@@ -286,6 +346,29 @@ func (t *TCPClient) SetOptions(opts map[string]string) error {
 		newAddr, setAddr = addr, true
 	}
 	i2cpOpts = i2ptunnel.ExtractI2CPOptions(opts)
+	var (
+		newMaxConns    int
+		newDialTimeout time.Duration
+		setMaxConns    bool
+		setDialTimeout bool
+	)
+	if v, ok := opts["maxconns"]; ok {
+		mc, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("invalid maxconns %q: must be a non-negative integer", v)
+		}
+		if err := validate.MaxConnections(mc); err != nil {
+			return err
+		}
+		newMaxConns, setMaxConns = mc, true
+	}
+	if v, ok := opts["dialtimeout"]; ok {
+		d, err := time.ParseDuration(v)
+		if err != nil || d < 0 {
+			return fmt.Errorf("invalid dialtimeout %q: must be a non-negative duration (e.g. 30s, 1m30s)", v)
+		}
+		newDialTimeout, setDialTimeout = d, true
+	}
 
 	// Phase 2 — apply validated values under lifeMu to prevent races with Start().
 	t.lifeMu.Lock()
@@ -309,6 +392,16 @@ func (t *TCPClient) SetOptions(opts map[string]string) error {
 		for k, v := range i2cpOpts {
 			t.TunnelConfig.I2CP[k] = v
 		}
+	}
+	if setMaxConns {
+		if newMaxConns > 0 {
+			t.connSem = make(chan struct{}, newMaxConns)
+		} else {
+			t.connSem = nil // 0 means unlimited
+		}
+	}
+	if setDialTimeout {
+		t.dialTimeout = newDialTimeout
 	}
 	return nil
 }
