@@ -71,13 +71,20 @@ type TCPClient struct {
 	// a concurrent SetOptions rebuild does not cause mismatched acquire/release pairs.
 	connSem chan struct{}
 
-	// Error history of the tunnel
-	Errors []i2ptunnel.I2PTunnelError
+	// errors is the unexported error history of the tunnel, protected by errMu.
+	// Access via ErrorHistory() for a thread-safe snapshot, or Error() for the last error.
+	// Unexported so external callers cannot bypass errMu and read the slice without locking.
+	errors []i2ptunnel.I2PTunnelError
 }
 
 // maxErrors is the maximum number of errors retained in memory.
 // Only the most recent errors are kept to prevent unbounded memory growth.
 const maxErrors = 100
+
+// maxConsecutiveAcceptErrors is the number of consecutive Accept() failures before
+// the tunnel transitions to I2PTunnelStatusFailed. This lets operators monitoring
+// Status() distinguish a degraded listener from a healthy one.
+const maxConsecutiveAcceptErrors = 10
 
 // defaultDialTimeout is the maximum time allowed to establish an I2P stream to the target.
 // I2P connections traverse multiple encrypted hops and can be slower than clearnet;
@@ -87,10 +94,10 @@ const defaultDialTimeout = 30 * time.Second
 
 func (t *TCPClient) recordError(err error) {
 	t.errMu.Lock()
-	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
-	if len(t.Errors) > maxErrors {
+	t.errors = append(t.errors, i2ptunnel.NewError(t, err))
+	if len(t.errors) > maxErrors {
 		// Discard oldest errors to bound memory usage.
-		t.Errors = append([]i2ptunnel.I2PTunnelError(nil), t.Errors[len(t.Errors)-maxErrors:]...)
+		t.errors = append([]i2ptunnel.I2PTunnelError(nil), t.errors[len(t.errors)-maxErrors:]...)
 	}
 	t.errMu.Unlock()
 }
@@ -115,10 +122,27 @@ func (t *TCPClient) Address() string {
 func (t *TCPClient) Error() error {
 	t.errMu.Lock()
 	defer t.errMu.Unlock()
-	if len(t.Errors) > 0 {
-		return t.Errors[len(t.Errors)-1]
+	if len(t.errors) > 0 {
+		return t.errors[len(t.errors)-1]
 	}
 	return nil
+}
+
+// ErrorHistory returns a snapshot copy of all recorded errors, safe for concurrent use.
+// The returned slice is independent of the internal ring-buffer — callers may iterate or
+// store it without holding any lock and without affecting the tunnel's error state.
+//
+// Why unexported field + accessor: exporting the slice directly lets callers range over
+// it without errMu, defeating the mutex and producing data races flagged by `go test -race`.
+func (t *TCPClient) ErrorHistory() []i2ptunnel.I2PTunnelError {
+	t.errMu.Lock()
+	defer t.errMu.Unlock()
+	if len(t.errors) == 0 {
+		return nil
+	}
+	snapshot := make([]i2ptunnel.I2PTunnelError, len(t.errors))
+	copy(snapshot, t.errors)
+	return snapshot
 }
 
 // Get the tunnel's local host:port
@@ -151,6 +175,7 @@ func (t *TCPClient) Start() error {
 	defer listener.Close()
 	defer t.Stop()
 	t.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	consecutiveAcceptErrors := 0
 	for {
 		select {
 		case <-t.done:
@@ -164,10 +189,19 @@ func (t *TCPClient) Start() error {
 					return nil
 				default:
 				}
+				// Record the error and transition to Failed after too many consecutive
+				// errors so operators see I2PTunnelStatusFailed rather than a silently
+				// looping tunnel that claims to be running.
+				consecutiveAcceptErrors++
+				t.recordError(fmt.Errorf("listener.Accept error (%d consecutive): %w", consecutiveAcceptErrors, err))
+				if consecutiveAcceptErrors >= maxConsecutiveAcceptErrors {
+					t.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+				}
 				// Backoff to prevent CPU-burning tight loop on persistent errors
 				time.Sleep(50 * time.Millisecond)
 				continue
 			}
+			consecutiveAcceptErrors = 0 // reset on successful accept
 			// Snapshot the semaphore before spawning: each goroutine holds a reference
 			// to the channel it acquired from, so a SetOptions rebuild is safe.
 			sem := t.snapshotConnSem()
@@ -413,19 +447,25 @@ func (t *TCPClient) SetOptions(opts map[string]string) error {
 // Why: Production deployments need to reload configuration without recreating tunnel objects.
 // This enables configuration management tools and web UIs to persist changes.
 //
-// Design: Uses the go-i2ptunnel-config library to parse config files in multiple formats,
-// then updates only the mutable fields. SAM connection is preserved to maintain tunnel identity.
-// The Garlic (I2P connection) is NOT reloaded - it maintains the existing keys and SAM session.
+// Design: All I/O (file reads, address lookups) happens before acquiring any lock to avoid
+// priority inversions. The status check and struct update are then applied atomically under
+// lifeMu, closing the TOCTOU window where a concurrent Start() could bind the old address
+// while LoadConfig simultaneously replaces the struct.
+//
+// I2CP preservation: if the config file omits the i2cp section, any options previously
+// applied via SetOptions() (e.g. encrypted-leaseset keys) are preserved rather than wiped.
 func (t *TCPClient) LoadConfig(path string) error {
-	// Prevent config changes while tunnel is running to avoid race conditions.
-	// Use the value returned by the mutex-protected Status() call rather than accessing
-	// t.I2PTunnelStatus directly, which would be a data race.
-	status := t.Status()
-	if status == i2ptunnel.I2PTunnelStatusRunning ||
-		status == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
+	// Quick pre-check: reject an obviously running tunnel before any I/O so that
+	// callers get an immediate, actionable error without waiting for file reads or
+	// network lookups.  This is non-authoritative (no lock held); the authoritative
+	// check is repeated atomically under lifeMu before applying changes below.
+	preStatus := t.Status()
+	if preStatus == i2ptunnel.I2PTunnelStatusRunning ||
+		preStatus == i2ptunnel.I2PTunnelStatusStarting {
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", preStatus)
 	}
 
+	// Phase 1 — all I/O outside any lock.
 	// Parse config file using the converter library
 	// This handles format detection and validation for .properties, .ini, .yaml
 	conv := i2pconv.Converter{}
@@ -449,14 +489,34 @@ func (t *TCPClient) LoadConfig(path string) error {
 		return fmt.Errorf("config file contains %s tunnel, expected tcpclient", newConfig.Type)
 	}
 
-	// Validate target address before applying changes
+	// Validate target address before acquiring the lock (may do network I/O).
 	addr, err := i2pkeys.Lookup(newConfig.Target)
 	if err != nil {
 		return fmt.Errorf("invalid target address in config: %w", err)
 	}
 
-	// Update mutable configuration fields
-	// The Garlic connection (SAM) is preserved to maintain tunnel identity and keys
+	// Phase 2 — atomically check status and apply config under lifeMu.
+	// Locking order: lifeMu first, then statusMu (via Status()) — consistent with
+	// Start() and Stop() which hold lifeMu while calling setStatus(lifeMu→statusMu).
+	t.lifeMu.Lock()
+	defer t.lifeMu.Unlock()
+
+	status := t.Status()
+	if status == i2ptunnel.I2PTunnelStatusRunning ||
+		status == i2ptunnel.I2PTunnelStatusStarting {
+		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
+	}
+
+	// Preserve I2CP options when the config file omits the i2cp section.
+	// Encrypted-leaseSet keys and other fine-grained options applied via SetOptions()
+	// or the Web UI form part of the tunnel's operational identity. A config reload
+	// that simply lacks an i2cp block must not silently discard those settings.
+	if len(newConfig.I2CP) == 0 && len(t.TunnelConfig.I2CP) > 0 {
+		newConfig.I2CP = t.TunnelConfig.I2CP
+	}
+
+	// Update mutable configuration fields.
+	// The Garlic connection (SAM) is preserved to maintain tunnel identity and keys.
 	t.TunnelConfig = *newConfig
 	t.I2PAddr = addr
 

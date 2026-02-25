@@ -71,12 +71,8 @@ func TestHandleConnection_RecordsNoTargetError(t *testing.T) {
 
 	c.handleConnection(client) // must not panic
 
-	c.errMu.Lock()
-	nErrs := len(c.Errors)
-	c.errMu.Unlock()
-
-	if nErrs == 0 {
-		t.Error("handleConnection should record an error when Target() is empty, but Errors is empty")
+	if len(c.ErrorHistory()) == 0 {
+		t.Error("handleConnection should record an error when Target() is empty, but ErrorHistory() is empty")
 	}
 }
 

@@ -17,11 +17,14 @@ type TCPClient struct {
 	*i2pkeys.I2PAddr
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
-
-	// Error history of the tunnel
-	Errors []i2ptunnel.I2PTunnelError
+	// contains filtered or unexported fields
 }
 ```
+
+**Thread-safety**: The `errors` field is unexported and protected by an internal mutex.
+Use `Error()` to retrieve the most recent error, or `ErrorHistory()` for a safe snapshot
+of all recorded errors. Do **not** access unexported fields directly — concurrent reads
+without a lock will be flagged by `go test -race`.
 
 
 #### func  NewTCPClient
@@ -43,7 +46,16 @@ Get the tunnel's I2P address
 ```go
 func (t *TCPClient) Error() error
 ```
-Get the tunnel's error message
+Get the tunnel's error message (most recent recorded error).
+
+#### func (*TCPClient) ErrorHistory
+
+```go
+func (t *TCPClient) ErrorHistory() []i2ptunnel.I2PTunnelError
+```
+ErrorHistory returns a snapshot copy of all recorded errors, safe for concurrent use.
+The returned slice is independent of the internal buffer — callers may iterate or store
+it without holding any lock. Returns nil when no errors have been recorded.
 
 #### func (*TCPClient) LocalAddress
 
