@@ -26,6 +26,7 @@ import (
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
+	httpclient "github.com/go-i2p/go-i2ptunnel/lib/http/client"
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 
@@ -72,6 +73,13 @@ type HTTPBidirectional struct {
 	statusMu sync.RWMutex
 	// Error history of the tunnel
 	Errors []i2ptunnel.I2PTunnelError
+	// Jump service client for resolving human-readable .i2p hostnames.
+	// Uses an I2P-routed HTTP client so stats.i2p is reachable.
+	// Initialized in NewHTTPBidirectional; nil disables jump service lookup.
+	Jump *httpclient.JumpService
+	// Outproxy routes clearnet (non-.i2p) HTTP requests through an I2P exit node.
+	// Nil or inactive means clearnet requests are rejected with an error.
+	Outproxy *httpclient.Outproxy
 	// Context for graceful shutdown
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -285,6 +293,14 @@ func (h *HTTPBidirectional) Options() map[string]string {
 	if h.Addr != nil {
 		options["target"] = h.Addr.String()
 	}
+	if h.Outproxy != nil {
+		options["outproxy"] = h.Outproxy.Address
+		if h.Outproxy.Enabled {
+			options["outproxy.enabled"] = "true"
+		} else {
+			options["outproxy.enabled"] = "false"
+		}
+	}
 	i2ptunnel.MergeI2CPOptions(h.TunnelConfig.I2CP, options)
 	return options
 }
@@ -336,6 +352,21 @@ func (h *HTTPBidirectional) SetOptions(opts map[string]string) error {
 			return fmt.Errorf("invalid target address %q: %w", target, err)
 		}
 		h.Addr = addr
+	}
+	// Configure the clearnet outproxy address and enabled flag.
+	// The outproxy must be an I2P destination (*.i2p) that accepts HTTP CONNECT
+	// requests and forwards them to the clearnet internet.
+	if outproxy, ok := opts["outproxy"]; ok {
+		if h.Outproxy == nil {
+			h.Outproxy = &httpclient.Outproxy{}
+		}
+		h.Outproxy.Address = outproxy
+	}
+	if enabledStr, ok := opts["outproxy.enabled"]; ok {
+		if h.Outproxy == nil {
+			h.Outproxy = &httpclient.Outproxy{}
+		}
+		h.Outproxy.Enabled = enabledStr == "true" || enabledStr == "1"
 	}
 	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
 	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {

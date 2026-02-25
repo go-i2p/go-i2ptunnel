@@ -3,9 +3,11 @@ package httpbidirectional
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
+	"time"
 
-	httpclient "github.com/go-i2p/go-i2ptunnel-config/lib"
+	tunnelconfig "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	httpClientSanitize "github.com/go-i2p/go-i2ptunnel/lib/http/client"
 	httpServerSanitize "github.com/go-i2p/go-i2ptunnel/lib/http/server"
@@ -19,7 +21,7 @@ import (
 //
 // config.Target is the local HTTP service address for inbound I2P connections.
 // config.Port is the HTTP proxy listen port for outbound connections.
-func NewHTTPBidirectional(config httpclient.TunnelConfig, samAddr string) (*HTTPBidirectional, error) {
+func NewHTTPBidirectional(config tunnelconfig.TunnelConfig, samAddr string) (*HTTPBidirectional, error) {
 	keys, options, err := config.SAMTunnel()
 	if err != nil {
 		return nil, err
@@ -37,6 +39,16 @@ func NewHTTPBidirectional(config httpclient.TunnelConfig, samAddr string) (*HTTP
 		return nil, fmt.Errorf("invalid target address %q: %w", config.Target, err)
 	}
 
+	// Create an I2P-routed HTTP client so the jump service (at stats.i2p) is
+	// reachable. Without this, human-readable .i2p hostnames would fail to
+	// resolve because http.DefaultClient cannot reach I2P network addresses.
+	jumpClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: garlic.DialContext,
+		},
+		Timeout: 30 * time.Second,
+	}
+
 	return &HTTPBidirectional{
 		TunnelConfig:    config,
 		Garlic:          garlic,
@@ -48,6 +60,8 @@ func NewHTTPBidirectional(config httpclient.TunnelConfig, samAddr string) (*HTTP
 			MaxConns:  1000,
 			RateLimit: 100,
 		},
-		done: make(chan struct{}),
+		Jump:     httpClientSanitize.NewJumpService(jumpClient, httpClientSanitize.DefaultJumpServiceURL),
+		Outproxy: &httpClientSanitize.Outproxy{},
+		done:     make(chan struct{}),
 	}, nil
 }
