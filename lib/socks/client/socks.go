@@ -50,6 +50,8 @@ import (
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
+	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 	"github.com/txthinking/socks5"
 )
@@ -63,6 +65,10 @@ type SOCKS struct {
 	i2pconv.TunnelConfig
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// The rate-limiting configuration.
+	// Note: socks5.Server manages its own listener; MaxConns/RateLimit are
+	// persisted here for configuration round-trips and future wiring.
+	limitedlistener.LimitedConfig
 	// SOCKS5 server instance
 	*socks5.Server
 	// Channel for shutdown signaling
@@ -75,14 +81,24 @@ type SOCKS struct {
 	statusMu sync.RWMutex
 	// ErrorTracker provides bounded error history.
 	i2ptunnel.ErrorTracker
+	// Metrics tracks live operational data for this tunnel.
+	// Set by the webui controller after construction. May be nil.
+	Metrics *metrics.TunnelMetrics
 	// Context for cleanup
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
+// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
+func (s *SOCKS) SetTunnelMetrics(m *metrics.TunnelMetrics) {
+	s.Metrics = m
+}
 
 func (s *SOCKS) recordError(err error) {
 	s.ErrorTracker.Record(s, err)
+	if s.Metrics != nil {
+		s.Metrics.RecordError()
+	}
 }
 
 func (s *SOCKS) setStatus(s2 i2ptunnel.I2PTunnelStatus) {
@@ -142,6 +158,9 @@ func (s *SOCKS) Start() error {
 	s.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	s.Server.Handle = s
 	s.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	if s.Metrics != nil {
+		s.Metrics.RecordStart()
+	}
 
 	return s.Server.ListenAndServe(s)
 }
@@ -176,6 +195,9 @@ func (s *SOCKS) Stop() error {
 		}
 		s.Server = nil
 		s.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		if s.Metrics != nil {
+			s.Metrics.RecordStop()
+		}
 	}
 	return nil
 }
@@ -203,6 +225,8 @@ func (s *SOCKS) Options() map[string]string {
 	options["type"] = s.TunnelConfig.Type
 	options["interface"] = s.TunnelConfig.Interface
 	options["port"] = strconv.Itoa(s.TunnelConfig.Port)
+	options["maxconns"] = strconv.Itoa(s.LimitedConfig.MaxConns)
+	options["ratelimit"] = strconv.FormatFloat(s.LimitedConfig.RateLimit, 'f', -1, 64)
 	i2ptunnel.MergeI2CPOptions(s.TunnelConfig.I2CP, options)
 	return options
 }
@@ -228,6 +252,23 @@ func (s *SOCKS) SetOptions(opts map[string]string) error {
 			return err
 		}
 		s.TunnelConfig.Port = port
+	}
+	if maxconnsStr, ok := opts["maxconns"]; ok {
+		maxconns, err := strconv.Atoi(maxconnsStr)
+		if err != nil {
+			return fmt.Errorf("invalid maxconns value: %s", maxconnsStr)
+		}
+		if err := validate.MaxConnections(maxconns); err != nil {
+			return err
+		}
+		s.LimitedConfig.MaxConns = maxconns
+	}
+	if ratelimitStr, ok := opts["ratelimit"]; ok {
+		ratelimit, err := validate.RateLimitString(ratelimitStr)
+		if err != nil {
+			return err
+		}
+		s.LimitedConfig.RateLimit = ratelimit
 	}
 	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
 	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {

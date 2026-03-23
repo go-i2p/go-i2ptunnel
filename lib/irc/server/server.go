@@ -27,6 +27,7 @@ import (
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 )
@@ -59,10 +60,21 @@ type IRCServer struct {
 	statusMu sync.RWMutex
 	// ErrorTracker provides bounded error history.
 	i2ptunnel.ErrorTracker
+	// Metrics tracks live operational data for this tunnel.
+	// Set by the webui controller after construction. May be nil.
+	Metrics *metrics.TunnelMetrics
+}
+
+// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
+func (i *IRCServer) SetTunnelMetrics(m *metrics.TunnelMetrics) {
+	i.Metrics = m
 }
 
 func (t *IRCServer) recordError(err error) {
 	t.ErrorTracker.Record(t, err)
+	if t.Metrics != nil {
+		t.Metrics.RecordError()
+	}
 }
 
 func (i *IRCServer) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -113,6 +125,9 @@ func (i *IRCServer) Start() error {
 	defer i2pListener.Close()
 	defer i.Stop()
 	i.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	if i.Metrics != nil {
+		i.Metrics.RecordStart()
+	}
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(i.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(i.LimitedConfig.RateLimit))
 	ircInspectorListener := ircinspector.New(limitedI2PListener, i.Config)
 	ApplyIRCServerFilterRules(ircInspectorListener, i.Address())
@@ -139,15 +154,22 @@ func (i *IRCServer) Start() error {
 // handleConnection forwards a single I2P connection to the local IRC service.
 // Both connections are closed when forwarding completes.
 func (i *IRCServer) handleConnection(con net.Conn) {
-	defer con.Close()
+	if i.Metrics != nil {
+		i.Metrics.RecordConnection()
+	}
+	wrapped := metrics.WrapConn(con, i.Metrics)
+	defer wrapped.Close()
 	lCon, err := net.Dial("tcp", i.Target())
 	if err != nil {
 		i.recordError(err)
+		if i.Metrics != nil {
+			i.Metrics.RecordConnectionFailed()
+		}
 		return
 	}
 	defer lCon.Close()
 	ctx := context.Background()
-	stream.Forward(ctx, con, lCon, config.DefaultConfig())
+	stream.Forward(ctx, wrapped, lCon, config.DefaultConfig())
 }
 
 // Get the tunnel's status
@@ -171,6 +193,9 @@ func (i *IRCServer) Stop() error {
 			i.Garlic.Close()
 		}
 		i.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		if i.Metrics != nil {
+			i.Metrics.RecordStop()
+		}
 	})
 	return nil
 }

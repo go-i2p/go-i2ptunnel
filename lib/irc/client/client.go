@@ -27,6 +27,8 @@ import (
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
+	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
 )
@@ -42,6 +44,8 @@ type IRCClient struct {
 	*i2pkeys.I2PAddr
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// The rate-limiting configuration
+	limitedlistener.LimitedConfig
 	// The IRC filtering configuration
 	ircinspector.Config
 	// Channel for shutdown signaling
@@ -57,10 +61,21 @@ type IRCClient struct {
 	statusMu sync.RWMutex
 	// ErrorTracker provides bounded error history.
 	i2ptunnel.ErrorTracker
+	// Metrics tracks live operational data for this tunnel.
+	// Set by the webui controller after construction. May be nil.
+	Metrics *metrics.TunnelMetrics
+}
+
+// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
+func (i *IRCClient) SetTunnelMetrics(m *metrics.TunnelMetrics) {
+	i.Metrics = m
 }
 
 func (t *IRCClient) recordError(err error) {
 	t.ErrorTracker.Record(t, err)
+	if t.Metrics != nil {
+		t.Metrics.RecordError()
+	}
 }
 
 func (t *IRCClient) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -112,10 +127,14 @@ func (i *IRCClient) Start() error {
 	i.lifeMu.Unlock()
 	defer listener.Close()
 	defer i.Stop()
-	filteredListener := ircinspector.New(listener, i.Config)
+	limitedL := limitedlistener.NewLimitedListener(listener, limitedlistener.WithMaxConnections(i.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(i.LimitedConfig.RateLimit))
+	filteredListener := ircinspector.New(limitedL, i.Config)
 	ApplyIRCClientFilterRules(filteredListener, i.Address())
 	defer filteredListener.Close()
 	i.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	if i.Metrics != nil {
+		i.Metrics.RecordStart()
+	}
 	for {
 		select {
 		case <-i.done:
@@ -139,15 +158,22 @@ func (i *IRCClient) Start() error {
 // handleConnection forwards a single local connection over its own I2P stream.
 // Both connections are closed when forwarding completes.
 func (i *IRCClient) handleConnection(con net.Conn) {
-	defer con.Close()
+	if i.Metrics != nil {
+		i.Metrics.RecordConnection()
+	}
+	wrapped := metrics.WrapConn(con, i.Metrics)
+	defer wrapped.Close()
 	i2pConn, err := i.Garlic.Dial("tcp", i.Target())
 	if err != nil {
 		i.recordError(err)
+		if i.Metrics != nil {
+			i.Metrics.RecordConnectionFailed()
+		}
 		return
 	}
 	defer i2pConn.Close()
 	ctx := context.Background()
-	stream.Forward(ctx, con, i2pConn, config.DefaultConfig())
+	stream.Forward(ctx, wrapped, i2pConn, config.DefaultConfig())
 }
 
 // Get the tunnel's status
@@ -171,6 +197,9 @@ func (i *IRCClient) Stop() error {
 			i.Garlic.Close()
 		}
 		i.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		if i.Metrics != nil {
+			i.Metrics.RecordStop()
+		}
 	})
 	return nil
 }
@@ -198,6 +227,8 @@ func (i *IRCClient) Options() map[string]string {
 	options["type"] = i.TunnelConfig.Type
 	options["interface"] = i.TunnelConfig.Interface
 	options["port"] = strconv.Itoa(i.TunnelConfig.Port)
+	options["maxconns"] = strconv.Itoa(i.LimitedConfig.MaxConns)
+	options["ratelimit"] = strconv.FormatFloat(i.LimitedConfig.RateLimit, 'f', -1, 64)
 	if i.I2PAddr != nil {
 		options["target"] = i.I2PAddr.Base32()
 	}
@@ -226,6 +257,23 @@ func (i *IRCClient) SetOptions(opts map[string]string) error {
 			return err
 		}
 		i.TunnelConfig.Port = port
+	}
+	if maxconnsStr, ok := opts["maxconns"]; ok {
+		maxconns, err := strconv.Atoi(maxconnsStr)
+		if err != nil {
+			return fmt.Errorf("invalid maxconns value: %s", maxconnsStr)
+		}
+		if err := validate.MaxConnections(maxconns); err != nil {
+			return err
+		}
+		i.LimitedConfig.MaxConns = maxconns
+	}
+	if ratelimitStr, ok := opts["ratelimit"]; ok {
+		ratelimit, err := validate.RateLimitString(ratelimitStr)
+		if err != nil {
+			return err
+		}
+		i.LimitedConfig.RateLimit = ratelimit
 	}
 	if target, ok := opts["target"]; ok {
 		if err := validate.I2PAddress(target); err != nil {

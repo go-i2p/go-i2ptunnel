@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-i2p/go-forward/packet"
 	"github.com/go-i2p/go-forward/stream"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	udpconst "github.com/go-i2p/go-i2ptunnel/lib/udp/const"
 	"github.com/go-i2p/go-sam-go/datagram"
 	"github.com/go-i2p/i2pkeys"
@@ -17,15 +18,23 @@ var socksHandler socks5.Handler = &SOCKS{}
 
 // TCPHandle implements socks5.Handler.
 func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Request) error {
+	if s.Metrics != nil {
+		s.Metrics.RecordConnection()
+		defer s.Metrics.RecordDisconnection()
+	}
 	// Connect to destination through I2P
 	i2pConn, err := s.Garlic.Dial("tcp", req.Address())
 	if err != nil {
+		if s.Metrics != nil {
+			s.Metrics.RecordConnectionFailed()
+		}
 		return err
 	}
 	defer i2pConn.Close()
 
 	ctx := context.Background()
-	err = stream.Forward(ctx, conn, i2pConn, udpconst.NewDatagramForwardConfig())
+	wrapped := metrics.WrapConn(conn, s.Metrics)
+	err = stream.Forward(ctx, wrapped, i2pConn, udpconst.NewDatagramForwardConfig())
 	return err
 }
 
@@ -34,6 +43,9 @@ func (s *SOCKS) UDPHandle(_ *socks5.Server, addr *net.UDPAddr, data *socks5.Data
 	// Connect to destination through I2P
 	i2pConn, err := s.Garlic.Dial("udp", data.Address())
 	if err != nil {
+		if s.Metrics != nil {
+			s.Metrics.RecordConnectionFailed()
+		}
 		return err
 	}
 	defer i2pConn.Close()

@@ -36,6 +36,7 @@ import (
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	"github.com/go-i2p/onramp"
 
 	"github.com/elazarl/goproxy"
@@ -66,6 +67,9 @@ type HTTPClient struct {
 	statusMu sync.RWMutex
 	// ErrorTracker provides bounded error history.
 	i2ptunnel.ErrorTracker
+	// Metrics tracks live operational data for this tunnel.
+	// Set by the webui controller after construction. May be nil.
+	Metrics *metrics.TunnelMetrics
 	// Jump service client for resolving human-readable .i2p hostnames
 	Jump *JumpService
 	// Outproxy for routing clearnet HTTP requests through I2P
@@ -75,9 +79,16 @@ type HTTPClient struct {
 	cancel context.CancelFunc
 }
 
+// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
+func (h *HTTPClient) SetTunnelMetrics(m *metrics.TunnelMetrics) {
+	h.Metrics = m
+}
 
 func (h *HTTPClient) recordError(err error) {
 	h.ErrorTracker.Record(h, err)
+	if h.Metrics != nil {
+		h.Metrics.RecordError()
+	}
 }
 
 func (h *HTTPClient) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -94,11 +105,26 @@ func (h *HTTPClient) connectDial(network, addr string) (net.Conn, error) {
 	if host == "" {
 		host = addr
 	}
+	var (
+		conn net.Conn
+		err  error
+	)
 	if !IsI2PAddress(host) {
-		return h.dialOutproxyNoCtx(network, addr)
+		conn, err = h.dialOutproxyNoCtx(network, addr)
+	} else {
+		addr = h.resolveJump(addr)
+		conn, err = h.Garlic.Dial(network, addr)
 	}
-	addr = h.resolveJump(addr)
-	return h.Garlic.Dial(network, addr)
+	if err != nil {
+		if h.Metrics != nil {
+			h.Metrics.RecordConnectionFailed()
+		}
+		return nil, err
+	}
+	if h.Metrics != nil {
+		h.Metrics.RecordConnection()
+	}
+	return metrics.WrapConn(conn, h.Metrics), nil
 }
 
 // Get the tunnel's I2P address
@@ -155,6 +181,9 @@ func (h *HTTPClient) Start() error {
 	h.Server = &http.Server{}
 	h.Server.Handler = h.ProxyHttpServer
 	h.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	if h.Metrics != nil {
+		h.Metrics.RecordStart()
+	}
 	return h.Server.Serve(listenerInspector)
 }
 
@@ -201,6 +230,9 @@ func (h *HTTPClient) Stop() error {
 		h.Server = nil
 		h.ProxyHttpServer = nil
 		h.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		if h.Metrics != nil {
+			h.Metrics.RecordStop()
+		}
 	}
 	return nil
 }

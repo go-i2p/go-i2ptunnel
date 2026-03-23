@@ -5,6 +5,7 @@ import (
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	limitedlistener "github.com/go-i2p/go-limit"
 )
 
 // NewUDPServer creates a new UDP Server tunnel with the given configuration
@@ -23,6 +24,10 @@ func NewUDPServer(config i2pconv.TunnelConfig, samAddr string) (*UDPServer, erro
 		Garlic:          garlic,
 		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
-		done:            make(chan struct{}),
+		LimitedConfig: limitedlistener.LimitedConfig{
+			MaxConns:  i2ptunnel.TunnelOptionsMaxConns(config.Tunnel, 1000),
+			RateLimit: i2ptunnel.TunnelOptionsRateLimit(config.Tunnel, 100.0),
+		},
+		done: make(chan struct{}),
 	}, nil
 }

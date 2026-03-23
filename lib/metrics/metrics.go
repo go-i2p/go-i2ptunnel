@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -193,3 +194,54 @@ func (r *Registry) Snapshots() []MetricSnapshot {
 
 // DefaultRegistry is the process-wide metrics registry.
 var DefaultRegistry = NewRegistry()
+
+// MetricsBearer is implemented by tunnel types that support live metrics injection.
+// The webui controller uses this interface to inject a registered TunnelMetrics
+// into each tunnel after construction.
+type MetricsBearer interface {
+	SetTunnelMetrics(m *TunnelMetrics)
+}
+
+// CountingConn wraps a net.Conn and records byte transfers to a TunnelMetrics
+// instance. Read calls record BytesIn; Write calls record BytesOut.
+// Close records a disconnection event exactly once via closeOnce.
+type CountingConn struct {
+	net.Conn
+	metrics   *TunnelMetrics
+	closeOnce sync.Once
+}
+
+func (c *CountingConn) Read(b []byte) (int, error) {
+	n, err := c.Conn.Read(b)
+	if n > 0 && c.metrics != nil {
+		c.metrics.RecordBytesIn(int64(n))
+	}
+	return n, err
+}
+
+func (c *CountingConn) Write(b []byte) (int, error) {
+	n, err := c.Conn.Write(b)
+	if n > 0 && c.metrics != nil {
+		c.metrics.RecordBytesOut(int64(n))
+	}
+	return n, err
+}
+
+// Close records a disconnection event (once) then closes the underlying connection.
+func (c *CountingConn) Close() error {
+	c.closeOnce.Do(func() {
+		if c.metrics != nil {
+			c.metrics.RecordDisconnection()
+		}
+	})
+	return c.Conn.Close()
+}
+
+// WrapConn returns conn wrapped in a CountingConn that records bytes and
+// disconnection events to m. Returns conn unchanged when m is nil.
+func WrapConn(conn net.Conn, m *TunnelMetrics) net.Conn {
+	if m == nil {
+		return conn
+	}
+	return &CountingConn{Conn: conn, metrics: m}
+}

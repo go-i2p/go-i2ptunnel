@@ -27,6 +27,7 @@ import (
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 )
@@ -57,12 +58,21 @@ type TCPServer struct {
 	statusMu sync.RWMutex
 	// ErrorTracker provides bounded error history.
 	i2ptunnel.ErrorTracker
-
+	// Metrics tracks live operational data for this tunnel.
+	// Set by the webui controller after construction. May be nil.
+	Metrics *metrics.TunnelMetrics
 }
 
+// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
+func (t *TCPServer) SetTunnelMetrics(m *metrics.TunnelMetrics) {
+	t.Metrics = m
+}
 
 func (t *TCPServer) recordError(err error) {
 	t.ErrorTracker.Record(t, err)
+	if t.Metrics != nil {
+		t.Metrics.RecordError()
+	}
 }
 
 func (t *TCPServer) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -116,6 +126,9 @@ func (t *TCPServer) Start() error {
 	defer i2pListener.Close()
 	defer t.Stop()
 	t.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	if t.Metrics != nil {
+		t.Metrics.RecordStart()
+	}
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(t.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(t.LimitedConfig.RateLimit))
 	for {
 		select {
@@ -140,15 +153,22 @@ func (t *TCPServer) Start() error {
 // handleConnection forwards a single I2P connection to the local target service.
 // Both connections are closed when forwarding completes.
 func (t *TCPServer) handleConnection(con net.Conn) {
-	defer con.Close()
+	if t.Metrics != nil {
+		t.Metrics.RecordConnection()
+	}
+	wrapped := metrics.WrapConn(con, t.Metrics)
+	defer wrapped.Close()
 	lCon, err := net.Dial("tcp", t.Target())
 	if err != nil {
 		t.recordError(err)
+		if t.Metrics != nil {
+			t.Metrics.RecordConnectionFailed()
+		}
 		return
 	}
 	defer lCon.Close()
 	ctx := context.Background()
-	stream.Forward(ctx, con, lCon, config.DefaultConfig())
+	stream.Forward(ctx, wrapped, lCon, config.DefaultConfig())
 }
 
 // Get the tunnel's status
@@ -172,6 +192,9 @@ func (t *TCPServer) Stop() error {
 			t.Garlic.Close()
 		}
 		t.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		if t.Metrics != nil {
+			t.Metrics.RecordStop()
+		}
 	})
 	return nil
 }

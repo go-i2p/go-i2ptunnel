@@ -189,7 +189,10 @@ func (cg *ControllerGroup) handlePostNew(w http.ResponseWriter, r *http.Request)
 
 	// Register new tunnel in metrics registry.
 	if cg.metricsHandler != nil {
-		cg.metricsHandler.Registry.Register(controller.Name(), controller.ID(), controller.Type())
+		m := cg.metricsHandler.Registry.Register(controller.Name(), controller.ID(), controller.Type())
+		if bearer, ok := controller.I2PTunnel.(metrics.MetricsBearer); ok {
+			bearer.SetTunnelMetrics(m)
+		}
 	}
 
 	// Redirect to the new tunnel's control page
@@ -227,7 +230,10 @@ func NewControllerGroup(directory string) (*ControllerGroup, error) {
 				return nil, err
 			}
 			group.I2PTunnels = append(group.I2PTunnels, *controller)
-			registry.Register(controller.Name(), controller.ID(), controller.Type())
+			m := registry.Register(controller.Name(), controller.ID(), controller.Type())
+			if bearer, ok := controller.I2PTunnel.(metrics.MetricsBearer); ok {
+				bearer.SetTunnelMetrics(m)
+			}
 		}
 	}
 

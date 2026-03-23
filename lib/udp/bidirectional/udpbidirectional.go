@@ -23,6 +23,8 @@ import (
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
+	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 	"github.com/txthinking/socks5"
 )
@@ -40,6 +42,10 @@ type UDPBidirectional struct {
 	net.Addr
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
+	// The rate-limiting configuration.
+	// Note: UDP uses net.PacketConn (datagrams), not net.Listener; MaxConns/RateLimit
+	// are persisted here for configuration round-trips.
+	limitedlistener.LimitedConfig
 	// SOCKS5 server instance for outbound connections
 	socksServer *socks5.Server
 	// Channel for shutdown signaling
@@ -53,11 +59,21 @@ type UDPBidirectional struct {
 	statusMu sync.RWMutex
 	// ErrorTracker provides bounded error history.
 	i2ptunnel.ErrorTracker
+	// Metrics tracks live operational data for this tunnel.
+	// Set by the webui controller after construction. May be nil.
+	Metrics *metrics.TunnelMetrics
 }
 
+// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
+func (u *UDPBidirectional) SetTunnelMetrics(m *metrics.TunnelMetrics) {
+	u.Metrics = m
+}
 
 func (u *UDPBidirectional) recordError(err error) {
 	u.ErrorTracker.Record(u, err)
+	if u.Metrics != nil {
+		u.Metrics.RecordError()
+	}
 }
 
 func (u *UDPBidirectional) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -124,6 +140,9 @@ func (u *UDPBidirectional) Start() error {
 	}()
 
 	u.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	if u.Metrics != nil {
+		u.Metrics.RecordStart()
+	}
 
 	// Resolve target address once before entering the loop
 	raddr, err := net.ResolveUDPAddr("udp", u.Target())
@@ -190,6 +209,9 @@ func (u *UDPBidirectional) Stop() error {
 			u.Garlic.Close()
 		}
 		u.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		if u.Metrics != nil {
+			u.Metrics.RecordStop()
+		}
 	})
 	return nil
 }
@@ -216,6 +238,8 @@ func (u *UDPBidirectional) Options() map[string]string {
 	options["type"] = u.TunnelConfig.Type
 	options["interface"] = u.TunnelConfig.Interface
 	options["port"] = strconv.Itoa(u.TunnelConfig.Port)
+	options["maxconns"] = strconv.Itoa(u.LimitedConfig.MaxConns)
+	options["ratelimit"] = strconv.FormatFloat(u.LimitedConfig.RateLimit, 'f', -1, 64)
 	if u.Addr != nil {
 		options["target"] = u.Addr.String()
 	}
@@ -253,6 +277,23 @@ func (u *UDPBidirectional) SetOptions(opts map[string]string) error {
 			return fmt.Errorf("invalid target address %q: %w", target, err)
 		}
 		u.Addr = addr
+	}
+	if maxconnsStr, ok := opts["maxconns"]; ok {
+		maxconns, err := strconv.Atoi(maxconnsStr)
+		if err != nil {
+			return fmt.Errorf("invalid maxconns value: %s", maxconnsStr)
+		}
+		if err := validate.MaxConnections(maxconns); err != nil {
+			return err
+		}
+		u.LimitedConfig.MaxConns = maxconns
+	}
+	if ratelimitStr, ok := opts["ratelimit"]; ok {
+		ratelimit, err := validate.RateLimitString(ratelimitStr)
+		if err != nil {
+			return err
+		}
+		u.LimitedConfig.RateLimit = ratelimit
 	}
 	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
 	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {

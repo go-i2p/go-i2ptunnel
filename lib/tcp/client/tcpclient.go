@@ -34,6 +34,7 @@ import (
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
 )
@@ -62,6 +63,9 @@ type TCPClient struct {
 	statusMu sync.RWMutex
 	// ErrorTracker provides bounded error history.
 	i2ptunnel.ErrorTracker
+	// Metrics tracks live operational data for this tunnel.
+	// Set by the webui controller after construction. May be nil.
+	Metrics *metrics.TunnelMetrics
 	// dialTimeout limits how long handleConnection waits to establish an I2P stream.
 	// Zero means no timeout. Default: defaultDialTimeout. Modified only under lifeMu.
 	dialTimeout time.Duration
@@ -83,8 +87,16 @@ const maxConsecutiveAcceptErrors = 10
 // accommodating normal I2P routing delays.
 const defaultDialTimeout = 30 * time.Second
 
+// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
+func (t *TCPClient) SetTunnelMetrics(m *metrics.TunnelMetrics) {
+	t.Metrics = m
+}
+
 func (t *TCPClient) recordError(err error) {
 	t.ErrorTracker.Record(t, err)
+	if t.Metrics != nil {
+		t.Metrics.RecordError()
+	}
 }
 
 // setStatus updates the tunnel status with proper synchronization.
@@ -143,6 +155,9 @@ func (t *TCPClient) Start() error {
 	defer listener.Close()
 	defer t.Stop()
 	t.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	if t.Metrics != nil {
+		t.Metrics.RecordStart()
+	}
 	consecutiveAcceptErrors := 0
 	for {
 		select {
@@ -198,10 +213,17 @@ func (t *TCPClient) Start() error {
 // Both connections are closed when forwarding completes.
 // Forwarding errors are recorded so operators and the web UI can observe them.
 func (t *TCPClient) handleConnection(con net.Conn) {
-	defer con.Close()
+	if t.Metrics != nil {
+		t.Metrics.RecordConnection()
+	}
+	wrapped := metrics.WrapConn(con, t.Metrics)
+	defer wrapped.Close()
 	target := t.Target()
 	if target == "" {
 		t.recordError(fmt.Errorf("handleConnection: no target I2P address configured"))
+		if t.Metrics != nil {
+			t.Metrics.RecordConnectionFailed()
+		}
 		return
 	}
 	dialCtx, dialCancel := t.dialContext()
@@ -209,10 +231,13 @@ func (t *TCPClient) handleConnection(con net.Conn) {
 	i2pConn, err := t.Garlic.DialContext(dialCtx, "tcp", target)
 	if err != nil {
 		t.recordError(err)
+		if t.Metrics != nil {
+			t.Metrics.RecordConnectionFailed()
+		}
 		return
 	}
 	defer i2pConn.Close()
-	if err := stream.Forward(context.Background(), con, i2pConn, config.DefaultConfig()); err != nil {
+	if err := stream.Forward(context.Background(), wrapped, i2pConn, config.DefaultConfig()); err != nil {
 		t.recordError(err)
 	}
 }
@@ -260,6 +285,9 @@ func (t *TCPClient) Stop() error {
 			t.Garlic.Close()
 		}
 		t.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		if t.Metrics != nil {
+			t.Metrics.RecordStop()
+		}
 	})
 	return nil
 }

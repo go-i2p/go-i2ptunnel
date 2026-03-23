@@ -27,6 +27,7 @@ import (
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	httpclient "github.com/go-i2p/go-i2ptunnel/lib/http/client"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 
@@ -71,6 +72,9 @@ type HTTPBidirectional struct {
 	statusMu sync.RWMutex
 	// ErrorTracker provides bounded error history.
 	i2ptunnel.ErrorTracker
+	// Metrics tracks live operational data for this tunnel.
+	// Set by the webui controller after construction. May be nil.
+	Metrics *metrics.TunnelMetrics
 	// Jump service client for resolving human-readable .i2p hostnames.
 	// Uses an I2P-routed HTTP client so stats.i2p is reachable.
 	// Initialized in NewHTTPBidirectional; nil disables jump service lookup.
@@ -83,9 +87,16 @@ type HTTPBidirectional struct {
 	cancel context.CancelFunc
 }
 
+// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
+func (h *HTTPBidirectional) SetTunnelMetrics(m *metrics.TunnelMetrics) {
+	h.Metrics = m
+}
 
 func (h *HTTPBidirectional) recordError(err error) {
 	h.ErrorTracker.Record(h, err)
+	if h.Metrics != nil {
+		h.Metrics.RecordError()
+	}
 }
 
 func (h *HTTPBidirectional) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -162,6 +173,9 @@ func (h *HTTPBidirectional) Start() error {
 	}()
 
 	h.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	if h.Metrics != nil {
+		h.Metrics.RecordStart()
+	}
 
 	// Server side: wrap I2P listener with filtering and rate limiting
 	filteredI2PListener := httpinspector.New(i2pListener, h.ServerConfig)
@@ -198,15 +212,22 @@ func (h *HTTPBidirectional) Start() error {
 
 // handleServerConnection forwards a single inbound I2P connection to the local HTTP service.
 func (h *HTTPBidirectional) handleServerConnection(con net.Conn) {
-	defer con.Close()
+	if h.Metrics != nil {
+		h.Metrics.RecordConnection()
+	}
+	wrapped := metrics.WrapConn(con, h.Metrics)
+	defer wrapped.Close()
 	lCon, err := net.Dial("tcp", h.Target())
 	if err != nil {
 		h.recordError(err)
+		if h.Metrics != nil {
+			h.Metrics.RecordConnectionFailed()
+		}
 		return
 	}
 	defer lCon.Close()
 	ctx := context.Background()
-	stream.Forward(ctx, con, lCon, config.DefaultConfig())
+	stream.Forward(ctx, wrapped, lCon, config.DefaultConfig())
 }
 
 // Status returns the current tunnel status.
@@ -249,6 +270,9 @@ func (h *HTTPBidirectional) Stop() error {
 			h.cancel()
 		}
 		h.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		if h.Metrics != nil {
+			h.Metrics.RecordStop()
+		}
 	})
 	return nil
 }
