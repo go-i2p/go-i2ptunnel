@@ -5,9 +5,16 @@ linters:
     - govet
     - staticcheck
     - unused
+    - gocyclo
+    - gocritic
 issues:
   exclude-rules:
     # Test files get more latitude
     - path: "_test\\.go"
       linters:
         - errcheck
+    # High-complexity SetOptions functions are correct and tested; suppress
+    # gocyclo warnings for them until a table-driven refactor is planned.
+    - text: "SetOptions"
+      linters:
+        - gocyclo

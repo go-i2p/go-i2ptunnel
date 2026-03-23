@@ -62,12 +62,10 @@ type HTTPClient struct {
 	stopOnce sync.Once
 	// Mutex for server operations
 	mu sync.Mutex
-	// Mutex protecting the Errors slice from concurrent access
-	errMu sync.Mutex
 	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
 	statusMu sync.RWMutex
-	// Error history of the tunnel
-	Errors []i2ptunnel.I2PTunnelError
+	// ErrorTracker provides bounded error history.
+	i2ptunnel.ErrorTracker
 	// Jump service client for resolving human-readable .i2p hostnames
 	Jump *JumpService
 	// Outproxy for routing clearnet HTTP requests through I2P
@@ -77,15 +75,9 @@ type HTTPClient struct {
 	cancel context.CancelFunc
 }
 
-const maxErrors = 100
 
 func (h *HTTPClient) recordError(err error) {
-	h.errMu.Lock()
-	h.Errors = append(h.Errors, i2ptunnel.NewError(h, err))
-	if len(h.Errors) > maxErrors {
-		h.Errors = append([]i2ptunnel.I2PTunnelError(nil), h.Errors[len(h.Errors)-maxErrors:]...)
-	}
-	h.errMu.Unlock()
+	h.ErrorTracker.Record(h, err)
 }
 
 func (h *HTTPClient) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -120,12 +112,7 @@ func (h *HTTPClient) Address() string {
 
 // Get the tunnel's error message
 func (h *HTTPClient) Error() error {
-	h.errMu.Lock()
-	defer h.errMu.Unlock()
-	if len(h.Errors) > 0 {
-		return h.Errors[len(h.Errors)-1]
-	}
-	return nil
+	return h.ErrorTracker.Last()
 }
 
 // Get the tunnel's local host:port

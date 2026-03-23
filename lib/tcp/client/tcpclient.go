@@ -58,10 +58,10 @@ type TCPClient struct {
 	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the Errors slice from concurrent access
-	errMu sync.Mutex
 	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
 	statusMu sync.RWMutex
+	// ErrorTracker provides bounded error history.
+	i2ptunnel.ErrorTracker
 	// dialTimeout limits how long handleConnection waits to establish an I2P stream.
 	// Zero means no timeout. Default: defaultDialTimeout. Modified only under lifeMu.
 	dialTimeout time.Duration
@@ -70,16 +70,7 @@ type TCPClient struct {
 	// Each accept iteration snapshots the channel reference (snapshotConnSem) so that
 	// a concurrent SetOptions rebuild does not cause mismatched acquire/release pairs.
 	connSem chan struct{}
-
-	// errors is the unexported error history of the tunnel, protected by errMu.
-	// Access via ErrorHistory() for a thread-safe snapshot, or Error() for the last error.
-	// Unexported so external callers cannot bypass errMu and read the slice without locking.
-	errors []i2ptunnel.I2PTunnelError
 }
-
-// maxErrors is the maximum number of errors retained in memory.
-// Only the most recent errors are kept to prevent unbounded memory growth.
-const maxErrors = 100
 
 // maxConsecutiveAcceptErrors is the number of consecutive Accept() failures before
 // the tunnel transitions to I2PTunnelStatusFailed. This lets operators monitoring
@@ -93,13 +84,7 @@ const maxConsecutiveAcceptErrors = 10
 const defaultDialTimeout = 30 * time.Second
 
 func (t *TCPClient) recordError(err error) {
-	t.errMu.Lock()
-	t.errors = append(t.errors, i2ptunnel.NewError(t, err))
-	if len(t.errors) > maxErrors {
-		// Discard oldest errors to bound memory usage.
-		t.errors = append([]i2ptunnel.I2PTunnelError(nil), t.errors[len(t.errors)-maxErrors:]...)
-	}
-	t.errMu.Unlock()
+	t.ErrorTracker.Record(t, err)
 }
 
 // setStatus updates the tunnel status with proper synchronization.
@@ -120,29 +105,12 @@ func (t *TCPClient) Address() string {
 
 // Get the tunnel's error message
 func (t *TCPClient) Error() error {
-	t.errMu.Lock()
-	defer t.errMu.Unlock()
-	if len(t.errors) > 0 {
-		return t.errors[len(t.errors)-1]
-	}
-	return nil
+	return t.ErrorTracker.Last()
 }
 
-// ErrorHistory returns a snapshot copy of all recorded errors, safe for concurrent use.
-// The returned slice is independent of the internal ring-buffer — callers may iterate or
-// store it without holding any lock and without affecting the tunnel's error state.
-//
-// Why unexported field + accessor: exporting the slice directly lets callers range over
-// it without errMu, defeating the mutex and producing data races flagged by `go test -race`.
+// ErrorHistory returns a snapshot of all recorded errors, delegating to ErrorTracker.
 func (t *TCPClient) ErrorHistory() []i2ptunnel.I2PTunnelError {
-	t.errMu.Lock()
-	defer t.errMu.Unlock()
-	if len(t.errors) == 0 {
-		return nil
-	}
-	snapshot := make([]i2ptunnel.I2PTunnelError, len(t.errors))
-	copy(snapshot, t.errors)
-	return snapshot
+	return t.ErrorTracker.All()
 }
 
 // Get the tunnel's local host:port

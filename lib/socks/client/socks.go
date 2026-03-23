@@ -71,26 +71,18 @@ type SOCKS struct {
 	stopOnce sync.Once
 	// Mutex for server operations
 	mu sync.Mutex
-	// Mutex protecting the Errors slice from concurrent access
-	errMu sync.Mutex
 	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
 	statusMu sync.RWMutex
-	// Error history of the tunnel
-	Errors []i2ptunnel.I2PTunnelError
+	// ErrorTracker provides bounded error history.
+	i2ptunnel.ErrorTracker
 	// Context for cleanup
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-const maxErrors = 100
 
 func (s *SOCKS) recordError(err error) {
-	s.errMu.Lock()
-	s.Errors = append(s.Errors, i2ptunnel.NewError(s, err))
-	if len(s.Errors) > maxErrors {
-		s.Errors = append([]i2ptunnel.I2PTunnelError(nil), s.Errors[len(s.Errors)-maxErrors:]...)
-	}
-	s.errMu.Unlock()
+	s.ErrorTracker.Record(s, err)
 }
 
 func (s *SOCKS) setStatus(s2 i2ptunnel.I2PTunnelStatus) {
@@ -110,12 +102,7 @@ func (s *SOCKS) Address() string {
 
 // Get the tunnel's error message
 func (s *SOCKS) Error() error {
-	s.errMu.Lock()
-	defer s.errMu.Unlock()
-	if len(s.Errors) > 0 {
-		return s.Errors[len(s.Errors)-1]
-	}
-	return nil
+	return s.ErrorTracker.Last()
 }
 
 // Get the tunnel's local host:port

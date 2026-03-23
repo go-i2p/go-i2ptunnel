@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	tunnelconfig "github.com/go-i2p/go-i2ptunnel-config/lib"
@@ -12,7 +11,6 @@ import (
 	httpClientSanitize "github.com/go-i2p/go-i2ptunnel/lib/http/client"
 	httpServerSanitize "github.com/go-i2p/go-i2ptunnel/lib/http/server"
 	limitedlistener "github.com/go-i2p/go-limit"
-	"github.com/go-i2p/onramp"
 )
 
 // NewHTTPBidirectional creates a new HTTP bidirectional tunnel.
@@ -22,16 +20,10 @@ import (
 // config.Target is the local HTTP service address for inbound I2P connections.
 // config.Port is the HTTP proxy listen port for outbound connections.
 func NewHTTPBidirectional(config tunnelconfig.TunnelConfig, samAddr string) (*HTTPBidirectional, error) {
-	keys, options, err := config.SAMTunnel()
+	garlic, err := i2ptunnel.NewGarlicFromConfig(config, samAddr)
 	if err != nil {
 		return nil, err
 	}
-	name := strings.ReplaceAll(config.Name, " ", "_")
-	garlic, err := onramp.NewGarlic(name, samAddr, options)
-	if err != nil {
-		return nil, err
-	}
-	garlic.ServiceKeys = keys
 
 	// Resolve the forward target address (where incoming I2P connections go)
 	addr, err := net.ResolveTCPAddr("tcp", config.Target)

@@ -53,24 +53,14 @@ type IRCClient struct {
 	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the Errors slice from concurrent access
-	errMu sync.Mutex
 	// Mutex protecting the I2PTunnelStatus field from concurrent access
 	statusMu sync.RWMutex
-
-	// Error history of the tunnel
-	Errors []i2ptunnel.I2PTunnelError
+	// ErrorTracker provides bounded error history.
+	i2ptunnel.ErrorTracker
 }
 
-const maxErrors = 100
-
 func (t *IRCClient) recordError(err error) {
-	t.errMu.Lock()
-	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
-	if len(t.Errors) > maxErrors {
-		t.Errors = t.Errors[len(t.Errors)-maxErrors:]
-	}
-	t.errMu.Unlock()
+	t.ErrorTracker.Record(t, err)
 }
 
 func (t *IRCClient) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -90,12 +80,7 @@ func (i *IRCClient) Address() string {
 
 // Get the tunnel's error message
 func (i *IRCClient) Error() error {
-	i.errMu.Lock()
-	defer i.errMu.Unlock()
-	if len(i.Errors) > 0 {
-		return i.Errors[len(i.Errors)-1]
-	}
-	return nil
+	return i.ErrorTracker.Last()
 }
 
 // Get the tunnel's local host:port

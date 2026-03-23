@@ -59,24 +59,16 @@ type UDPClient struct {
 	// Mutex protecting lifecycle fields (done, stopOnce) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the Errors slice from concurrent access
-	errMu sync.Mutex
 	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
 	statusMu sync.RWMutex
+	// ErrorTracker provides bounded error history.
+	i2ptunnel.ErrorTracker
 
-	// Error history of the tunnel
-	Errors []i2ptunnel.I2PTunnelError
 }
 
-const maxErrors = 100
 
 func (u *UDPClient) recordError(err error) {
-	u.errMu.Lock()
-	u.Errors = append(u.Errors, i2ptunnel.NewError(u, err))
-	if len(u.Errors) > maxErrors {
-		u.Errors = append([]i2ptunnel.I2PTunnelError(nil), u.Errors[len(u.Errors)-maxErrors:]...)
-	}
-	u.errMu.Unlock()
+	u.ErrorTracker.Record(u, err)
 }
 
 func (u *UDPClient) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -96,12 +88,7 @@ func (u *UDPClient) Address() string {
 
 // Get the tunnel's error message
 func (u *UDPClient) Error() error {
-	u.errMu.Lock()
-	defer u.errMu.Unlock()
-	if len(u.Errors) > 0 {
-		return u.Errors[len(u.Errors)-1]
-	}
-	return nil
+	return u.ErrorTracker.Last()
 }
 
 // Get the tunnel's local host:port

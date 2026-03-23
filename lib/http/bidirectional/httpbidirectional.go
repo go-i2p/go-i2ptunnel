@@ -67,12 +67,10 @@ type HTTPBidirectional struct {
 	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the Errors slice from concurrent access
-	errMu sync.Mutex
 	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
 	statusMu sync.RWMutex
-	// Error history of the tunnel
-	Errors []i2ptunnel.I2PTunnelError
+	// ErrorTracker provides bounded error history.
+	i2ptunnel.ErrorTracker
 	// Jump service client for resolving human-readable .i2p hostnames.
 	// Uses an I2P-routed HTTP client so stats.i2p is reachable.
 	// Initialized in NewHTTPBidirectional; nil disables jump service lookup.
@@ -85,15 +83,9 @@ type HTTPBidirectional struct {
 	cancel context.CancelFunc
 }
 
-const maxErrors = 100
 
 func (h *HTTPBidirectional) recordError(err error) {
-	h.errMu.Lock()
-	h.Errors = append(h.Errors, i2ptunnel.NewError(h, err))
-	if len(h.Errors) > maxErrors {
-		h.Errors = append([]i2ptunnel.I2PTunnelError(nil), h.Errors[len(h.Errors)-maxErrors:]...)
-	}
-	h.errMu.Unlock()
+	h.ErrorTracker.Record(h, err)
 }
 
 func (h *HTTPBidirectional) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -112,12 +104,7 @@ func (h *HTTPBidirectional) Address() string {
 
 // Error returns the most recent error, or nil.
 func (h *HTTPBidirectional) Error() error {
-	h.errMu.Lock()
-	defer h.errMu.Unlock()
-	if len(h.Errors) > 0 {
-		return h.Errors[len(h.Errors)-1]
-	}
-	return nil
+	return h.ErrorTracker.Last()
 }
 
 // LocalAddress returns the HTTP proxy listen address.

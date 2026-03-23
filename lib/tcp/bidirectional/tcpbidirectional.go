@@ -54,23 +54,15 @@ type TCPBidirectional struct {
 	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the Errors slice from concurrent access
-	errMu sync.Mutex
 	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
 	statusMu sync.RWMutex
-	// Error history of the tunnel
-	Errors []i2ptunnel.I2PTunnelError
+	// ErrorTracker provides bounded error history.
+	i2ptunnel.ErrorTracker
 }
 
-const maxErrors = 100
 
 func (t *TCPBidirectional) recordError(err error) {
-	t.errMu.Lock()
-	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
-	if len(t.Errors) > maxErrors {
-		t.Errors = append([]i2ptunnel.I2PTunnelError(nil), t.Errors[len(t.Errors)-maxErrors:]...)
-	}
-	t.errMu.Unlock()
+	t.ErrorTracker.Record(t, err)
 }
 
 func (t *TCPBidirectional) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -89,12 +81,7 @@ func (t *TCPBidirectional) Address() string {
 
 // Error returns the most recent error, or nil.
 func (t *TCPBidirectional) Error() error {
-	t.errMu.Lock()
-	defer t.errMu.Unlock()
-	if len(t.Errors) > 0 {
-		return t.Errors[len(t.Errors)-1]
-	}
-	return nil
+	return t.ErrorTracker.Last()
 }
 
 // LocalAddress returns the SOCKS5 proxy listen address.

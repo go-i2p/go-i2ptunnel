@@ -49,23 +49,15 @@ type UDPBidirectional struct {
 	// Mutex protecting lifecycle fields (done, stopOnce) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the Errors slice from concurrent access
-	errMu sync.Mutex
 	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
 	statusMu sync.RWMutex
-	// Error history of the tunnel
-	Errors []i2ptunnel.I2PTunnelError
+	// ErrorTracker provides bounded error history.
+	i2ptunnel.ErrorTracker
 }
 
-const maxErrors = 100
 
 func (u *UDPBidirectional) recordError(err error) {
-	u.errMu.Lock()
-	u.Errors = append(u.Errors, i2ptunnel.NewError(u, err))
-	if len(u.Errors) > maxErrors {
-		u.Errors = append([]i2ptunnel.I2PTunnelError(nil), u.Errors[len(u.Errors)-maxErrors:]...)
-	}
-	u.errMu.Unlock()
+	u.ErrorTracker.Record(u, err)
 }
 
 func (u *UDPBidirectional) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -84,12 +76,7 @@ func (u *UDPBidirectional) Address() string {
 
 // Error returns the most recent error, or nil.
 func (u *UDPBidirectional) Error() error {
-	u.errMu.Lock()
-	defer u.errMu.Unlock()
-	if len(u.Errors) > 0 {
-		return u.Errors[len(u.Errors)-1]
-	}
-	return nil
+	return u.ErrorTracker.Last()
 }
 
 // LocalAddress returns the SOCKS5 proxy listen address.

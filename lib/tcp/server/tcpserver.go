@@ -53,24 +53,16 @@ type TCPServer struct {
 	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the Errors slice from concurrent access
-	errMu sync.Mutex
 	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
 	statusMu sync.RWMutex
+	// ErrorTracker provides bounded error history.
+	i2ptunnel.ErrorTracker
 
-	// Error history of the tunnel
-	Errors []i2ptunnel.I2PTunnelError
 }
 
-const maxErrors = 100
 
 func (t *TCPServer) recordError(err error) {
-	t.errMu.Lock()
-	t.Errors = append(t.Errors, i2ptunnel.NewError(t, err))
-	if len(t.Errors) > maxErrors {
-		t.Errors = append([]i2ptunnel.I2PTunnelError(nil), t.Errors[len(t.Errors)-maxErrors:]...)
-	}
-	t.errMu.Unlock()
+	t.ErrorTracker.Record(t, err)
 }
 
 func (t *TCPServer) setStatus(s i2ptunnel.I2PTunnelStatus) {
@@ -93,12 +85,7 @@ func (t *TCPServer) Address() string {
 
 // Get the tunnel's error message
 func (t *TCPServer) Error() error {
-	t.errMu.Lock()
-	defer t.errMu.Unlock()
-	if len(t.Errors) > 0 {
-		return t.Errors[len(t.Errors)-1]
-	}
-	return nil
+	return t.ErrorTracker.Last()
 }
 
 // Get the tunnel's local host:port
