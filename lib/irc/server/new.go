@@ -35,8 +35,8 @@ func NewIRCServer(config i2pconv.TunnelConfig, samAddr string) (*IRCServer, erro
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		Config:          DefaultIRCServerConfig(),
 		LimitedConfig: limitedlistener.LimitedConfig{
-			MaxConns:  1000,
-			RateLimit: 100,
+			MaxConns:  i2ptunnel.TunnelOptionsMaxConns(config.Tunnel, 1000),
+			RateLimit: i2ptunnel.TunnelOptionsRateLimit(config.Tunnel, 100.0),
 		},
 		done: make(chan struct{}),
 	}, nil

@@ -16,6 +16,7 @@ tunnels:
     port: 4444
     # Bind to localhost only
     interface: "127.0.0.1"
-    # Rate limiting applies to the server component
-    maxconns: 200
-    ratelimit: 50.0
+    # Rate limiting options for the server component (applied during tunnel construction)
+    options:
+      maxconns: 200
+      ratelimit: 50.0

@@ -69,11 +69,14 @@ destination: `tcpclient`, `ircclient`, `udpclient`.
 These options apply to **server tunnels** that expose a local service on I2P:
 `tcpserver`, `httpserver`, `ircserver`, `udpserver`.
 
+`target` is a top-level field. `maxconns` and `ratelimit` must be placed under
+the `options:` key so they are read at tunnel construction time:
+
 | Option | Type | Required | Default | Description |
-|---|---|---|---|---|
+|---|---|---|---|-----------|
 | `target` | string | ✅ | — | Local service address in `host:port` format (e.g., `localhost:8080`). Validated by `ValidateAddress()`. |
-| `maxconns` | integer | — | `1000` | Maximum concurrent connections. `0` = unlimited. Values above 10,000 trigger a validation warning. |
-| `ratelimit` | float | — | `100.0` | Maximum new connections per second. `0` = no rate limit. |
+| `options.maxconns` | integer | — | `1000` | Maximum concurrent connections. `0` = unlimited. Values above 10,000 trigger a validation warning. |
+| `options.ratelimit` | float | — | `100.0` | Maximum new connections per second. `0` = no rate limit. |
 
 ## Proxy Tunnel Options
 
@@ -251,8 +254,9 @@ tunnels:
     type: "tcpserver"
     target: "localhost:22"
     interface: "127.0.0.1"
-    maxconns: 50
-    ratelimit: 10.0
+    options:
+      maxconns: 50
+      ratelimit: 10.0
 ```
 
 ### SOCKS5 Proxy
@@ -289,6 +293,69 @@ tunnel.target=example.b32.i2p
 tunnel.port=4444
 tunnel.interface=127.0.0.1
 i2cp.leaseSetEncType=4,0
+```
+
+## Encrypted LeaseSet Authentication
+
+I2P blinded destinations (encrypted LeaseSets) can require a credential before
+a client may connect to them. go-i2ptunnel supports runtime credential injection
+so the private key is never stored in the config file.
+
+### Authentication Types
+
+| `leaseSetAuthType` | Name | Credential required |
+|---|---|---|
+| `0` | None (default) | No credential needed |
+| `1` | DH (Diffie-Hellman) | `i2cp.leaseSetPrivKey` |
+| `2` | PSK (Pre-Shared Key) | `i2cp.leaseSetPrivKey` |
+
+### Interactive Key Entry (CLI)
+
+When `leaseSetAuthType` is `1` or `2`, all `go-i2ptunnel-*` CLI binaries prompt
+for the Base64-encoded private key on startup:
+
+```
+$ go-i2ptunnel-httpclient -config blinded.yaml
+Tunnel "http-client" requires encrypted LeaseSet authentication (PSK).
+Enter i2cp.leaseSetPrivKey (Base64): <key entered here>
+Starting HTTP client tunnel "http-client" on 127.0.0.1:4444
+```
+
+The key is read from standard input. On Linux/macOS you can pipe it in
+non-interactively:
+
+```sh
+echo "Base64EncodedKeyHere==" | go-i2ptunnel-httpclient -config blinded.yaml
+```
+
+### Example YAML Config for Blinded Destination
+
+```yaml
+tunnels:
+  blinded-http:
+    name: "blinded-http"
+    type: "httpclient"
+    port: 4444
+    interface: "127.0.0.1"
+    i2cp:
+      leaseSetType: "5"
+      leaseSetEncType: "4,0"
+      leaseSetAuthType: "2"
+      # Do NOT add leaseSetPrivKey here — supply it interactively at startup
+      # or via SetOptions() for programmatic usage.
+```
+
+### Programmatic Usage
+
+For applications embedding go-i2ptunnel as a library, inject the credential via
+`SetOptions` before calling `Start()`:
+
+```go
+tunnel, _ := loader.Load("blinded.yaml", "127.0.0.1:7656")
+tunnel.SetOptions(map[string]string{
+    "i2cp.leaseSetPrivKey": base64Key,
+})
+tunnel.Start()
 ```
 
 ## Next Steps

@@ -41,8 +41,8 @@ func NewTCPBidirectional(config i2pconv.TunnelConfig, samAddr string) (*TCPBidir
 		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		LimitedConfig: limitedlistener.LimitedConfig{
-			MaxConns:  1000,
-			RateLimit: 100,
+			MaxConns:  i2ptunnel.TunnelOptionsMaxConns(config.Tunnel, 1000),
+			RateLimit: i2ptunnel.TunnelOptionsRateLimit(config.Tunnel, 100.0),
 		},
 		done: make(chan struct{}),
 	}, nil

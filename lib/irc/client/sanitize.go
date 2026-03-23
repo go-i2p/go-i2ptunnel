@@ -19,8 +19,15 @@ func DefaultIRCClientConfig() ircinspector.Config {
 				return fmt.Errorf("DCC commands are not allowed over I2P")
 			}
 
-			// Check for DCC in CTCP messages (inside PRIVMSG trailing)
+			// Check for DCC in CTCP messages (inside PRIVMSG trailing).
+			// Call filterDCCRequest first to surface a precise error when the
+			// DCC parameters target a private IP or use a forbidden port.
 			if strings.EqualFold(msg.Command, "PRIVMSG") && strings.Contains(msg.Trailing, "\x01DCC") {
+				if idx := strings.Index(msg.Trailing, "\x01DCC "); idx >= 0 {
+					if err := filterDCCRequest(msg.Trailing[idx+1:]); err != nil {
+						return err
+					}
+				}
 				return fmt.Errorf("DCC CTCP commands are not allowed over I2P")
 			}
 
@@ -29,10 +36,24 @@ func DefaultIRCClientConfig() ircinspector.Config {
 	}
 }
 
-// ApplyIRCClientFilterRules adds hostname-masking filter rules to an existing
-// IRC inspector. Call this after ircinspector.New() to add PING and USERHOST
-// filters that replace real hostnames with the I2P address.
+// ApplyIRCClientFilterRules adds DCC parameter validation and hostname-masking
+// filter rules to an existing IRC inspector. Call this after
+// ircinspector.New() to add per-command callbacks that block dangerous DCC
+// parameters and replace real hostnames with the I2P address.
 func ApplyIRCClientFilterRules(inspector *ircinspector.Inspector, i2pHost string) {
+	// Validate DCC command parameters: block private IPs and invalid ports,
+	// then refuse the command regardless (DCC cannot work over I2P).
+	inspector.AddFilter(ircinspector.Filter{
+		Command: "DCC",
+		Callback: func(msg *ircinspector.Message) error {
+			body := "DCC " + strings.Join(msg.Params, " ")
+			if err := filterDCCRequest(body); err != nil {
+				return err
+			}
+			return fmt.Errorf("DCC commands are not permitted over I2P")
+		},
+	})
+
 	// Replace real hostnames with .i2p addresses in PING responses
 	inspector.AddFilter(ircinspector.Filter{
 		Command: "PING",

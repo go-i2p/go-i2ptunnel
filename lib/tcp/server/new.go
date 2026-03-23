@@ -11,6 +11,11 @@ import (
 	"github.com/go-i2p/onramp"
 )
 
+const (
+	defaultMaxConns  = 1000
+	defaultRateLimit = 100.0
+)
+
 // NewTCPServer creates a new TCP Server tunnel with the given configuration
 func NewTCPServer(config i2pconv.TunnelConfig, samAddr string) (*TCPServer, error) {
 	keys, options, err := config.SAMTunnel()
@@ -34,8 +39,8 @@ func NewTCPServer(config i2pconv.TunnelConfig, samAddr string) (*TCPServer, erro
 		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		LimitedConfig: limitedlistener.LimitedConfig{
-			MaxConns:  1000,
-			RateLimit: 100,
+			MaxConns:  i2ptunnel.TunnelOptionsMaxConns(config.Tunnel, defaultMaxConns),
+			RateLimit: i2ptunnel.TunnelOptionsRateLimit(config.Tunnel, defaultRateLimit),
 		},
 		done: make(chan struct{}),
 	}, nil

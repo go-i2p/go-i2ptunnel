@@ -320,11 +320,13 @@ anonymity protection.
 
 ### Rate Limiting
 
-Protect server tunnels from abuse with connection limits:
+Protect server tunnels from abuse with connection limits. Place these under the
+`options:` key so they are applied at construction time:
 
 ```yaml
-maxconns: 100
-ratelimit: 20.0
+options:
+  maxconns: 100
+  ratelimit: 20.0
 ```
 
 ### File Permissions

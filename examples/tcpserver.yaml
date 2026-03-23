@@ -12,7 +12,9 @@ tunnels:
     target: "localhost:22"
     # Bind to localhost only
     interface: "127.0.0.1"
-    # Limit concurrent connections (0 = unlimited)
-    maxconns: 100
-    # Limit new connections per second (0 = no limit)
-    ratelimit: 20.0
+    # Rate limiting options (applied during tunnel construction)
+    options:
+      # Limit concurrent connections (0 = unlimited)
+      maxconns: 100
+      # Limit new connections per second (0 = no limit)
+      ratelimit: 20.0

@@ -43,6 +43,11 @@ func Run(tunnelType string) {
 		os.Exit(1)
 	}
 
+	if err := promptLeaseSetCredential(tunnel, os.Stdin, os.Stderr); err != nil {
+		fmt.Fprintf(os.Stderr, "LeaseSet credential error: %v\n", err)
+		os.Exit(1)
+	}
+
 	fmt.Printf("Starting %s tunnel %q on %s\n", tunnelType, tunnel.Name(), localAddr(tunnel))
 
 	if err := startAndWait(tunnel, tunnelType, *configPath, *samAddr); err != nil {

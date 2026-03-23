@@ -57,8 +57,8 @@ func NewHTTPBidirectional(config tunnelconfig.TunnelConfig, samAddr string) (*HT
 		ServerConfig:    httpServerSanitize.DefaultHTTPServerConfig(),
 		ClientConfig:    httpClientSanitize.DefaultHTTPClientConfig(),
 		LimitedConfig: limitedlistener.LimitedConfig{
-			MaxConns:  1000,
-			RateLimit: 100,
+			MaxConns:  i2ptunnel.TunnelOptionsMaxConns(config.Tunnel, 1000),
+			RateLimit: i2ptunnel.TunnelOptionsRateLimit(config.Tunnel, 100.0),
 		},
 		Jump:     httpClientSanitize.NewJumpService(jumpClient, httpClientSanitize.DefaultJumpServiceURL),
 		Outproxy: &httpClientSanitize.Outproxy{},

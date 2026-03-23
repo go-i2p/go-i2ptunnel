@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
+	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/webui/templates"
 )
 
@@ -129,23 +129,22 @@ func TestConfigServeHTTPPostInvalidPort(t *testing.T) {
 	}
 }
 
-// TestConfigServeHTTPPostWhileRunning tests that config cannot be changed while tunnel is running
+// TestConfigServeHTTPPostWhileRunning tests that config cannot be changed while tunnel is running.
+// Uses a mock I2PTunnel whose Status() always returns running so the test does not
+// require a live SAM connection.
 func TestConfigServeHTTPPostWhileRunning(t *testing.T) {
 	configFile := createTestConfig(t, "wcc-running", "tcpclient", "example.i2p", 8080)
 
-	cfg, err := NewConfig(configFile)
-	if err != nil {
-		t.Fatalf("Failed to create config: %v", err)
+	mock := &mockTunnel{
+		name:    "wcc-running",
+		id:      "wcc-running",
+		kind:    "tcpclient",
+		status:  i2ptunnel.I2PTunnelStatusRunning,
+		options: map[string]string{"port": "8080"},
 	}
+	cfg := &Config{I2PTunnel: mock, configPath: configFile}
 
-	// Start the tunnel in a goroutine since Start() blocks in accept loop
-	go cfg.Start()
-	defer cfg.Stop()
-
-	// Give the tunnel time to enter running state
-	time.Sleep(200 * time.Millisecond)
-
-	// Try to modify config while running
+	// Try to modify config while tunnel reports running status
 	formData := url.Values{}
 	formData.Set("port", "9090")
 

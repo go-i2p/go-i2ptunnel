@@ -13,10 +13,12 @@ tunnels:
     target: "localhost:8080"
     # Bind to localhost only
     interface: "127.0.0.1"
-    # Limit concurrent connections
-    maxconns: 200
-    # Limit new connections per second
-    ratelimit: 50.0
+    # Rate limiting options (applied during tunnel construction)
+    options:
+      # Limit concurrent connections
+      maxconns: 200
+      # Limit new connections per second
+      ratelimit: 50.0
     # Optional: Enable encrypted LeaseSet for extra privacy
     # i2cp:
     #   leaseSetType: "3"
