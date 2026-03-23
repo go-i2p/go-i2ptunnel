@@ -1,4 +1,4 @@
-Port IRC Filtering
-Port HTTP Filtering
-Implement interactive support for encrypted leasesets in HTTP Client tunnel
+~~Port IRC Filtering~~ ✅ DONE
+~~Port HTTP Filtering~~ ✅ DONE
+~~Implement interactive support for encrypted leasesets in HTTP Client tunnel~~ ✅ DONE
 ~~Implement interactive support for jump services in HTTP Client tunnel~~ ✅ DONE
