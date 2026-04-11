@@ -17,9 +17,18 @@ type ControllerGroup struct {
 	I2PTunnels     []Controller
 	configDir      string
 	metricsHandler *metrics.Handler
+	csrfProtection *http.CrossOriginProtection
 }
 
 func (cg *ControllerGroup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Reject cross-origin state-changing requests (CSRF protection).
+	if cg.csrfProtection != nil {
+		if err := cg.csrfProtection.Check(r); err != nil {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+	}
+
 	// API endpoints return JSON/text — no HTML wrapper.
 	if cg.metricsHandler != nil {
 		switch r.URL.Path {
@@ -219,8 +228,9 @@ func NewControllerGroup(directory string) (*ControllerGroup, error) {
 	registry := metrics.NewRegistry()
 
 	group := &ControllerGroup{
-		I2PTunnels: make([]Controller, 0),
-		configDir:  directory,
+		I2PTunnels:     make([]Controller, 0),
+		configDir:      directory,
+		csrfProtection: http.NewCrossOriginProtection(),
 	}
 
 	for _, file := range files {

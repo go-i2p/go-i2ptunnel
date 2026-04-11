@@ -1,8 +1,6 @@
 module github.com/go-i2p/go-i2ptunnel
 
-go 1.24.5
-
-toolchain go1.24.12
+go 1.25.0
 
 require (
 	github.com/elazarl/goproxy v1.8.1
