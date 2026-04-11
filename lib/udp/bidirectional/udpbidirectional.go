@@ -233,40 +233,21 @@ func (u *UDPBidirectional) ID() string {
 
 // Options returns the tunnel's configuration as a string map.
 func (u *UDPBidirectional) Options() map[string]string {
-	options := make(map[string]string)
-	options["name"] = u.TunnelConfig.Name
-	options["type"] = u.TunnelConfig.Type
-	options["interface"] = u.TunnelConfig.Interface
-	options["port"] = strconv.Itoa(u.TunnelConfig.Port)
-	options["maxconns"] = strconv.Itoa(u.LimitedConfig.MaxConns)
-	options["ratelimit"] = strconv.FormatFloat(u.LimitedConfig.RateLimit, 'f', -1, 64)
+	options := i2ptunnel.BuildCommonOptions(u.TunnelConfig)
+	i2ptunnel.AddRateLimitOptions(options, u.LimitedConfig.MaxConns, u.LimitedConfig.RateLimit)
 	if u.Addr != nil {
 		options["target"] = u.Addr.String()
 	}
-	i2ptunnel.MergeI2CPOptions(u.TunnelConfig.I2CP, options)
 	return options
 }
 
 // SetOptions applies configuration options from a string map with validation.
 func (u *UDPBidirectional) SetOptions(opts map[string]string) error {
-	if name, ok := opts["name"]; ok {
-		if err := validate.RequiredString("name", name); err != nil {
-			return err
-		}
-		u.TunnelConfig.Name = name
+	if err := i2ptunnel.ApplyCommonOptions(opts, &u.TunnelConfig); err != nil {
+		return err
 	}
-	if iface, ok := opts["interface"]; ok {
-		if err := validate.Interface(iface); err != nil {
-			return err
-		}
-		u.TunnelConfig.Interface = iface
-	}
-	if portStr, ok := opts["port"]; ok {
-		port, err := validate.PortString(portStr)
-		if err != nil {
-			return err
-		}
-		u.TunnelConfig.Port = port
+	if err := i2ptunnel.ApplyRateLimitOptions(opts, &u.LimitedConfig.MaxConns, &u.LimitedConfig.RateLimit); err != nil {
+		return err
 	}
 	if target, ok := opts["target"]; ok {
 		if err := validate.NetworkAddress(target); err != nil {
@@ -277,32 +258,6 @@ func (u *UDPBidirectional) SetOptions(opts map[string]string) error {
 			return fmt.Errorf("invalid target address %q: %w", target, err)
 		}
 		u.Addr = addr
-	}
-	if maxconnsStr, ok := opts["maxconns"]; ok {
-		maxconns, err := strconv.Atoi(maxconnsStr)
-		if err != nil {
-			return fmt.Errorf("invalid maxconns value: %s", maxconnsStr)
-		}
-		if err := validate.MaxConnections(maxconns); err != nil {
-			return err
-		}
-		u.LimitedConfig.MaxConns = maxconns
-	}
-	if ratelimitStr, ok := opts["ratelimit"]; ok {
-		ratelimit, err := validate.RateLimitString(ratelimitStr)
-		if err != nil {
-			return err
-		}
-		u.LimitedConfig.RateLimit = ratelimit
-	}
-	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
-	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
-		if u.TunnelConfig.I2CP == nil {
-			u.TunnelConfig.I2CP = make(map[string]interface{})
-		}
-		for k, v := range i2cpOpts {
-			u.TunnelConfig.I2CP[k] = v
-		}
 	}
 	return nil
 }

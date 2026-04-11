@@ -49,7 +49,6 @@ import (
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
-	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
@@ -219,65 +218,18 @@ func (s *SOCKS) ID() string {
 
 // Get the tunnel's options
 func (s *SOCKS) Options() map[string]string {
-	// Return basic configuration options as a map
-	options := make(map[string]string)
-	options["name"] = s.TunnelConfig.Name
-	options["type"] = s.TunnelConfig.Type
-	options["interface"] = s.TunnelConfig.Interface
-	options["port"] = strconv.Itoa(s.TunnelConfig.Port)
-	options["maxconns"] = strconv.Itoa(s.LimitedConfig.MaxConns)
-	options["ratelimit"] = strconv.FormatFloat(s.LimitedConfig.RateLimit, 'f', -1, 64)
-	i2ptunnel.MergeI2CPOptions(s.TunnelConfig.I2CP, options)
+	options := i2ptunnel.BuildCommonOptions(s.TunnelConfig)
+	i2ptunnel.AddRateLimitOptions(options, s.LimitedConfig.MaxConns, s.LimitedConfig.RateLimit)
 	return options
 }
 
 // Set the tunnel's options
 func (s *SOCKS) SetOptions(opts map[string]string) error {
-	// Apply configuration options from the map with validation
-	if name, ok := opts["name"]; ok {
-		if err := validate.RequiredString("name", name); err != nil {
-			return err
-		}
-		s.TunnelConfig.Name = name
+	if err := i2ptunnel.ApplyCommonOptions(opts, &s.TunnelConfig); err != nil {
+		return err
 	}
-	if iface, ok := opts["interface"]; ok {
-		if err := validate.Interface(iface); err != nil {
-			return err
-		}
-		s.TunnelConfig.Interface = iface
-	}
-	if portStr, ok := opts["port"]; ok {
-		port, err := validate.PortString(portStr)
-		if err != nil {
-			return err
-		}
-		s.TunnelConfig.Port = port
-	}
-	if maxconnsStr, ok := opts["maxconns"]; ok {
-		maxconns, err := strconv.Atoi(maxconnsStr)
-		if err != nil {
-			return fmt.Errorf("invalid maxconns value: %s", maxconnsStr)
-		}
-		if err := validate.MaxConnections(maxconns); err != nil {
-			return err
-		}
-		s.LimitedConfig.MaxConns = maxconns
-	}
-	if ratelimitStr, ok := opts["ratelimit"]; ok {
-		ratelimit, err := validate.RateLimitString(ratelimitStr)
-		if err != nil {
-			return err
-		}
-		s.LimitedConfig.RateLimit = ratelimit
-	}
-	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
-	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
-		if s.TunnelConfig.I2CP == nil {
-			s.TunnelConfig.I2CP = make(map[string]interface{})
-		}
-		for k, v := range i2cpOpts {
-			s.TunnelConfig.I2CP[k] = v
-		}
+	if err := i2ptunnel.ApplyRateLimitOptions(opts, &s.LimitedConfig.MaxConns, &s.LimitedConfig.RateLimit); err != nil {
+		return err
 	}
 	return nil
 }

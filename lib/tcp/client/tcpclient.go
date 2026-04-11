@@ -314,12 +314,7 @@ func (t *TCPClient) ID() string {
 
 // Get the tunnel's options
 func (t *TCPClient) Options() map[string]string {
-	// Return basic configuration options as a map
-	options := make(map[string]string)
-	options["name"] = t.TunnelConfig.Name
-	options["type"] = t.TunnelConfig.Type
-	options["interface"] = t.TunnelConfig.Interface
-	options["port"] = strconv.Itoa(t.TunnelConfig.Port)
+	options := i2ptunnel.BuildCommonOptions(t.TunnelConfig)
 	if t.I2PAddr != nil {
 		options["target"] = t.I2PAddr.Base32()
 	}
@@ -327,7 +322,6 @@ func (t *TCPClient) Options() map[string]string {
 	options["maxconns"] = strconv.Itoa(cap(t.connSem)) // 0 means unlimited
 	options["dialtimeout"] = t.dialTimeout.String()
 	t.lifeMu.Unlock()
-	i2ptunnel.MergeI2CPOptions(t.TunnelConfig.I2CP, options)
 	return options
 }
 

@@ -35,7 +35,6 @@ import (
 	httpinspector "github.com/go-i2p/go-connfilter/http"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
-	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	"github.com/go-i2p/onramp"
 
@@ -254,12 +253,7 @@ func (h *HTTPClient) ID() string {
 
 // Get the tunnel's options
 func (h *HTTPClient) Options() map[string]string {
-	// Return basic configuration options as a map
-	options := make(map[string]string)
-	options["name"] = h.TunnelConfig.Name
-	options["type"] = h.TunnelConfig.Type
-	options["interface"] = h.TunnelConfig.Interface
-	options["port"] = strconv.Itoa(h.TunnelConfig.Port)
+	options := i2ptunnel.BuildCommonOptions(h.TunnelConfig)
 	if h.Jump != nil {
 		options["jumpservice"] = h.Jump.URL()
 	}
@@ -271,31 +265,13 @@ func (h *HTTPClient) Options() map[string]string {
 			options["outproxy.enabled"] = "false"
 		}
 	}
-	i2ptunnel.MergeI2CPOptions(h.TunnelConfig.I2CP, options)
 	return options
 }
 
 // Set the tunnel's options
 func (h *HTTPClient) SetOptions(opts map[string]string) error {
-	// Apply configuration options from the map with validation
-	if name, ok := opts["name"]; ok {
-		if err := validate.RequiredString("name", name); err != nil {
-			return err
-		}
-		h.TunnelConfig.Name = name
-	}
-	if iface, ok := opts["interface"]; ok {
-		if err := validate.Interface(iface); err != nil {
-			return err
-		}
-		h.TunnelConfig.Interface = iface
-	}
-	if portStr, ok := opts["port"]; ok {
-		port, err := validate.PortString(portStr)
-		if err != nil {
-			return err
-		}
-		h.TunnelConfig.Port = port
+	if err := i2ptunnel.ApplyCommonOptions(opts, &h.TunnelConfig); err != nil {
+		return err
 	}
 	// Configure jump service URL for human-readable .i2p hostname resolution
 	if jumpURL, ok := opts["jumpservice"]; ok {
@@ -333,15 +309,6 @@ func (h *HTTPClient) SetOptions(opts map[string]string) error {
 			h.Outproxy = &Outproxy{}
 		}
 		h.Outproxy.Enabled = enabledStr == "true" || enabledStr == "1" || enabledStr == "yes"
-	}
-	// Apply I2CP options (encrypted LeaseSet, authentication, etc.)
-	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
-		if h.TunnelConfig.I2CP == nil {
-			h.TunnelConfig.I2CP = make(map[string]interface{})
-		}
-		for k, v := range i2cpOpts {
-			h.TunnelConfig.I2CP[k] = v
-		}
 	}
 	return nil
 }
