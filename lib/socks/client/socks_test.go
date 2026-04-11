@@ -11,6 +11,7 @@ import (
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
+	"github.com/txthinking/socks5"
 )
 
 // TestSOCKSClientCreation tests the creation of a SOCKS client tunnel.
@@ -478,5 +479,105 @@ func TestSOCKSClientAddress(t *testing.T) {
 	addr2 := client.Address()
 	if addr != addr2 {
 		t.Errorf("Address() not consistent: first=%q, second=%q", addr, addr2)
+	}
+}
+
+// TestSOCKSStartAlreadyRunning verifies Start() is a no-op when the server is
+// already started.
+func TestSOCKSStartAlreadyRunning(t *testing.T) {
+	s := &SOCKS{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		done:            make(chan struct{}),
+	}
+	// Set Server to non-nil to simulate already started
+	srv, err := socks5.NewClassicServer("127.0.0.1:0", "", "", "", 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Server = srv
+
+	// Start should return nil immediately when Server is non-nil
+	err = s.Start()
+	if err != nil {
+		t.Errorf("Start() on already-started server should return nil, got: %v", err)
+	}
+}
+
+// TestSOCKSLoadConfigWhileRunning verifies LoadConfig rejects changes when running.
+func TestSOCKSLoadConfigWhileRunning(t *testing.T) {
+	s := &SOCKS{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		done:            make(chan struct{}),
+	}
+	err := s.LoadConfig("/tmp/fake.yaml")
+	if err == nil {
+		t.Fatal("LoadConfig should reject when tunnel is running")
+	}
+}
+
+// TestSOCKSLoadConfigWhileStarting verifies LoadConfig rejects changes when starting.
+func TestSOCKSLoadConfigWhileStarting(t *testing.T) {
+	s := &SOCKS{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStarting,
+		done:            make(chan struct{}),
+	}
+	err := s.LoadConfig("/tmp/fake.yaml")
+	if err == nil {
+		t.Fatal("LoadConfig should reject when tunnel is starting")
+	}
+}
+
+// TestSOCKSLoadConfigWrongType verifies LoadConfig rejects a config with wrong type.
+func TestSOCKSLoadConfigWrongType(t *testing.T) {
+	s := &SOCKS{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		done:            make(chan struct{}),
+	}
+	// Write a YAML config with wrong type
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, "wrong.yaml")
+	os.WriteFile(configFile, []byte("type: httpserver\nname: wrong\nport: 8080\ninterface: 127.0.0.1\n"), 0600)
+	err := s.LoadConfig(configFile)
+	if err == nil {
+		t.Fatal("LoadConfig should reject config with wrong tunnel type")
+	}
+}
+
+// TestSOCKSLoadConfigNonexistentFile verifies LoadConfig handles missing files.
+func TestSOCKSLoadConfigNonexistentFile(t *testing.T) {
+	s := &SOCKS{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		done:            make(chan struct{}),
+	}
+	err := s.LoadConfig("/nonexistent/path/fake.yaml")
+	if err == nil {
+		t.Fatal("LoadConfig should return error for nonexistent file")
+	}
+}
+
+// TestSOCKSErrorTrackingMultiple tests that multiple errors are tracked.
+func TestSOCKSErrorTrackingMultiple(t *testing.T) {
+	s := &SOCKS{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		done:            make(chan struct{}),
+	}
+
+	for i := 0; i < 5; i++ {
+		s.recordError(fmt.Errorf("error %d", i))
+	}
+
+	if s.Error() == nil {
+		t.Fatal("Expected error after recording")
+	}
+	if len(s.Errors) != 5 {
+		t.Errorf("Expected 5 errors, got %d", len(s.Errors))
+	}
+}
+
+// TestSOCKSAddressNilGarlic verifies Address() returns empty string with nil Garlic.
+func TestSOCKSAddressNilGarlic(t *testing.T) {
+	s := &SOCKS{}
+	if addr := s.Address(); addr != "" {
+		t.Errorf("Expected empty address with nil Garlic, got %q", addr)
 	}
 }

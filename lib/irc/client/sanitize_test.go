@@ -225,3 +225,93 @@ func TestDefaultIRCClientConfigDCCWithIntegerIP(t *testing.T) {
 		}
 	})
 }
+
+// TestDefaultIRCClientConfigNonDCCCTCPPassthrough verifies that CTCP messages
+// that are not DCC (e.g., VERSION, TIME) are allowed through the client filter.
+func TestDefaultIRCClientConfigNonDCCCTCPPassthrough(t *testing.T) {
+	config := DefaultIRCClientConfig()
+
+	tests := []struct {
+		name     string
+		trailing string
+	}{
+		{"VERSION", "\x01VERSION\x01"},
+		{"TIME", "\x01TIME\x01"},
+		{"PING", "\x01PING 12345\x01"},
+		{"ACTION", "\x01ACTION waves\x01"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := &ircinspector.Message{
+				Command:  "PRIVMSG",
+				Params:   []string{"#channel"},
+				Trailing: tt.trailing,
+			}
+			err := config.OnMessage(msg)
+			if err != nil {
+				t.Errorf("Non-DCC CTCP %s should be allowed, got: %v", tt.name, err)
+			}
+		})
+	}
+}
+
+// TestIsPrivateIPEdgeCases tests boundary conditions for the isPrivateIP function.
+func TestIsPrivateIPEdgeCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		ipInt   uint32
+		private bool
+	}{
+		{"0.0.0.0", 0, false},
+		{"255.255.255.255", 0xFFFFFFFF, false},
+		{"172.15.255.255 (just below 172.16)", 0xAC0FFFFF, false},
+		{"172.16.0.0 (start of range)", 0xAC100000, true},
+		{"172.31.255.255 (end of range)", 0xAC1FFFFF, true},
+		{"172.32.0.0 (just above 172.31)", 0xAC200000, false},
+		{"10.0.0.0 (start)", 0x0A000000, true},
+		{"10.255.255.255 (end)", 0x0AFFFFFF, true},
+		{"11.0.0.0 (just above 10.x)", 0x0B000000, false},
+		{"192.168.0.0 (start)", 0xC0A80000, true},
+		{"192.168.255.255 (end)", 0xC0A8FFFF, true},
+		{"192.169.0.0 (just above 192.168)", 0xC0A90000, false},
+		{"127.0.0.0 (loopback start)", 0x7F000000, true},
+		{"127.255.255.255 (loopback end)", 0x7FFFFFFF, true},
+		{"128.0.0.0 (just above loopback)", 0x80000000, false},
+		{"8.8.8.8 (Google DNS)", 134744072, false},
+		{"1.1.1.1 (Cloudflare)", 16843009, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isPrivateIP(tt.ipInt)
+			if got != tt.private {
+				t.Errorf("isPrivateIP(%d) = %v, want %v", tt.ipInt, got, tt.private)
+			}
+		})
+	}
+}
+
+// TestValidateDCCPort tests port validation boundary conditions.
+func TestValidateDCCPort(t *testing.T) {
+	tests := []struct {
+		port    int
+		wantErr bool
+	}{
+		{0, true},
+		{1, true},
+		{1023, true},
+		{1024, false},
+		{5000, false},
+		{65535, false},
+		{65536, true},
+		{-1, true},
+	}
+
+	for _, tt := range tests {
+		err := validateDCCPort(tt.port)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("validateDCCPort(%d) error = %v, wantErr %v", tt.port, err, tt.wantErr)
+		}
+	}
+}
