@@ -1,3 +1,5 @@
+// Package httpserver implements a reverse proxy that forwards HTTP traffic
+// from I2P clients to a local HTTP service.
 package httpserver
 
 /**

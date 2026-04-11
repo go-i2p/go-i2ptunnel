@@ -199,6 +199,7 @@ func (c *Config) saveConfig() error {
 	return nil
 }
 
+// NewConfig loads a tunnel configuration from a YAML file and returns a Config.
 func NewConfig(yamlFile string) (*Config, error) {
 	tunnel, err := loader.Load(yamlFile, "localhost:7656")
 	if err != nil {

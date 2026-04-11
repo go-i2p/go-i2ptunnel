@@ -211,6 +211,7 @@ type CountingConn struct {
 	closeOnce sync.Once
 }
 
+// Read reads from the underlying connection and records inbound byte counts.
 func (c *CountingConn) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(b)
 	if n > 0 && c.metrics != nil {
@@ -219,6 +220,7 @@ func (c *CountingConn) Read(b []byte) (int, error) {
 	return n, err
 }
 
+// Write writes to the underlying connection and records outbound byte counts.
 func (c *CountingConn) Write(b []byte) (int, error) {
 	n, err := c.Conn.Write(b)
 	if n > 0 && c.metrics != nil {

@@ -1,3 +1,5 @@
+// Package ircclient implements an IRC client tunnel that proxies local IRC
+// connections over I2P with DCC filtering and CTCP sanitization.
 package ircclient
 
 /**

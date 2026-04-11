@@ -1,3 +1,5 @@
+// Package socks implements a SOCKS5 proxy client tunnel that routes local
+// SOCKS5 connections through the I2P network.
 package socks
 
 import (
@@ -6,6 +8,7 @@ import (
 	limitedlistener "github.com/go-i2p/go-limit"
 )
 
+// NewSocksClient creates a SOCKS5 tunnel from a TunnelConfig and SAM address.
 func NewSocksClient(config i2pconv.TunnelConfig, samAddr string) (*SOCKS, error) {
 	garlic, err := i2ptunnel.NewGarlicFromConfig(config, samAddr)
 	if err != nil {

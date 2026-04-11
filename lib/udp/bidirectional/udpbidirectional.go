@@ -1,3 +1,6 @@
+// Package udpbidirectional implements a UDP bidirectional tunnel that
+// combines a UDP server tunnel with a SOCKS5 proxy on the same I2P keys,
+// enabling both inbound and outbound I2P datagram exchange.
 package udpbidirectional
 
 // UDP Bidirectional Tunnel

@@ -1,3 +1,5 @@
+// Package udpclient implements a UDP client tunnel that forwards local
+// datagrams to a fixed I2P destination.
 package udpclient
 
 import (

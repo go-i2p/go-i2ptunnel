@@ -97,14 +97,14 @@ func TestValidateHost(t *testing.T) {
 		input    []string
 		expected string
 	}{
-		{nil, DEFAULT_SAM_ADDRESS},
-		{[]string{}, DEFAULT_SAM_ADDRESS},
+		{nil, DefaultSAMAddress},
+		{[]string{}, DefaultSAMAddress},
 		{[]string{"127.0.0.1:7656"}, "127.0.0.1:7656"},
 		{[]string{"localhost:7656"}, "localhost:7656"},
-		{[]string{"not-valid"}, DEFAULT_SAM_ADDRESS},
+		{[]string{"not-valid"}, DefaultSAMAddress},
 		{[]string{"127.0.0.1", "7656"}, "127.0.0.1:7656"},
-		{[]string{"127.0.0.1", "notaport"}, DEFAULT_SAM_ADDRESS},
-		{[]string{"a", "b", "c"}, DEFAULT_SAM_ADDRESS},
+		{[]string{"127.0.0.1", "notaport"}, DefaultSAMAddress},
+		{[]string{"a", "b", "c"}, DefaultSAMAddress},
 	}
 	for _, tt := range tests {
 		got := validateHost(tt.input...)

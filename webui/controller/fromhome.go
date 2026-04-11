@@ -1,3 +1,5 @@
+// Package controller implements the web UI HTTP handlers for managing I2P
+// tunnel configuration, lifecycle control, and status monitoring.
 package controller
 
 import (

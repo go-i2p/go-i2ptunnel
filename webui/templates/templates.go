@@ -1,3 +1,4 @@
+// Package templates provides embedded HTML templates for the web UI.
 package templates
 
 import (

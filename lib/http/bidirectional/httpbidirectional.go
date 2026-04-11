@@ -1,3 +1,6 @@
+// Package httpbidirectional implements an HTTP bidirectional tunnel that
+// combines an HTTP server tunnel with an HTTP proxy client on the same I2P
+// keys, enabling both inbound and outbound I2P HTTP connections.
 package httpbidirectional
 
 // HTTP Bidirectional Tunnel

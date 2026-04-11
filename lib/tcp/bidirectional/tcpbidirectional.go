@@ -1,3 +1,6 @@
+// Package tcpbidirectional implements a TCP bidirectional tunnel that
+// combines a TCP server tunnel with a SOCKS5 proxy client on the same I2P
+// keys, enabling both inbound and outbound I2P connections.
 package tcpbidirectional
 
 // TCP Bidirectional Tunnel

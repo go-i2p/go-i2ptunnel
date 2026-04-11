@@ -1,3 +1,5 @@
+// Package validate provides configuration validation functions for I2P tunnel
+// settings including ports, addresses, rate limits, and tunnel types.
 package validate
 
 import (
@@ -17,6 +19,7 @@ type ValidationError struct {
 	Hint    string // Suggestion for fixing the error
 }
 
+// Error returns a human-readable validation error, including an optional hint.
 func (e *ValidationError) Error() string {
 	if e.Hint != "" {
 		return fmt.Sprintf("%s: %s (hint: %s)", e.Field, e.Message, e.Hint)

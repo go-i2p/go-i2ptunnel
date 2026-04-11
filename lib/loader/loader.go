@@ -1,3 +1,5 @@
+// Package loader reads YAML configuration files and instantiates the
+// appropriate I2PTunnel implementation based on the tunnel type field.
 package loader
 
 import (
@@ -22,18 +24,18 @@ import (
 	udpserver "github.com/go-i2p/go-i2ptunnel/lib/udp/server"
 )
 
-var DEFAULT_SAM_ADDRESS = "localhost:7656"
+var DefaultSAMAddress = "localhost:7656"
 
 func validateHost(samAddr ...string) string {
-	samhost := DEFAULT_SAM_ADDRESS
+	samhost := DefaultSAMAddress
 	switch len(samAddr) {
 	case 0:
-		samhost = DEFAULT_SAM_ADDRESS
+		samhost = DefaultSAMAddress
 	case 1:
 		host, port, err := net.SplitHostPort(samAddr[0])
 		if err != nil {
 			log.WithError(err).WithField("sam_addr", samAddr[0]).Warn("Invalid SAM address format, using default")
-			return DEFAULT_SAM_ADDRESS
+			return DefaultSAMAddress
 		}
 		samhost = net.JoinHostPort(host, port)
 	case 2:
@@ -41,11 +43,11 @@ func validateHost(samAddr ...string) string {
 		port, err := strconv.Atoi(samAddr[1])
 		if err != nil {
 			log.WithError(err).WithField("port_string", samAddr[1]).Warn("Invalid SAM port number, using default")
-			return DEFAULT_SAM_ADDRESS
+			return DefaultSAMAddress
 		}
 		samhost = net.JoinHostPort(host, strconv.Itoa(port))
 	default:
-		return DEFAULT_SAM_ADDRESS
+		return DefaultSAMAddress
 	}
 	return samhost
 }

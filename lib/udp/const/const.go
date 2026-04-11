@@ -1,3 +1,4 @@
+// Package udpconst defines shared constants for UDP tunnel implementations.
 package udpconst
 
 import (

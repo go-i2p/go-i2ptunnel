@@ -1,3 +1,6 @@
+// Package ircserver implements an IRC server tunnel that forwards I2P
+// connections to a local IRC server with admin command filtering and
+// hostname masking.
 package ircserver
 
 import (

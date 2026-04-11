@@ -1,3 +1,5 @@
+// Package udpserver implements a UDP server tunnel that accepts inbound I2P
+// datagrams and forwards them to a local UDP service.
 package udpserver
 
 import (

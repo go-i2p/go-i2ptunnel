@@ -20,6 +20,7 @@ type ControllerGroup struct {
 	csrfProtection *http.CrossOriginProtection
 }
 
+// ServeHTTP dispatches requests to the appropriate handler based on URL path.
 func (cg *ControllerGroup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Reject cross-origin state-changing requests (CSRF protection).
 	if cg.csrfProtection != nil {
@@ -72,14 +73,17 @@ func (cg *ControllerGroup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleHTMLHeader writes the HTML header template to the response.
 func (cg *ControllerGroup) HandleHTMLHeader(r *http.Request, w http.ResponseWriter) {
 	templates.HeaderTemplate.Execute(w, nil)
 }
 
+// HandleHTMLFooter writes the HTML footer template to the response.
 func (cg *ControllerGroup) HandleHTMLFooter(r *http.Request, w http.ResponseWriter) {
 	templates.FooterTemplate.Execute(w, nil)
 }
 
+// HandleGroup renders the tunnel group overview page.
 func (cg *ControllerGroup) HandleGroup(r *http.Request, w http.ResponseWriter) {
 	for _, controller := range cg.I2PTunnels {
 		controller.MiniServeHTTP(w, r)
@@ -87,6 +91,7 @@ func (cg *ControllerGroup) HandleGroup(r *http.Request, w http.ResponseWriter) {
 	templates.I2PTunnelGroupTemplate.Execute(w, nil)
 }
 
+// HandleError redirects unmatched tunnel requests back to the home page.
 func (cg *ControllerGroup) HandleError(r *http.Request, w http.ResponseWriter) {
 	r.Form = nil
 	// just redirect back to /home
@@ -219,6 +224,8 @@ func (cg *ControllerGroup) renderNewWithError(w http.ResponseWriter, errMsg stri
 	templates.I2PTunnelConfigTemplate.Execute(w, data)
 }
 
+// NewControllerGroup scans directory for YAML config files and creates a
+// ControllerGroup with one Controller per file.
 func NewControllerGroup(directory string) (*ControllerGroup, error) {
 	files, err := os.ReadDir(directory)
 	if err != nil {

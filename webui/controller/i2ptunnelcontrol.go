@@ -172,6 +172,7 @@ func (c *Controller) renderControlWithError(w http.ResponseWriter, errMsg string
 	templates.I2PTunnelControlTemplate.Execute(w, data)
 }
 
+// NewController creates a Controller from a YAML configuration file.
 func NewController(yamlFile string) (*Controller, error) {
 	cfg, err := NewConfig(yamlFile)
 	if err != nil {

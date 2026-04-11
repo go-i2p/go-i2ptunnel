@@ -1,3 +1,5 @@
+// Package httpclient implements an HTTP proxy that enables local applications
+// to access I2P services via standard HTTP and CONNECT methods.
 package httpclient
 
 /**

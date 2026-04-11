@@ -1,3 +1,5 @@
+// Package tcpserver implements a TCP server tunnel that accepts inbound I2P
+// connections and forwards them to a local TCP service.
 package tcpserver
 
 import (

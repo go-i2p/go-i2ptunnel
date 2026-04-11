@@ -1,8 +1,10 @@
 package httpbidirectional
 
 import (
+	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -347,5 +349,78 @@ func TestStopClosesGarlic(t *testing.T) {
 
 	if !didPanic {
 		t.Fatal("expected Stop() to call Garlic.Close() on non-nil Garlic")
+	}
+}
+
+// TestStartNilGarlic verifies Start() panics when Garlic is nil.
+func TestStartNilGarlic(t *testing.T) {
+	tunnel := &HTTPBidirectional{
+		done: make(chan struct{}),
+	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("Start() with nil Garlic should panic")
+		}
+	}()
+	tunnel.Start()
+}
+
+// TestConcurrentStop verifies that concurrent Stop() calls don't race.
+func TestConcurrentStop(t *testing.T) {
+	tunnel := &HTTPBidirectional{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		done:            make(chan struct{}),
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tunnel.Stop()
+		}()
+	}
+	wg.Wait()
+	if tunnel.Status() != i2ptunnel.I2PTunnelStatusStopped {
+		t.Errorf("Expected stopped status, got %v", tunnel.Status())
+	}
+}
+
+// TestErrorTrackerBounds verifies that the error tracker discards oldest entries.
+func TestErrorTrackerBounds(t *testing.T) {
+	tunnel := &HTTPBidirectional{
+		done: make(chan struct{}),
+	}
+	for i := 0; i < 150; i++ {
+		tunnel.recordError(fmt.Errorf("error %d", i))
+	}
+	all := tunnel.ErrorTracker.All()
+	if len(all) > i2ptunnel.MaxErrors {
+		t.Errorf("Expected at most %d errors, got %d", i2ptunnel.MaxErrors, len(all))
+	}
+}
+
+// TestLoadConfigNonexistentFile verifies LoadConfig returns error for missing files.
+func TestLoadConfigNonexistentFile(t *testing.T) {
+	tunnel := &HTTPBidirectional{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		done:            make(chan struct{}),
+	}
+	err := tunnel.LoadConfig("/nonexistent/config.yaml")
+	if err == nil {
+		t.Fatal("LoadConfig should fail for nonexistent file")
+	}
+}
+
+// TestLoadConfigWrongType verifies LoadConfig rejects mismatched tunnel type.
+func TestLoadConfigWrongType(t *testing.T) {
+	tunnel := &HTTPBidirectional{
+		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		done:            make(chan struct{}),
+	}
+	cfg := t.TempDir() + "/wrong.yaml"
+	os.WriteFile(cfg, []byte("type: tcpserver\nname: wrong\nport: 8080\ninterface: 127.0.0.1\n"), 0600)
+	err := tunnel.LoadConfig(cfg)
+	if err == nil {
+		t.Fatal("LoadConfig should reject wrong tunnel type")
 	}
 }

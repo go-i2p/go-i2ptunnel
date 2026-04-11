@@ -38,6 +38,8 @@ func NewHTTPClient(config i2pconv.TunnelConfig, samAddr string) (*HTTPClient, er
 	return h, nil
 }
 
+// DialContext connects to addr over the I2P network, routing clearnet
+// addresses through the outproxy when configured.
 func (h *HTTPClient) DialContext(ctx context.Context, network, addr string) (c net.Conn, err error) {
 	host, _, _ := net.SplitHostPort(addr)
 	if host == "" {
@@ -54,6 +56,7 @@ func (h *HTTPClient) DialContext(ctx context.Context, network, addr string) (c n
 	return h.Garlic.DialContext(ctx, network, addr)
 }
 
+// Dial connects to addr over the I2P network without an explicit context.
 func (h *HTTPClient) Dial(network, addr string) (c net.Conn, err error) {
 	host, _, _ := net.SplitHostPort(addr)
 	if host == "" {

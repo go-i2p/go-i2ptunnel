@@ -1,3 +1,5 @@
+// Package tcpclient implements a TCP client tunnel that listens on a local
+// port and forwards connections to a fixed I2P destination.
 package tcpclient
 
 /**
