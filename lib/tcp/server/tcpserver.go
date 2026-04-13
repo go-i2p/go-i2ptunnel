@@ -45,6 +45,8 @@ type TCPServer struct {
 	i2ptunnel.I2PTunnelStatus
 	// The rate-limiting configuration
 	limitedlistener.LimitedConfig
+	// Optional byte-level content filter applied per-connection. Nil means no filtering.
+	*i2ptunnel.TCPFilterConfig
 	// Channel for shutdown signaling
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
@@ -158,6 +160,11 @@ func (t *TCPServer) handleConnection(con net.Conn) {
 	}
 	wrapped := metrics.WrapConn(con, t.Metrics)
 	defer wrapped.Close()
+	filtered, err := i2ptunnel.ApplyTCPFilter(wrapped, t.TCPFilterConfig)
+	if err != nil {
+		t.recordError(err)
+		return
+	}
 	lCon, err := net.Dial("tcp", t.Target())
 	if err != nil {
 		t.recordError(err)
@@ -168,7 +175,7 @@ func (t *TCPServer) handleConnection(con net.Conn) {
 	}
 	defer lCon.Close()
 	ctx := context.Background()
-	stream.Forward(ctx, wrapped, lCon, config.DefaultConfig())
+	stream.Forward(ctx, filtered, lCon, config.DefaultConfig())
 }
 
 // Get the tunnel's status
