@@ -57,6 +57,10 @@ import (
 
 var implementSOCKS i2ptunnel.I2PTunnel = &SOCKS{}
 
+// SOCKS is a SOCKS5 proxy tunnel that exposes a local SOCKS5 endpoint and routes
+// all proxy requests through the I2P network. Any application that supports SOCKS5
+// (e.g., a web browser or IRC client) can use this tunnel to access .i2p destinations
+// without custom I2P integration.
 type SOCKS struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic

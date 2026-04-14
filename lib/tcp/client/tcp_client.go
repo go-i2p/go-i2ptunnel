@@ -43,6 +43,9 @@ import (
 
 var implementTCPClient i2ptunnel.I2PTunnel = &TCPClient{}
 
+// TCPClient is a TCP client tunnel that listens on a local TCP port and forwards
+// each accepted connection to a fixed I2P destination. It enforces a configurable
+// concurrency limit (connSem) and per-connection dial timeout.
 type TCPClient struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic

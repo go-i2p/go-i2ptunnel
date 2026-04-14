@@ -21,6 +21,9 @@ It presents a simple categorial list of I2PTunnel options.
 It uses ../templates/i2ptunnelconfig.html as an HTML template
 */
 
+// Config is an HTTP handler that displays and accepts edits for a single tunnel's
+// configuration. It wraps an I2PTunnel and persists changes via SetOptions and
+// the tunnel's LoadConfig mechanism.
 type Config struct {
 	i2ptunnel.I2PTunnel
 	configPath string // Store config file path for persistence

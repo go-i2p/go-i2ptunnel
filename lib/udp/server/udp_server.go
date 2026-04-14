@@ -45,6 +45,8 @@ import (
 
 var implementUDPServer i2ptunnel.I2PTunnel = &UDPServer{}
 
+// UDPServer is a UDP server tunnel that accepts datagrams from the I2P network
+// and forwards them to a local UDP service, relaying replies back.
 type UDPServer struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic

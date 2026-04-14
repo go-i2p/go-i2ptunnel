@@ -16,6 +16,10 @@ It has no specific behaviors for any tunnel type.
 It uses ../templates/i2ptunnelcontrol.html as an HTML template for the control page.
 It uses ../templates/i2ptunnelminicontrol.html as an HTML template for the home page.
 */
+
+// Controller is an HTTP handler that extends Config with Start/Stop/Restart actions
+// for a single tunnel. It renders a full control page and a compact inline widget
+// used on the home page.
 type Controller struct {
 	*Config
 }

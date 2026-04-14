@@ -2,6 +2,8 @@ package i2ptunnel
 
 import "strings"
 
+// I2PTunnelStatus represents the operational state of an I2P tunnel.
+// It is a string type so that status values are human-readable in logs and APIs.
 type I2PTunnelStatus string
 
 const (
@@ -19,6 +21,10 @@ const (
 	I2PTunnelStatusUnknown I2PTunnelStatus = "unknown"
 )
 
+// I2PTunnel is the common interface implemented by all 12 tunnel types in this
+// package (TCP, HTTP, IRC, UDP, SOCKS5 — each in client, server, and bidirectional
+// variants). It provides a uniform lifecycle (Start/Stop), configuration
+// (Options/SetOptions/LoadConfig), and observability (Status/Error/Address) API.
 type I2PTunnel interface {
 	// Start the tunnel
 	Start() error

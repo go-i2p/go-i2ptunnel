@@ -45,6 +45,8 @@ import (
 
 var implementUDPClient i2ptunnel.I2PTunnel = &UDPClient{}
 
+// UDPClient is a UDP client tunnel that reads datagrams from a local UDP port
+// and forwards them to a fixed I2P destination, relaying responses back.
 type UDPClient struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic

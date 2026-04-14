@@ -37,6 +37,9 @@ import (
 
 var implementIRCClient i2ptunnel.I2PTunnel = &IRCClient{}
 
+// IRCClient is an IRC client tunnel that listens locally and forwards connections to
+// an IRC server reachable over I2P. It applies ircinspector filtering (DCC blocking,
+// admin-command blocking, hostname masking) to protect local IRC clients.
 type IRCClient struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic

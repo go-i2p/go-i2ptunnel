@@ -34,6 +34,9 @@ import (
 
 var implementTCPServer i2ptunnel.I2PTunnel = &TCPServer{}
 
+// TCPServer is a TCP server tunnel that accepts connections from the I2P network
+// and forwards them to a local TCP service. It applies rate-limiting via
+// LimitedListener and optional byte-level content filtering via TCPFilterConfig.
 type TCPServer struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic

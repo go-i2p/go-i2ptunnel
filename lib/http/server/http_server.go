@@ -46,6 +46,9 @@ import (
 
 var implementHTTPServer i2ptunnel.I2PTunnel = &HTTPServer{}
 
+// HTTPServer is an HTTP reverse-proxy tunnel that accepts connections from the I2P
+// network and forwards them to a local HTTP service. It applies rate-limiting via
+// LimitedListener and request filtering via httpinspector.
 type HTTPServer struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic

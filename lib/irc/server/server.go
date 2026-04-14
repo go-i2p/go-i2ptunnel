@@ -34,6 +34,9 @@ import (
 
 var implementIRCServer i2ptunnel.I2PTunnel = &IRCServer{}
 
+// IRCServer is an IRC server tunnel that accepts connections from the I2P network
+// and forwards them to a local IRC daemon. It applies rate-limiting and ircinspector
+// filtering to protect the local service from abuse.
 type IRCServer struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic

@@ -45,6 +45,10 @@ import (
 
 var implementHTTPClient i2ptunnel.I2PTunnel = &HTTPClient{}
 
+// HTTPClient is an HTTP proxy tunnel that listens on a local port and forwards
+// browser-style HTTP/HTTPS traffic into the I2P network. It supports jump-service
+// hostname resolution (for human-readable .i2p addresses), outproxy routing (for
+// clearnet destinations), and request filtering via httpinspector.
 type HTTPClient struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic

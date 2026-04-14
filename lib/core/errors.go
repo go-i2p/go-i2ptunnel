@@ -6,6 +6,8 @@ package i2ptunnel
 
 import "fmt"
 
+// I2PTunnelError is an error type that wraps a tunnel-specific error message,
+// including the tunnel's name for context when logging or propagating errors.
 type I2PTunnelError struct {
 	errorString string
 }

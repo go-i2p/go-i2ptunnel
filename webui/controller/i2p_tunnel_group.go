@@ -13,6 +13,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// ControllerGroup is the top-level HTTP handler for the web management UI.
+// It holds all active tunnel Controllers and routes incoming requests to the
+// appropriate tunnel handler, metrics endpoint, or home page.
 type ControllerGroup struct {
 	I2PTunnels     []Controller
 	configDir      string
