@@ -66,6 +66,10 @@ type HTTPClient struct {
 	mu sync.Mutex
 	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
 	statusMu sync.RWMutex
+	// Mutex protecting Jump and Outproxy fields from concurrent read/write access.
+	// Separate from mu (held for the entire Start→Serve lifetime) to avoid deadlocks
+	// when dial handlers read these fields during active request serving.
+	fieldsMu sync.RWMutex
 	// ErrorTracker provides bounded error history.
 	i2ptunnel.ErrorTracker
 	// Metrics tracks live operational data for this tunnel.
@@ -106,14 +110,19 @@ func (h *HTTPClient) connectDial(network, addr string) (net.Conn, error) {
 	if host == "" {
 		host = addr
 	}
+	// Snapshot fields under fieldsMu to prevent races with SetOptions.
+	h.fieldsMu.RLock()
+	jump := h.Jump
+	outproxy := h.Outproxy
+	h.fieldsMu.RUnlock()
 	var (
 		conn net.Conn
 		err  error
 	)
 	if !IsI2PAddress(host) {
-		conn, err = h.dialOutproxyNoCtx(network, addr)
+		conn, err = dialOutproxySnapshot(outproxy, h.Garlic, network, addr)
 	} else {
-		addr = h.resolveJump(addr)
+		addr = resolveJumpSnapshot(jump, addr)
 		conn, err = h.Garlic.Dial(network, addr)
 	}
 	if err != nil {
@@ -256,6 +265,7 @@ func (h *HTTPClient) ID() string {
 // Get the tunnel's options
 func (h *HTTPClient) Options() map[string]string {
 	options := i2ptunnel.BuildCommonOptions(h.TunnelConfig)
+	h.fieldsMu.RLock()
 	if h.Jump != nil {
 		options["jumpservice"] = h.Jump.URL()
 	}
@@ -267,6 +277,7 @@ func (h *HTTPClient) Options() map[string]string {
 			options["outproxy.enabled"] = "false"
 		}
 	}
+	h.fieldsMu.RUnlock()
 	return options
 }
 
@@ -275,6 +286,8 @@ func (h *HTTPClient) SetOptions(opts map[string]string) error {
 	if err := i2ptunnel.ApplyCommonOptions(opts, &h.TunnelConfig); err != nil {
 		return err
 	}
+	h.fieldsMu.Lock()
+	defer h.fieldsMu.Unlock()
 	// Configure jump service URL for human-readable .i2p hostname resolution
 	if jumpURL, ok := opts["jumpservice"]; ok {
 		if jumpURL == "" {

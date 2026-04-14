@@ -181,6 +181,7 @@ func (t *TCPClient) Start() error {
 				t.recordError(fmt.Errorf("listener.Accept error (%d consecutive): %w", consecutiveAcceptErrors, err))
 				if consecutiveAcceptErrors >= maxConsecutiveAcceptErrors {
 					t.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+					return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveAcceptErrors)
 				}
 				// Backoff to prevent CPU-burning tight loop on persistent errors
 				time.Sleep(50 * time.Millisecond)

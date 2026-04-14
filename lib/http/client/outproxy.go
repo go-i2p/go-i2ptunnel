@@ -113,3 +113,25 @@ func (h *HTTPClient) dialOutproxy(ctx context.Context, network, addr string) (ne
 func (h *HTTPClient) dialOutproxyNoCtx(network, addr string) (net.Conn, error) {
 	return h.dialOutproxy(context.Background(), network, addr)
 }
+
+// dialOutproxySnapshot connects to an outproxy using a pre-snapshotted Outproxy reference,
+// avoiding a data race with SetOptions() which may replace h.Outproxy concurrently.
+func dialOutproxySnapshot(outproxy *Outproxy, garlic interface {
+	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
+}, network, addr string) (net.Conn, error) {
+	if !outproxy.IsActive() {
+		return nil, fmt.Errorf(
+			"clearnet address %s cannot be reached: no outproxy configured",
+			stripPort(addr),
+		)
+	}
+	outproxyAddr := outproxy.Address
+	if !strings.Contains(outproxyAddr, ":") {
+		outproxyAddr = net.JoinHostPort(outproxyAddr, "80")
+	}
+	conn, err := garlic.DialContext(context.Background(), network, outproxyAddr)
+	if err != nil {
+		return nil, fmt.Errorf("outproxy dial failed (%s): %w", outproxy.Address, err)
+	}
+	return conn, nil
+}

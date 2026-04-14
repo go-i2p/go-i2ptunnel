@@ -247,14 +247,14 @@ func TestLoadConfig_AtomicCheck(t *testing.T) {
 // Fix 4: Start() transitions to I2PTunnelStatusFailed on persistent Accept errors
 // ---------------------------------------------------------------------------
 
-// TestStart_TransitionsToFailedOnConsecutiveAcceptErrors verifies that a tunnel whose
-// accept loop encounters maxConsecutiveAcceptErrors consecutive failures is marked as
-// Failed rather than silently continuing to report Running.
+// TestStart_ExitsOnConsecutiveAcceptErrors verifies that a tunnel whose
+// accept loop encounters maxConsecutiveAcceptErrors consecutive failures exits
+// Start() with an error rather than silently continuing to loop.
 //
 // Approach: Start() in a goroutine, then close the listener via t.listener so that
-// every subsequent Accept() call returns an error.  The done channel is NOT closed, so
-// the tunnel keeps looping and incrementing the consecutive-error counter.
-func TestStart_TransitionsToFailedOnConsecutiveAcceptErrors(t *testing.T) {
+// every subsequent Accept() call returns an error. Start() should return a non-nil
+// error once the consecutive threshold is reached.
+func TestStart_ExitsOnConsecutiveAcceptErrors(t *testing.T) {
 	cfg := i2pconv.TunnelConfig{
 		Name:      "fail-on-errors",
 		Type:      "tcpclient",
@@ -302,24 +302,18 @@ func TestStart_TransitionsToFailedOnConsecutiveAcceptErrors(t *testing.T) {
 	}
 	ln.Close()
 
-	// The tunnel should transition to Failed once it accumulates maxConsecutiveAcceptErrors.
-	// Each iteration sleeps 50ms so worst-case: maxConsecutiveAcceptErrors*50ms.
-	failDeadline := time.Now().Add(time.Duration(maxConsecutiveAcceptErrors)*50*time.Millisecond + 500*time.Millisecond)
-	for time.Now().Before(failDeadline) {
-		if c.Status() == i2ptunnel.I2PTunnelStatusFailed {
-			break
+	// Start() should now return with a non-nil error once the consecutive threshold
+	// is reached. Each iteration sleeps 50ms so wait long enough for the loop to exit.
+	exitDeadline := time.Duration(maxConsecutiveAcceptErrors)*50*time.Millisecond + 2*time.Second
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Error("Start() returned nil error after consecutive accept failures; expected non-nil")
 		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	gotStatus := c.Status()
-
-	// Stop the tunnel to unblock Start()'s goroutine.
-	c.Stop()
-	<-errCh
-
-	if gotStatus != i2ptunnel.I2PTunnelStatusFailed {
-		t.Errorf("expected status %v after %d consecutive Accept errors, got %v",
-			i2ptunnel.I2PTunnelStatusFailed, maxConsecutiveAcceptErrors, gotStatus)
+	case <-time.After(exitDeadline):
+		c.Stop()
+		<-errCh
+		t.Fatal("Start() did not exit within deadline after consecutive accept errors")
 	}
 }
 

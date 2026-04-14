@@ -45,14 +45,19 @@ func (h *HTTPClient) DialContext(ctx context.Context, network, addr string) (c n
 	if host == "" {
 		host = addr
 	}
+	// Snapshot fields under fieldsMu to prevent races with SetOptions.
+	h.fieldsMu.RLock()
+	jump := h.Jump
+	outproxy := h.Outproxy
+	h.fieldsMu.RUnlock()
 	// Clearnet addresses (non-.i2p) are routed through the outproxy.
 	// I2P addresses are dialed directly after jump service resolution.
 	if !IsI2PAddress(host) {
-		return h.dialOutproxy(ctx, network, addr)
+		return dialOutproxySnapshot(outproxy, h.Garlic, network, addr)
 	}
 	// Resolve human-readable .i2p hostnames via jump service before dialing.
 	// Base32 addresses (*.b32.i2p) bypass this — SAM handles them directly.
-	addr = h.resolveJump(addr)
+	addr = resolveJumpSnapshot(jump, addr)
 	return h.Garlic.DialContext(ctx, network, addr)
 }
 
@@ -62,12 +67,17 @@ func (h *HTTPClient) Dial(network, addr string) (c net.Conn, err error) {
 	if host == "" {
 		host = addr
 	}
+	// Snapshot fields under fieldsMu to prevent races with SetOptions.
+	h.fieldsMu.RLock()
+	jump := h.Jump
+	outproxy := h.Outproxy
+	h.fieldsMu.RUnlock()
 	// Clearnet addresses route through outproxy; I2P addresses dial directly.
 	if !IsI2PAddress(host) {
-		return h.dialOutproxy(context.Background(), network, addr)
+		return dialOutproxySnapshot(outproxy, h.Garlic, network, addr)
 	}
 	// Resolve human-readable .i2p hostnames via jump service before dialing.
-	addr = h.resolveJump(addr)
+	addr = resolveJumpSnapshot(jump, addr)
 	return h.Garlic.Dial(network, addr)
 }
 
@@ -75,7 +85,16 @@ func (h *HTTPClient) Dial(network, addr string) (c net.Conn, err error) {
 // the configured jump service. If the jump service is disabled or the
 // hostname doesn't need resolution, the original address is returned.
 func (h *HTTPClient) resolveJump(addr string) string {
-	if h.Jump == nil {
+	h.fieldsMu.RLock()
+	jump := h.Jump
+	h.fieldsMu.RUnlock()
+	return resolveJumpSnapshot(jump, addr)
+}
+
+// resolveJumpSnapshot resolves a .i2p hostname using a pre-snapshotted JumpService
+// reference, avoiding a data race with SetOptions().
+func resolveJumpSnapshot(jump *JumpService, addr string) string {
+	if jump == nil {
 		return addr
 	}
 	host, port, err := net.SplitHostPort(addr)
@@ -86,7 +105,7 @@ func (h *HTTPClient) resolveJump(addr string) string {
 	if !NeedsJump(host) {
 		return addr
 	}
-	dest, err := h.Jump.Lookup(host)
+	dest, err := jump.Lookup(host)
 	if err != nil {
 		log.Printf("jump service lookup failed for %s: %v", host, err)
 		return addr
