@@ -253,9 +253,14 @@ func (j *JumpService) query(hostname string) (string, error) {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// Snapshot the client pointer under lock to avoid racing with SetClient.
+	j.mu.RLock()
+	clientSnapshot := j.client
+	j.mu.RUnlock()
+
 	// Use a client that doesn't follow redirects so we can inspect
 	// the Location header for the resolved address.
-	noRedirectClient := *j.client
+	noRedirectClient := *clientSnapshot
 	noRedirectClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}

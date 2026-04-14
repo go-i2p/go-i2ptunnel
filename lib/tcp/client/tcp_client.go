@@ -240,7 +240,18 @@ func (t *TCPClient) handleConnection(con net.Conn) {
 		return
 	}
 	defer i2pConn.Close()
-	if err := stream.Forward(context.Background(), wrapped, i2pConn, config.DefaultConfig()); err != nil {
+	// Derive a context from the tunnel's done channel so that forwarding is
+	// cancelled when the tunnel stops, preventing indefinitely stalled goroutines.
+	fwdCtx, fwdCancel := context.WithCancel(context.Background())
+	defer fwdCancel()
+	go func() {
+		select {
+		case <-t.done:
+			fwdCancel()
+		case <-fwdCtx.Done():
+		}
+	}()
+	if err := stream.Forward(fwdCtx, wrapped, i2pConn, config.DefaultConfig()); err != nil {
 		t.recordError(err)
 	}
 }
@@ -421,6 +432,13 @@ func (t *TCPClient) SetOptions(opts map[string]string) error {
 		}
 	}
 	if setMaxConns {
+		// Note: replacing connSem orphans the old channel. In-flight goroutines
+		// hold snapshots of the old channel (via snapshotConnSem at line 193),
+		// so they will correctly release their slots to the old channel when done.
+		// During the transition window, cap(t.connSem) may not reflect the true
+		// in-flight count. This is acceptable because the snapshot pattern
+		// guarantees no mismatched acquire/release, and the old channel is GC'd
+		// once all in-flight goroutines complete.
 		if newMaxConns > 0 {
 			t.connSem = make(chan struct{}, newMaxConns)
 		} else {

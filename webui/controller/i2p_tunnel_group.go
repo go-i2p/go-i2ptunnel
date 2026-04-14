@@ -30,7 +30,12 @@ func (cg *ControllerGroup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// API endpoints return JSON/text — no HTML wrapper.
+	// Operational endpoints: /metrics, /healthz, and /api/status are intentionally
+	// served without authentication. This follows the standard Prometheus scraping
+	// pattern where metrics endpoints must be accessible to monitoring infrastructure.
+	// These endpoints are protected by CSRF checks above, but do not require login.
+	// Operators who need to restrict access should use network-level controls
+	// (e.g., bind to localhost, firewall rules, or a reverse proxy with auth).
 	if cg.metricsHandler != nil {
 		switch r.URL.Path {
 		case "/metrics":

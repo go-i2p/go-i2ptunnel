@@ -69,22 +69,38 @@ func startAndWait(tunnel i2ptunnel.I2PTunnel, tunnelType, configPath, samAddr st
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
+	// reloading guards against a second SIGHUP arriving while a reload cycle
+	// (stop → LoadConfig → Start) is still in progress.
+	reloading := false
+
 	for {
 		select {
 		case sig := <-sigCh:
 			switch sig {
 			case syscall.SIGHUP:
+				if reloading {
+					fmt.Fprintf(os.Stderr, "Reload already in progress, ignoring SIGHUP\n")
+					continue
+				}
+				reloading = true
 				fmt.Printf("Received SIGHUP, reloading %s tunnel config...\n", tunnelType)
 				reloaded, err := reload(tunnel, tunnelType, configPath, samAddr)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Config reload failed: %v (keeping current config)\n", err)
+					reloading = false
 					continue
 				}
+				// Allocate a fresh errCh so a stale error from the old tunnel's
+				// Start() goroutine cannot be misread as coming from the new one.
+				// The old goroutine may still write to the old channel but nobody
+				// reads from it, so it will simply be GC'd.
+				errCh = make(chan error, 1)
 				// Replace tunnel reference and restart the error listener
 				tunnel = reloaded
 				go func() {
 					errCh <- tunnel.Start()
 				}()
+				reloading = false
 				fmt.Printf("Tunnel %q reloaded successfully\n", tunnel.Name())
 
 			case syscall.SIGINT, syscall.SIGTERM:

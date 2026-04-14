@@ -37,6 +37,7 @@ import (
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
+	udpconst "github.com/go-i2p/go-i2ptunnel/lib/udp/const"
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 	// github.com/go-i2p/go-forward/packet
@@ -141,6 +142,7 @@ func (u *UDPServer) Start() error {
 	if u.Metrics != nil {
 		u.Metrics.RecordStart()
 	}
+	backoff := udpconst.MinBackoff
 	for {
 		select {
 		case <-u.done:
@@ -153,9 +155,11 @@ func (u *UDPServer) Start() error {
 					return nil
 				default:
 				}
-				time.Sleep(50 * time.Millisecond)
+				time.Sleep(backoff)
+				backoff = udpconst.NextBackoff(backoff)
 				continue
 			}
+			backoff = udpconst.MinBackoff // reset on success
 			func() {
 				defer lCon.Close()
 				ctx := context.Background()

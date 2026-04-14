@@ -41,6 +41,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 )
 
 // Outproxy holds the configuration for routing clearnet requests through
@@ -114,8 +115,14 @@ func (h *HTTPClient) dialOutproxyNoCtx(network, addr string) (net.Conn, error) {
 	return h.dialOutproxy(context.Background(), network, addr)
 }
 
+// outproxyDialTimeout is the maximum time allowed to establish a connection
+// to the outproxy via I2P. Without a timeout, unresponsive outproxies cause
+// goroutine accumulation in the proxy's CONNECT handler.
+const outproxyDialTimeout = 30 * time.Second
+
 // dialOutproxySnapshot connects to an outproxy using a pre-snapshotted Outproxy reference,
 // avoiding a data race with SetOptions() which may replace h.Outproxy concurrently.
+// Uses a bounded timeout to prevent indefinite blocking on unresponsive outproxies.
 func dialOutproxySnapshot(outproxy *Outproxy, garlic interface {
 	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
 }, network, addr string) (net.Conn, error) {
@@ -129,7 +136,9 @@ func dialOutproxySnapshot(outproxy *Outproxy, garlic interface {
 	if !strings.Contains(outproxyAddr, ":") {
 		outproxyAddr = net.JoinHostPort(outproxyAddr, "80")
 	}
-	conn, err := garlic.DialContext(context.Background(), network, outproxyAddr)
+	ctx, cancel := context.WithTimeout(context.Background(), outproxyDialTimeout)
+	defer cancel()
+	conn, err := garlic.DialContext(ctx, network, outproxyAddr)
 	if err != nil {
 		return nil, fmt.Errorf("outproxy dial failed (%s): %w", outproxy.Address, err)
 	}

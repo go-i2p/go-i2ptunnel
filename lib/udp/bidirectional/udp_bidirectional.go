@@ -27,6 +27,7 @@ import (
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
+	udpconst "github.com/go-i2p/go-i2ptunnel/lib/udp/const"
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 	"github.com/txthinking/socks5"
@@ -154,15 +155,25 @@ func (u *UDPBidirectional) Start() error {
 	}
 
 	// Server-side datagram forwarding loop
+	backoff := udpconst.MinBackoff
 	for {
 		select {
 		case <-u.done:
 			return nil
 		case err := <-socksErrCh:
+			// Log transient SOCKS errors and restart the listener instead
+			// of tearing down the entire bidirectional tunnel.
 			if err != nil {
-				u.recordError(err)
+				u.recordError(fmt.Errorf("SOCKS5 server error (restarting): %w", err))
 			}
-			return err
+			select {
+			case <-u.done:
+				return nil
+			default:
+			}
+			go func() {
+				socksErrCh <- u.socksServer.ListenAndServe(u.socksServer.Handle)
+			}()
 		default:
 			lCon, err := net.DialUDP("udp", nil, raddr)
 			if err != nil {
@@ -171,9 +182,11 @@ func (u *UDPBidirectional) Start() error {
 					return nil
 				default:
 				}
-				time.Sleep(50 * time.Millisecond)
+				time.Sleep(backoff)
+				backoff = udpconst.NextBackoff(backoff)
 				continue
 			}
+			backoff = udpconst.MinBackoff // reset on success
 			func() {
 				defer lCon.Close()
 				ctx := context.Background()

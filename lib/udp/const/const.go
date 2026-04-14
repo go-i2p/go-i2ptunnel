@@ -2,6 +2,7 @@
 package udpconst
 
 import (
+	"math/rand/v2"
 	"time"
 
 	"github.com/go-i2p/go-forward/config"
@@ -19,4 +20,28 @@ func NewDatagramForwardConfig() *config.ForwardConfig {
 		EnableMetrics:  true,
 		ShutdownSignal: make(chan struct{}),
 	}
+}
+
+// Backoff constants for UDP error retry loops.
+const (
+	// MinBackoff is the initial retry delay after the first error.
+	MinBackoff = 50 * time.Millisecond
+	// MaxBackoff is the ceiling for exponential backoff.
+	MaxBackoff = 5 * time.Second
+)
+
+// NextBackoff computes the next backoff duration using exponential backoff
+// with jitter. The returned duration is clamped to [MinBackoff, MaxBackoff].
+// current should be the previous backoff duration (use MinBackoff initially).
+func NextBackoff(current time.Duration) time.Duration {
+	next := current * 2
+	if next > MaxBackoff {
+		next = MaxBackoff
+	}
+	if next < MinBackoff {
+		next = MinBackoff
+	}
+	// Add ±25% jitter to prevent thundering herd.
+	jitter := time.Duration(rand.Int64N(int64(next)/2)) - next/4
+	return next + jitter
 }
