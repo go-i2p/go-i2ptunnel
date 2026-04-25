@@ -112,6 +112,10 @@ func (t *TCPBidirectional) Name() string {
 	return t.TunnelConfig.Name
 }
 
+// maxConsecutiveErrors is the number of consecutive Accept() failures before
+// the tunnel transitions to I2PTunnelStatusFailed.
+const maxConsecutiveErrors = 10
+
 // Start launches both the server-side I2P listener (forwarding to the local
 // target) and the client-side SOCKS5 proxy concurrently. It blocks until the
 // tunnel is stopped.
@@ -159,6 +163,7 @@ func (t *TCPBidirectional) Start() error {
 		limitedlistener.WithMaxConnections(t.LimitedConfig.MaxConns),
 		limitedlistener.WithRateLimit(t.LimitedConfig.RateLimit),
 	)
+	consecutiveErrors := 0
 	for {
 		select {
 		case <-t.done:
@@ -166,6 +171,7 @@ func (t *TCPBidirectional) Start() error {
 		case err := <-socksErrCh:
 			if err != nil {
 				t.recordError(err)
+				t.setStatus(i2ptunnel.I2PTunnelStatusFailed)
 			}
 			return err
 		default:
@@ -179,9 +185,18 @@ func (t *TCPBidirectional) Start() error {
 					return nil
 				default:
 				}
+				if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
+					consecutiveErrors++
+					t.recordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
+					if consecutiveErrors >= maxConsecutiveErrors {
+						t.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+						return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveErrors)
+					}
+				}
 				time.Sleep(50 * time.Millisecond)
 				continue
 			}
+			consecutiveErrors = 0
 			go t.handleServerConnection(con)
 		}
 	}

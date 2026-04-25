@@ -198,7 +198,12 @@ func (h *HTTPClient) Start() error {
 	if h.Metrics != nil {
 		h.Metrics.RecordStart()
 	}
-	return h.Server.Serve(listenerInspector)
+	if err := h.Server.Serve(listenerInspector); err != nil && err != http.ErrServerClosed {
+		h.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+		h.recordError(err)
+		return err
+	}
+	return nil
 }
 
 // Get the tunnel's status

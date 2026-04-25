@@ -132,6 +132,10 @@ func (h *HTTPBidirectional) Name() string {
 	return h.TunnelConfig.Name
 }
 
+// maxConsecutiveErrors is the number of consecutive Accept() failures before
+// the tunnel transitions to I2PTunnelStatusFailed.
+const maxConsecutiveErrors = 10
+
 // Start launches both the server-side I2P listener (forwarding to the local
 // HTTP service) and the client-side HTTP proxy concurrently.
 // Safe to call after Stop() — done channel and stopOnce are reset for restartability.
@@ -188,6 +192,7 @@ func (h *HTTPBidirectional) Start() error {
 		limitedlistener.WithRateLimit(h.LimitedConfig.RateLimit),
 	)
 
+	consecutiveErrors := 0
 	for {
 		select {
 		case <-h.done:
@@ -195,6 +200,7 @@ func (h *HTTPBidirectional) Start() error {
 		case err := <-proxyErrCh:
 			if err != nil && err != http.ErrServerClosed {
 				h.recordError(err)
+				h.setStatus(i2ptunnel.I2PTunnelStatusFailed)
 			}
 			return err
 		default:
@@ -208,9 +214,18 @@ func (h *HTTPBidirectional) Start() error {
 					return nil
 				default:
 				}
+				if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
+					consecutiveErrors++
+					h.recordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
+					if consecutiveErrors >= maxConsecutiveErrors {
+						h.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+						return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveErrors)
+					}
+				}
 				time.Sleep(50 * time.Millisecond)
 				continue
 			}
+			consecutiveErrors = 0
 			go h.handleServerConnection(con)
 		}
 	}

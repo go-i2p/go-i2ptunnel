@@ -118,6 +118,10 @@ func (u *UDPServer) Name() string {
 	return u.TunnelConfig.Name
 }
 
+// maxConsecutiveErrors is the number of consecutive DialUDP failures before
+// the tunnel transitions to I2PTunnelStatusFailed.
+const maxConsecutiveErrors = 10
+
 // Start the tunnel.
 // Forwards incoming I2P datagrams to the local UDP service.
 // Safe to call after Stop() — done channel and stopOnce are reset for restartability.
@@ -145,6 +149,7 @@ func (u *UDPServer) Start() error {
 		u.Metrics.RecordStart()
 	}
 	backoff := udpconst.MinBackoff
+	consecutiveErrors := 0
 	for {
 		select {
 		case <-done:
@@ -157,11 +162,18 @@ func (u *UDPServer) Start() error {
 					return nil
 				default:
 				}
+				consecutiveErrors++
+				u.recordError(fmt.Errorf("dial error (%d consecutive): %w", consecutiveErrors, err))
+				if consecutiveErrors >= maxConsecutiveErrors {
+					u.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+					return fmt.Errorf("tunnel failed after %d consecutive dial errors", consecutiveErrors)
+				}
 				time.Sleep(backoff)
 				backoff = udpconst.NextBackoff(backoff)
 				continue
 			}
 			backoff = udpconst.MinBackoff // reset on success
+			consecutiveErrors = 0
 			func() {
 				defer lCon.Close()
 				ctx := context.Background()

@@ -119,6 +119,10 @@ func (u *UDPClient) Name() string {
 	return u.TunnelConfig.Name
 }
 
+// maxConsecutiveForwardErrors is the number of consecutive packet.Forward failures
+// before the tunnel transitions to I2PTunnelStatusFailed.
+const maxConsecutiveForwardErrors = 10
+
 // Start the tunnel.
 // Forwards UDP packets between local sockets and the I2P datagram session.
 // Safe to call after Stop() — done channel and stopOnce are reset for restartability.
@@ -154,6 +158,7 @@ func (u *UDPClient) Start() error {
 	if u.Metrics != nil {
 		u.Metrics.RecordStart()
 	}
+	consecutiveErrors := 0
 	for {
 		select {
 		case <-done:
@@ -161,7 +166,16 @@ func (u *UDPClient) Start() error {
 		default:
 			fwdCfg := udpconst.NewDatagramForwardConfig()
 			fwdCfg.ShutdownSignal = done
-			packet.Forward(context.Background(), i2pConnection.(*datagram.DatagramSession), metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg)
+			if err := packet.Forward(context.Background(), i2pConnection.(*datagram.DatagramSession), metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg); err != nil {
+				consecutiveErrors++
+				u.recordError(fmt.Errorf("forward error (%d consecutive): %w", consecutiveErrors, err))
+				if consecutiveErrors >= maxConsecutiveForwardErrors {
+					u.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+					return fmt.Errorf("tunnel failed after %d consecutive forward errors", consecutiveErrors)
+				}
+			} else {
+				consecutiveErrors = 0
+			}
 			// packet.Forward returned (error or idle timeout). Retry unless stopped.
 			select {
 			case <-done:

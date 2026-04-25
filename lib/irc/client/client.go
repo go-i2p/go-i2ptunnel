@@ -114,6 +114,10 @@ func (i *IRCClient) Name() string {
 	return i.TunnelConfig.Name
 }
 
+// maxConsecutiveErrors is the number of consecutive Accept() failures before
+// the tunnel transitions to I2PTunnelStatusFailed.
+const maxConsecutiveErrors = 10
+
 // Start the tunnel.
 // Each accepted local connection gets its own I2P stream to the target destination.
 // Connections are handled concurrently in separate goroutines.
@@ -140,6 +144,7 @@ func (i *IRCClient) Start() error {
 	if i.Metrics != nil {
 		i.Metrics.RecordStart()
 	}
+	consecutiveErrors := 0
 	for {
 		select {
 		case <-i.done:
@@ -155,9 +160,18 @@ func (i *IRCClient) Start() error {
 					return nil
 				default:
 				}
+				if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
+					consecutiveErrors++
+					i.recordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
+					if consecutiveErrors >= maxConsecutiveErrors {
+						i.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+						return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveErrors)
+					}
+				}
 				time.Sleep(50 * time.Millisecond)
 				continue
 			}
+			consecutiveErrors = 0
 			go i.handleConnection(con)
 		}
 	}

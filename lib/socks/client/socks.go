@@ -172,7 +172,12 @@ func (s *SOCKS) Start() error {
 		s.Metrics.RecordStart()
 	}
 
-	return s.Server.ListenAndServe(s)
+	if err := s.Server.ListenAndServe(s); err != nil {
+		s.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+		s.recordError(err)
+		return err
+	}
+	return nil
 }
 
 // Get the tunnel's status
