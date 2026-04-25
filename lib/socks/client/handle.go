@@ -18,6 +18,13 @@ var socksHandler socks5.Handler = &SOCKS{}
 
 // TCPHandle implements socks5.Handler.
 func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Request) error {
+	if s.rateLimiter != nil && !s.rateLimiter.Allow() {
+		if s.Metrics != nil {
+			s.Metrics.RecordRateLimitHit()
+		}
+		s.recordError(fmt.Errorf("connection rejected: rate limit exceeded"))
+		return fmt.Errorf("rate limit exceeded")
+	}
 	if s.connSem != nil {
 		select {
 		case s.connSem <- struct{}{}:

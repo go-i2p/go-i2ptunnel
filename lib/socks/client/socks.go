@@ -53,6 +53,7 @@ import (
 	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 	"github.com/txthinking/socks5"
+	"golang.org/x/time/rate"
 )
 
 var implementSOCKS i2ptunnel.I2PTunnel = &SOCKS{}
@@ -75,6 +76,9 @@ type SOCKS struct {
 	// not support custom listener injection, connection limiting is enforced in
 	// TCPHandle rather than at the Accept() layer.
 	connSem chan struct{}
+	// rateLimiter enforces a maximum rate of new connections per second.
+	// nil means unlimited. Enforced in TCPHandle alongside connSem.
+	rateLimiter *rate.Limiter
 	// SOCKS5 server instance
 	*socks5.Server
 	// Channel for shutdown signaling
@@ -242,6 +246,11 @@ func (s *SOCKS) SetOptions(opts map[string]string) error {
 		s.connSem = make(chan struct{}, s.LimitedConfig.MaxConns)
 	} else {
 		s.connSem = nil
+	}
+	if s.LimitedConfig.RateLimit > 0 {
+		s.rateLimiter = rate.NewLimiter(rate.Limit(s.LimitedConfig.RateLimit), int(s.LimitedConfig.RateLimit))
+	} else {
+		s.rateLimiter = nil
 	}
 	return nil
 }

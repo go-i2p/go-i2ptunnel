@@ -17,6 +17,13 @@ var userHostPattern = regexp.MustCompile(`@[^\s]+`)
 // privacy-protecting defaults for IRC server tunnels. It blocks DCC commands
 // and dangerous administrative commands.
 func DefaultIRCServerConfig() ircinspector.Config {
+	return DefaultIRCServerConfigWithMetrics(nil)
+}
+
+// DefaultIRCServerConfigWithMetrics returns an ircinspector.Config that blocks
+// DCC commands and dangerous administrative commands, and increments
+// RecordFilterBlock on m for each blocked message. m may be nil.
+func DefaultIRCServerConfigWithMetrics(m *metrics.TunnelMetrics) ircinspector.Config {
 	return ircinspector.Config{
 		OnMessage: func(msg *ircinspector.Message) error {
 			command := strings.ToUpper(msg.Command)
@@ -24,16 +31,25 @@ func DefaultIRCServerConfig() ircinspector.Config {
 			// Block dangerous administrative commands
 			switch command {
 			case "ADMIN", "OPER", "DIE", "RESTART", "REHASH", "KILL":
+				if m != nil {
+					m.RecordFilterBlock()
+				}
 				return fmt.Errorf("administrative command %s not allowed over I2P", command)
 			}
 
 			// Block DCC commands
 			if command == "DCC" {
+				if m != nil {
+					m.RecordFilterBlock()
+				}
 				return fmt.Errorf("DCC commands are not allowed over I2P")
 			}
 
 			// Block DCC in CTCP messages
 			if command == "PRIVMSG" && strings.Contains(strings.ToUpper(msg.Trailing), "DCC") {
+				if m != nil {
+					m.RecordFilterBlock()
+				}
 				return fmt.Errorf("DCC CTCP commands are not allowed over I2P")
 			}
 

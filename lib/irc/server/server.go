@@ -132,7 +132,7 @@ func (i *IRCServer) Start() error {
 		i.Metrics.RecordStart()
 	}
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(i.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(i.LimitedConfig.RateLimit))
-	ircInspectorListener := ircinspector.New(limitedI2PListener, i.Config)
+	ircInspectorListener := ircinspector.New(limitedI2PListener, DefaultIRCServerConfigWithMetrics(i.Metrics))
 	ApplyIRCServerFilterRules(ircInspectorListener, i.Address(), i.Metrics)
 	for {
 		select {

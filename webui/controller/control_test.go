@@ -520,6 +520,77 @@ func TestGroupTemplateRendered(t *testing.T) {
 	}
 }
 
+// TestHandleNewPostLeaseSetAuthRequiresKey verifies that POST /new rejects
+// creation when leaseSetAuthType is DH or PSK but no leaseSetPrivKey is provided.
+func TestHandleNewPostLeaseSetAuthRequiresKey(t *testing.T) {
+	cg := &ControllerGroup{
+		I2PTunnels: []Controller{},
+		configDir:  t.TempDir(),
+	}
+
+	tests := []struct {
+		name     string
+		authType string
+	}{
+		{"DH auth without key", "1"},
+		{"PSK auth without key", "2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			formData := url.Values{}
+			formData.Set("name", "leaseset-test-"+tt.authType)
+			formData.Set("type", "tcpclient")
+			formData.Set("i2cp.leaseSetAuthType", tt.authType)
+			// Intentionally omit i2cp.leaseSetPrivKey
+
+			req := httptest.NewRequest(http.MethodPost, "/new", strings.NewReader(formData.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+
+			cg.HandleNew(req, w)
+
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("Expected status 400 when leaseSetPrivKey is absent for authType %s, got %d", tt.authType, w.Code)
+			}
+			body := w.Body.String()
+			if !strings.Contains(body, "leaseSetPrivKey") {
+				t.Errorf("Expected error mentioning leaseSetPrivKey, got: %s", body[:min(300, len(body))])
+			}
+		})
+	}
+}
+
+// TestHandleNewPostLeaseSetNoAuthNoKeyRequired verifies that POST /new succeeds
+// when leaseSetAuthType is "0" (none) even without a leaseSetPrivKey.
+func TestHandleNewPostLeaseSetNoAuthNoKeyRequired(t *testing.T) {
+	configDir := t.TempDir()
+
+	cg := &ControllerGroup{
+		I2PTunnels: []Controller{},
+		configDir:  configDir,
+	}
+
+	formData := url.Values{}
+	formData.Set("name", "leaseset-noauth")
+	formData.Set("type", "tcpclient")
+	formData.Set("destination", "example.i2p")
+	formData.Set("port", "9010")
+	formData.Set("i2cp.leaseSetAuthType", "0")
+	// No leaseSetPrivKey — must be accepted
+
+	req := httptest.NewRequest(http.MethodPost, "/new", strings.NewReader(formData.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	cg.HandleNew(req, w)
+
+	if w.Code != http.StatusSeeOther {
+		t.Errorf("Expected redirect (303) for authType=0 without key, got %d\nbody: %s",
+			w.Code, w.Body.String()[:min(300, w.Body.Len())])
+	}
+}
+
 // TestNewRouteDispatch verifies that the /new URL is routed correctly
 // through ControllerGroup.ServeHTTP.
 func TestNewRouteDispatch(t *testing.T) {

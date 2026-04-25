@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
@@ -176,6 +177,27 @@ func (cg *ControllerGroup) handlePostNew(w http.ResponseWriter, r *http.Request)
 
 	if iface := r.FormValue("interface"); iface != "" {
 		tunnelConfig["interface"] = iface
+	}
+
+	// Collect i2cp.* options (encrypted LeaseSet settings) from the form.
+	i2cpForm := make(map[string]string)
+	for key := range r.Form {
+		if strings.HasPrefix(key, "i2cp.") && r.FormValue(key) != "" {
+			i2cpForm[key] = r.FormValue(key)
+		}
+	}
+
+	// Validate LeaseSet credentials: auth type DH (1) or PSK (2) requires a private key.
+	authType := i2cpForm["i2cp.leaseSetAuthType"]
+	if authType == "1" || authType == "2" {
+		if strings.TrimSpace(i2cpForm["i2cp.leaseSetPrivKey"]) == "" {
+			cg.renderNewWithError(w, "i2cp.leaseSetPrivKey is required when LeaseSet authentication type is DH (1) or PSK (2)")
+			return
+		}
+	}
+
+	if extracted := i2ptunnel.ExtractI2CPOptions(i2cpForm); extracted != nil {
+		tunnelConfig["i2cp"] = extracted
 	}
 
 	// Wrap in "tunnels:" top-level key expected by loader
