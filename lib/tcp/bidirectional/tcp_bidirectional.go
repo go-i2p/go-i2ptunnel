@@ -65,6 +65,9 @@ type TCPBidirectional struct {
 	// Metrics tracks live operational data for this tunnel.
 	// Set by the webui controller after construction. May be nil.
 	Metrics *metrics.TunnelMetrics
+	// TCPFilterConfig holds optional byte-level read/write filters applied to each
+	// inbound I2P connection. Nil means no filtering (passthrough).
+	*i2ptunnel.TCPFilterConfig
 }
 
 // SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
@@ -191,6 +194,11 @@ func (t *TCPBidirectional) handleServerConnection(con net.Conn) {
 	}
 	wrapped := metrics.WrapConn(con, t.Metrics)
 	defer wrapped.Close()
+	filtered, err := i2ptunnel.ApplyTCPFilter(wrapped, t.TCPFilterConfig)
+	if err != nil {
+		t.recordError(err)
+		return
+	}
 	lCon, err := net.Dial("tcp", t.Target())
 	if err != nil {
 		t.recordError(err)
@@ -201,7 +209,7 @@ func (t *TCPBidirectional) handleServerConnection(con net.Conn) {
 	}
 	defer lCon.Close()
 	ctx := context.Background()
-	stream.Forward(ctx, wrapped, lCon, config.DefaultConfig())
+	stream.Forward(ctx, filtered, lCon, config.DefaultConfig())
 }
 
 // Status returns the current tunnel status.

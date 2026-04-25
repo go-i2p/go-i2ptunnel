@@ -13,12 +13,14 @@ package shared
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/loader"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 )
 
 // Run is the main entry point for all tunnel CLI tools. It parses flags,
@@ -29,11 +31,12 @@ import (
 func Run(tunnelType string) {
 	configPath := flag.String("config", "", "Path to tunnel configuration file (required)")
 	samAddr := flag.String("sam", "127.0.0.1:7656", "SAM bridge address (host:port)")
+	metricsAddr := flag.String("metrics-addr", "", "Address to serve Prometheus metrics (e.g. :9090); disabled if empty")
 	flag.Parse()
 
 	if *configPath == "" {
 		fmt.Fprintf(os.Stderr, "Error: -config flag is required\n")
-		fmt.Fprintf(os.Stderr, "Usage: %s -config <path> [-sam <host:port>]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s -config <path> [-sam <host:port>] [-metrics-addr <host:port>]\n", os.Args[0])
 		os.Exit(1)
 	}
 
@@ -48,12 +51,58 @@ func Run(tunnelType string) {
 		os.Exit(1)
 	}
 
+	registry := metrics.NewRegistry()
+	m := registry.Register(tunnel.Name(), tunnel.ID(), tunnel.Type())
+	if bearer, ok := tunnel.(metrics.MetricsBearer); ok {
+		bearer.SetTunnelMetrics(m)
+	}
+
+	if *metricsAddr != "" {
+		startMetricsServer(*metricsAddr, registry, tunnel)
+	}
+
 	fmt.Printf("Starting %s tunnel %q on %s\n", tunnelType, tunnel.Name(), localAddr(tunnel))
 
 	if err := startAndWait(tunnel, tunnelType, *configPath, *samAddr); err != nil {
 		fmt.Fprintf(os.Stderr, "Tunnel error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// startMetricsServer starts an HTTP server on addr serving Prometheus metrics,
+// health, and status endpoints. It runs in a background goroutine and does not
+// block the caller. Errors binding the listener are reported to stderr but do
+// not stop the tunnel itself.
+func startMetricsServer(addr string, registry *metrics.Registry, tunnel i2ptunnel.I2PTunnel) {
+	statusFunc := func() []metrics.TunnelStatus {
+		localAddr, _ := tunnel.LocalAddress()
+		errMsg := ""
+		if err := tunnel.Error(); err != nil {
+			errMsg = err.Error()
+		}
+		return []metrics.TunnelStatus{{
+			Name:         tunnel.Name(),
+			ID:           tunnel.ID(),
+			Type:         tunnel.Type(),
+			Status:       string(tunnel.Status()),
+			Address:      tunnel.Address(),
+			Target:       tunnel.Target(),
+			LocalAddress: localAddr,
+			Error:        errMsg,
+		}}
+	}
+	handler := metrics.NewHandler(registry, statusFunc)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/metrics", handler.HandleMetrics)
+	mux.HandleFunc("/healthz", handler.HandleHealth)
+	mux.HandleFunc("/api/status", handler.HandleStatus)
+
+	go func() {
+		if err := http.ListenAndServe(addr, mux); err != nil && err != http.ErrServerClosed {
+			fmt.Fprintf(os.Stderr, "Metrics server error on %s: %v\n", addr, err)
+		}
+	}()
+	fmt.Printf("Metrics server listening on %s\n", addr)
 }
 
 // startAndWait starts the tunnel and blocks until a shutdown signal is received.

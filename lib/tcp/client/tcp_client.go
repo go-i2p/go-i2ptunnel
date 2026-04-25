@@ -71,6 +71,9 @@ type TCPClient struct {
 	// Metrics tracks live operational data for this tunnel.
 	// Set by the webui controller after construction. May be nil.
 	Metrics *metrics.TunnelMetrics
+	// TCPFilterConfig holds optional byte-level read/write filters applied to each
+	// forwarded connection. Nil means no filtering (passthrough).
+	*i2ptunnel.TCPFilterConfig
 	// dialTimeout limits how long handleConnection waits to establish an I2P stream.
 	// Zero means no timeout. Default: defaultDialTimeout. Modified only under lifeMu.
 	dialTimeout time.Duration
@@ -225,6 +228,11 @@ func (t *TCPClient) handleConnection(con net.Conn) {
 	}
 	wrapped := metrics.WrapConn(con, t.Metrics)
 	defer wrapped.Close()
+	filtered, err := i2ptunnel.ApplyTCPFilter(wrapped, t.TCPFilterConfig)
+	if err != nil {
+		t.recordError(err)
+		return
+	}
 	target := t.Target()
 	if target == "" {
 		t.recordError(fmt.Errorf("handleConnection: no target I2P address configured"))
@@ -255,7 +263,7 @@ func (t *TCPClient) handleConnection(con net.Conn) {
 		case <-fwdCtx.Done():
 		}
 	}()
-	if err := stream.Forward(fwdCtx, wrapped, i2pConn, config.DefaultConfig()); err != nil {
+	if err := stream.Forward(fwdCtx, filtered, i2pConn, config.DefaultConfig()); err != nil {
 		t.recordError(err)
 	}
 }

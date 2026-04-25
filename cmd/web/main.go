@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -17,13 +18,13 @@ func main() {
 	addr := net.JoinHostPort(*host, strconv.Itoa(*port))
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to listen on %s: %v", addr, err)
 	}
 	controllerGroup, err := controller.NewControllerGroup(*configDir)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to initialize controller group from %q: %v", *configDir, err)
 	}
 	if err := http.Serve(ln, controllerGroup); err != nil {
-		panic(err)
+		log.Fatalf("http server error: %v", err)
 	}
 }
