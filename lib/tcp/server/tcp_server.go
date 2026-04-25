@@ -125,6 +125,7 @@ func (t *TCPServer) Start() error {
 	t.lifeMu.Lock()
 	t.done = make(chan struct{})
 	t.stopOnce = sync.Once{}
+	t.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	i2pListener, err := t.Garlic.ListenStream()
 	if err != nil {
 		t.lifeMu.Unlock()

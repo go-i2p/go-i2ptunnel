@@ -179,6 +179,7 @@ func (h *HTTPClient) Start() error {
 	h.ctx, h.cancel = context.WithCancel(context.Background())
 	h.done = make(chan struct{})
 	h.stopOnce = sync.Once{}
+	h.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	proxy := goproxy.NewProxyHttpServer()
 	h.ProxyHttpServer = proxy
 	h.ProxyHttpServer.Tr.DialContext = h.DialContext

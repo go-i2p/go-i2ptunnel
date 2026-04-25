@@ -134,6 +134,7 @@ func (h *HTTPServer) Start() error {
 	h.lifeMu.Lock()
 	h.done = make(chan struct{})
 	h.stopOnce = sync.Once{}
+	h.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	i2pListener, err := h.Garlic.ListenStream()
 	if err != nil {
 		h.lifeMu.Unlock()

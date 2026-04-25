@@ -109,6 +109,10 @@ func (u *UDPBidirectional) Name() string {
 	return u.TunnelConfig.Name
 }
 
+// maxConsecutiveErrors is the number of consecutive DialUDP failures before
+// the tunnel transitions to I2PTunnelStatusFailed.
+const maxConsecutiveErrors = 10
+
 // Start launches both the server-side I2P datagram listener and the client-side
 // SOCKS5 proxy concurrently. It blocks until the tunnel is stopped.
 // Safe to call after Stop() — done channel and stopOnce are reset for restartability.
@@ -156,6 +160,7 @@ func (u *UDPBidirectional) Start() error {
 
 	// Server-side datagram forwarding loop
 	backoff := udpconst.MinBackoff
+	consecutiveErrors := 0
 	for {
 		select {
 		case <-done:
@@ -182,11 +187,18 @@ func (u *UDPBidirectional) Start() error {
 					return nil
 				default:
 				}
+				consecutiveErrors++
+				u.recordError(fmt.Errorf("dial error (%d consecutive): %w", consecutiveErrors, err))
+				if consecutiveErrors >= maxConsecutiveErrors {
+					u.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+					return fmt.Errorf("tunnel failed after %d consecutive dial errors", consecutiveErrors)
+				}
 				time.Sleep(backoff)
 				backoff = udpconst.NextBackoff(backoff)
 				continue
 			}
 			backoff = udpconst.MinBackoff // reset on success
+			consecutiveErrors = 0
 			func() {
 				defer lCon.Close()
 				ctx := context.Background()

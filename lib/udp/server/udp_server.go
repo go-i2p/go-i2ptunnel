@@ -130,6 +130,7 @@ func (u *UDPServer) Start() error {
 	u.done = make(chan struct{})
 	u.stopOnce = sync.Once{}
 	done := u.done // capture local ref before unlock to avoid data race with restart
+	u.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	u.lifeMu.Unlock()
 	i2pListener, err := u.Garlic.ListenPacket()
 	if err != nil {

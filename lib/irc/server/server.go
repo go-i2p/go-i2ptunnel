@@ -122,6 +122,7 @@ func (i *IRCServer) Start() error {
 	i.lifeMu.Lock()
 	i.done = make(chan struct{})
 	i.stopOnce = sync.Once{}
+	i.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	i2pListener, err := i.Garlic.ListenStream()
 	if err != nil {
 		i.lifeMu.Unlock()
