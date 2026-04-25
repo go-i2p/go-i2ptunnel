@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	client "github.com/go-i2p/go-i2ptunnel/lib/tcp/client"
 	server "github.com/go-i2p/go-i2ptunnel/lib/tcp/server"
 	"github.com/go-i2p/i2pkeys"

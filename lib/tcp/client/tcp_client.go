@@ -33,7 +33,7 @@ import (
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
@@ -149,6 +149,7 @@ func (t *TCPClient) Start() error {
 	t.lifeMu.Lock()
 	t.done = make(chan struct{})
 	t.stopOnce = sync.Once{}
+	done := t.done // capture local ref before unlock to avoid data race with restart
 	t.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	listener, err := net.Listen("tcp", net.JoinHostPort(t.Interface, strconv.Itoa(t.Port)))
 	if err != nil {
@@ -166,14 +167,14 @@ func (t *TCPClient) Start() error {
 	consecutiveAcceptErrors := 0
 	for {
 		select {
-		case <-t.done:
+		case <-done:
 			return nil
 		default:
 			con, err := listener.Accept()
 			if err != nil {
 				// Check if tunnel is shutting down
 				select {
-				case <-t.done:
+				case <-done:
 					return nil
 				default:
 				}

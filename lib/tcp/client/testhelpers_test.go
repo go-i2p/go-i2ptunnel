@@ -6,7 +6,7 @@ import (
 	"net"
 	"testing"
 
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 )
 
 const testTarget = "ukeu3k5oycgaauneqgtnvselmt4yemvoilkln7jpvamvfx7dnkdq.b32.i2p"

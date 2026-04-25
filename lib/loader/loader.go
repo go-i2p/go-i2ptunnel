@@ -8,7 +8,7 @@ import (
 	"os"
 	"strconv"
 
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	httpbidirectional "github.com/go-i2p/go-i2ptunnel/lib/http/bidirectional"
 	httpclient "github.com/go-i2p/go-i2ptunnel/lib/http/client"

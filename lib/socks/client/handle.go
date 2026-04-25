@@ -18,6 +18,15 @@ var socksHandler socks5.Handler = &SOCKS{}
 
 // TCPHandle implements socks5.Handler.
 func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Request) error {
+	if s.connSem != nil {
+		select {
+		case s.connSem <- struct{}{}:
+			defer func() { <-s.connSem }()
+		default:
+			s.recordError(fmt.Errorf("connection rejected: at capacity (%d max concurrent)", cap(s.connSem)))
+			return fmt.Errorf("connection limit reached")
+		}
+	}
 	if s.Metrics != nil {
 		s.Metrics.RecordConnection()
 		defer s.Metrics.RecordDisconnection()

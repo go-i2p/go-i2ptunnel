@@ -47,7 +47,7 @@ import (
 	"strconv"
 	"sync"
 
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	limitedlistener "github.com/go-i2p/go-limit"
@@ -69,9 +69,12 @@ type SOCKS struct {
 	// The tunnel status
 	i2ptunnel.I2PTunnelStatus
 	// The rate-limiting configuration.
-	// Note: socks5.Server manages its own listener; MaxConns/RateLimit are
-	// persisted here for configuration round-trips and future wiring.
 	limitedlistener.LimitedConfig
+	// connSem is a counting semaphore for limiting concurrent in-flight connections.
+	// nil means unlimited. Because socks5.Server manages its own listener and does
+	// not support custom listener injection, connection limiting is enforced in
+	// TCPHandle rather than at the Accept() layer.
+	connSem chan struct{}
 	// SOCKS5 server instance
 	*socks5.Server
 	// Channel for shutdown signaling
@@ -234,6 +237,11 @@ func (s *SOCKS) SetOptions(opts map[string]string) error {
 	}
 	if err := i2ptunnel.ApplyRateLimitOptions(opts, &s.LimitedConfig.MaxConns, &s.LimitedConfig.RateLimit); err != nil {
 		return err
+	}
+	if s.LimitedConfig.MaxConns > 0 {
+		s.connSem = make(chan struct{}, s.LimitedConfig.MaxConns)
+	} else {
+		s.connSem = nil
 	}
 	return nil
 }

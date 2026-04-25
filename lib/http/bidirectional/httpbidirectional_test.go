@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	httpinspector "github.com/go-i2p/go-connfilter/http"
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	httpclient "github.com/go-i2p/go-i2ptunnel/lib/http/client"
 	httpserver "github.com/go-i2p/go-i2ptunnel/lib/http/server"

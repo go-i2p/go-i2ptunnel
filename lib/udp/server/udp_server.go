@@ -33,7 +33,7 @@ import (
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/packet"
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/lib"
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
@@ -126,6 +126,7 @@ func (u *UDPServer) Start() error {
 	u.lifeMu.Lock()
 	u.done = make(chan struct{})
 	u.stopOnce = sync.Once{}
+	done := u.done // capture local ref before unlock to avoid data race with restart
 	u.lifeMu.Unlock()
 	i2pListener, err := u.Garlic.ListenPacket()
 	if err != nil {
@@ -147,13 +148,13 @@ func (u *UDPServer) Start() error {
 	backoff := udpconst.MinBackoff
 	for {
 		select {
-		case <-u.done:
+		case <-done:
 			return nil
 		default:
 			lCon, err := net.DialUDP("udp", nil, raddr)
 			if err != nil {
 				select {
-				case <-u.done:
+				case <-done:
 					return nil
 				default:
 				}
@@ -165,12 +166,14 @@ func (u *UDPServer) Start() error {
 			func() {
 				defer lCon.Close()
 				ctx := context.Background()
-				packet.Forward(ctx, i2pListener, lCon, config.DefaultConfig())
+				fwdCfg := udpconst.NewDatagramForwardConfig()
+				fwdCfg.ShutdownSignal = done
+				packet.Forward(ctx, i2pListener, lCon, fwdCfg)
 			}()
 			// Brief pause between forwarding attempts to prevent rapid socket
 			// churn when packet.Forward returns quickly (e.g., on error or timeout).
 			select {
-			case <-u.done:
+			case <-done:
 				return nil
 			case <-time.After(100 * time.Millisecond):
 			}

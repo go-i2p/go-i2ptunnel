@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	tunnelconfig "github.com/go-i2p/go-i2ptunnel-config/lib"
+	tunnelconfig "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	httpClientSanitize "github.com/go-i2p/go-i2ptunnel/lib/http/client"
 	httpServerSanitize "github.com/go-i2p/go-i2ptunnel/lib/http/server"
