@@ -247,3 +247,37 @@ func WrapConn(conn net.Conn, m *TunnelMetrics) net.Conn {
 	}
 	return &CountingConn{Conn: conn, metrics: m}
 }
+
+// CountingPacketConn wraps a net.PacketConn and records byte transfers to a
+// TunnelMetrics instance. ReadFrom calls record BytesIn; WriteTo calls record BytesOut.
+type CountingPacketConn struct {
+	net.PacketConn
+	metrics *TunnelMetrics
+}
+
+// ReadFrom reads a packet and records inbound byte count.
+func (c *CountingPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	n, addr, err := c.PacketConn.ReadFrom(b)
+	if n > 0 && c.metrics != nil {
+		c.metrics.RecordBytesIn(int64(n))
+	}
+	return n, addr, err
+}
+
+// WriteTo writes a packet and records outbound byte count.
+func (c *CountingPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+	n, err := c.PacketConn.WriteTo(b, addr)
+	if n > 0 && c.metrics != nil {
+		c.metrics.RecordBytesOut(int64(n))
+	}
+	return n, err
+}
+
+// WrapPacketConn returns conn wrapped in a CountingPacketConn that records bytes to m.
+// Returns conn unchanged when m is nil.
+func WrapPacketConn(conn net.PacketConn, m *TunnelMetrics) net.PacketConn {
+	if m == nil {
+		return conn
+	}
+	return &CountingPacketConn{PacketConn: conn, metrics: m}
+}

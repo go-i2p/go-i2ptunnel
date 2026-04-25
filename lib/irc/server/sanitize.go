@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	ircinspector "github.com/go-i2p/go-connfilter/irc"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 )
 
 // Pattern to match user@host format
@@ -47,7 +48,8 @@ func DefaultIRCServerConfig() ircinspector.Config {
 // ApplyIRCServerFilterRules adds hostname-masking filter rules to an existing
 // IRC inspector. Call this after ircinspector.New() to add JOIN and WHOIS
 // filters that replace real hostnames with the I2P address.
-func ApplyIRCServerFilterRules(inspector *ircinspector.Inspector, i2pHost string) {
+// m may be nil; it is reserved for future filter-block counting.
+func ApplyIRCServerFilterRules(inspector *ircinspector.Inspector, i2pHost string, m *metrics.TunnelMetrics) {
 	// Filter JOIN messages to mask hostnames
 	inspector.AddFilter(ircinspector.Filter{
 		Command: "JOIN",
@@ -75,6 +77,6 @@ func ApplyIRCServerFilterRules(inspector *ircinspector.Inspector, i2pHost string
 // Blocks administrative commands and masks host information.
 func ApplyIRCServerFilters(listener net.Listener, i2pHost string) net.Listener {
 	inspector := ircinspector.New(listener, DefaultIRCServerConfig())
-	ApplyIRCServerFilterRules(inspector, i2pHost)
+	ApplyIRCServerFilterRules(inspector, i2pHost, nil)
 	return inspector
 }

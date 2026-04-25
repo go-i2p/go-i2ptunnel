@@ -152,7 +152,7 @@ func TestApplyIRCServerFilterRulesJOINMask(t *testing.T) {
 
 	// Create a minimal inspector with a nil listener (we only test AddFilter callbacks)
 	inspector := ircinspector.New(nil, DefaultIRCServerConfig())
-	ApplyIRCServerFilterRules(inspector, i2pHost)
+	ApplyIRCServerFilterRules(inspector, i2pHost, nil)
 
 	// Simulate what the inspector would do: construct a JOIN message and apply filters
 	// Since processMessage is unexported, we test the filter callback behavior

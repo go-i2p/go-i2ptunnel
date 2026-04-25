@@ -200,6 +200,9 @@ func (h *HTTPBidirectional) Start() error {
 		default:
 			con, err := limitedI2PListener.Accept()
 			if err != nil {
+				if (err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded) && h.Metrics != nil {
+					h.Metrics.RecordRateLimitHit()
+				}
 				select {
 				case <-h.done:
 					return nil

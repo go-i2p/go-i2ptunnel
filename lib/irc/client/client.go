@@ -134,7 +134,7 @@ func (i *IRCClient) Start() error {
 	defer i.Stop()
 	limitedL := limitedlistener.NewLimitedListener(listener, limitedlistener.WithMaxConnections(i.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(i.LimitedConfig.RateLimit))
 	filteredListener := ircinspector.New(limitedL, i.Config)
-	ApplyIRCClientFilterRules(filteredListener, i.Address())
+	ApplyIRCClientFilterRules(filteredListener, i.Address(), i.Metrics)
 	defer filteredListener.Close()
 	i.setStatus(i2ptunnel.I2PTunnelStatusRunning)
 	if i.Metrics != nil {
@@ -147,6 +147,9 @@ func (i *IRCClient) Start() error {
 		default:
 			con, err := filteredListener.Accept()
 			if err != nil {
+				if (err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded) && i.Metrics != nil {
+					i.Metrics.RecordRateLimitHit()
+				}
 				select {
 				case <-i.done:
 					return nil

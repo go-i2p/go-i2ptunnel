@@ -125,8 +125,8 @@
 
         <div class="form-group">
             <label>LeaseSet Private Key</label>
-            <input type="text" name="i2cp.leaseSetPrivKey" value="{{index .Options "i2cp.leaseSetPrivKey"}}" placeholder="">
-            <div class="help-text">Private key for encrypted LeaseSet (leave empty to auto-generate)</div>
+            <input type="password" name="i2cp.leaseSetPrivKey" value="{{index .Options "i2cp.leaseSetPrivKey"}}" placeholder="">
+            <div class="help-text">Required when Authentication Type is DH (1) or PSK (2). Leave empty for no authentication (type 0).</div>
         </div>
     </fieldset>
 

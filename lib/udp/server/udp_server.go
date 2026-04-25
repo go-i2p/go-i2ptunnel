@@ -31,7 +31,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/packet"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
@@ -168,7 +167,7 @@ func (u *UDPServer) Start() error {
 				ctx := context.Background()
 				fwdCfg := udpconst.NewDatagramForwardConfig()
 				fwdCfg.ShutdownSignal = done
-				packet.Forward(ctx, i2pListener, lCon, fwdCfg)
+				packet.Forward(ctx, i2pListener, metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg)
 			}()
 			// Brief pause between forwarding attempts to prevent rapid socket
 			// churn when packet.Forward returns quickly (e.g., on error or timeout).

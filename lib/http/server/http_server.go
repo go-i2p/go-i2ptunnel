@@ -152,6 +152,9 @@ func (h *HTTPServer) Start() error {
 		default:
 			con, err := httpInspectorListener.Accept()
 			if err != nil {
+				if (err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded) && h.Metrics != nil {
+					h.Metrics.RecordRateLimitHit()
+				}
 				select {
 				case <-h.done:
 					return nil

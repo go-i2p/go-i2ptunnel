@@ -21,7 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/packet"
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
@@ -117,6 +116,7 @@ func (u *UDPBidirectional) Start() error {
 	u.lifeMu.Lock()
 	u.done = make(chan struct{})
 	u.stopOnce = sync.Once{}
+	done := u.done // capture local ref before unlock to avoid data race with restart
 	u.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	u.lifeMu.Unlock()
 
@@ -158,7 +158,7 @@ func (u *UDPBidirectional) Start() error {
 	backoff := udpconst.MinBackoff
 	for {
 		select {
-		case <-u.done:
+		case <-done:
 			return nil
 		case err := <-socksErrCh:
 			// Log transient SOCKS errors and restart the listener instead
@@ -167,7 +167,7 @@ func (u *UDPBidirectional) Start() error {
 				u.recordError(fmt.Errorf("SOCKS5 server error (restarting): %w", err))
 			}
 			select {
-			case <-u.done:
+			case <-done:
 				return nil
 			default:
 			}
@@ -178,7 +178,7 @@ func (u *UDPBidirectional) Start() error {
 			lCon, err := net.DialUDP("udp", nil, raddr)
 			if err != nil {
 				select {
-				case <-u.done:
+				case <-done:
 					return nil
 				default:
 				}
@@ -190,12 +190,14 @@ func (u *UDPBidirectional) Start() error {
 			func() {
 				defer lCon.Close()
 				ctx := context.Background()
-				packet.Forward(ctx, i2pListener, lCon, config.DefaultConfig())
+				fwdCfg := udpconst.NewDatagramForwardConfig()
+				fwdCfg.ShutdownSignal = done
+				packet.Forward(ctx, i2pListener, metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg)
 			}()
 			// Brief pause between forwarding attempts to prevent rapid socket
 			// churn when packet.Forward returns quickly (e.g., on error or timeout).
 			select {
-			case <-u.done:
+			case <-done:
 				return nil
 			case <-time.After(100 * time.Millisecond):
 			}

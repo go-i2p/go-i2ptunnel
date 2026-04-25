@@ -12,6 +12,10 @@ import (
 // for UDP datagram forwarding. Each caller gets an independent config and
 // ShutdownSignal channel, preventing cross-tunnel interference when one
 // tunnel is stopped.
+//
+// Despite its name this config is also used by lib/socks/client for TCP stream
+// forwarding; the buffer and timeout values are appropriate for both cases.
+// If you need different settings create your own config.ForwardConfig directly.
 func NewDatagramForwardConfig() *config.ForwardConfig {
 	return &config.ForwardConfig{
 		BufferSize:     32 * 1024, // 32KB buffer

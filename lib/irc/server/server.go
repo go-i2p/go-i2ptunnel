@@ -133,7 +133,7 @@ func (i *IRCServer) Start() error {
 	}
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(i.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(i.LimitedConfig.RateLimit))
 	ircInspectorListener := ircinspector.New(limitedI2PListener, i.Config)
-	ApplyIRCServerFilterRules(ircInspectorListener, i.Address())
+	ApplyIRCServerFilterRules(ircInspectorListener, i.Address(), i.Metrics)
 	for {
 		select {
 		case <-i.done:
@@ -141,6 +141,9 @@ func (i *IRCServer) Start() error {
 		default:
 			con, err := ircInspectorListener.Accept()
 			if err != nil {
+				if (err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded) && i.Metrics != nil {
+					i.Metrics.RecordRateLimitHit()
+				}
 				select {
 				case <-i.done:
 					return nil

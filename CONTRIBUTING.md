@@ -11,7 +11,6 @@ lib/http/client # high level http.Client implementation, filtering middleware, H
 lib/http/server # high level http.Server implementation
 lib/http/server/listener # high level net.Listener implementation, filtering middleware
 lib/irc/client # high level net.Conn implementation, filtering middleware, ??encrypted leaseSet middleware??
-lib/irc/socksclient # high level net.Dialer implementation, filtering middleware, ??encrypted leaseSet middleware??
 lib/irc/server # high level net.Listener implementation, filtering middleware
 lib/socks/client # high level net.Conn implementation, filtering middleware, SOCKS outproxy client, ??encrypted leaseSet middleware??
 lib/standard/client # high level net.Dialer implementation, filtering middleware
@@ -24,7 +23,6 @@ lib/udp/server # high level net.Listener implementation, filtering middleware
 cmd/http/client # starts an HTTP proxy listening on a port, forwarding requests to lib/http/client's http.Client
 cmd/http/server # starts a client connected to a local port, forwarding requests to and lib/http/service/listener's custom net.Listener
 cmd/irc/client # starts a proxy listening on a port, forwarding requests to lib/irc/client's custom net.Conn implementation
-cmd/irc/socksclient # starts a SOCKS proxy listening on a port forwarding requests to lib/irc/socksclient's custom net.Dialer
 cmd/irc/server # starts a client connected to a port, forwarding requests to lib/irc/server's custom net.Listener
 cmd/socks/client # starts a SOCKS5 proxy lisening on a port forwarding requests to lib/irc/server's custom net.Dialer
 cmd/standard/client # starts a proxy listening on a port forwarding requests to lib/standard/client's custom net.Conn

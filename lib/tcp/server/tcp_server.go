@@ -142,6 +142,9 @@ func (t *TCPServer) Start() error {
 		default:
 			con, err := limitedI2PListener.Accept()
 			if err != nil {
+				if (err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded) && t.Metrics != nil {
+					t.Metrics.RecordRateLimitHit()
+				}
 				select {
 				case <-t.done:
 					return nil

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/loader"
@@ -101,6 +102,17 @@ func (c *Config) handlePostConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		newOptions["port"] = portStr
+	}
+
+	// Validate encrypted LeaseSet credential: if authType 1 or 2 is selected,
+	// a private key must be provided. Without it the tunnel will start but fail
+	// silently at the SAM bridge level.
+	authType := newOptions["i2cp.leaseSetAuthType"]
+	if authType == "1" || authType == "2" {
+		if strings.TrimSpace(newOptions["i2cp.leaseSetPrivKey"]) == "" {
+			c.renderConfigWithError(w, "i2cp.leaseSetPrivKey is required when LeaseSet authentication type is DH (1) or PSK (2)")
+			return
+		}
 	}
 
 	// Validate host if provided

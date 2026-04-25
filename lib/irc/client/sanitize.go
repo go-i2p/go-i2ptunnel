@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	ircinspector "github.com/go-i2p/go-connfilter/irc"
+	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 )
 
 // DefaultIRCClientConfig returns an ircinspector.Config pre-configured with
@@ -40,7 +41,8 @@ func DefaultIRCClientConfig() ircinspector.Config {
 // filter rules to an existing IRC inspector. Call this after
 // ircinspector.New() to add per-command callbacks that block dangerous DCC
 // parameters and replace real hostnames with the I2P address.
-func ApplyIRCClientFilterRules(inspector *ircinspector.Inspector, i2pHost string) {
+// m may be nil; when non-nil, RecordFilterBlock is incremented on each DCC block.
+func ApplyIRCClientFilterRules(inspector *ircinspector.Inspector, i2pHost string, m *metrics.TunnelMetrics) {
 	// Validate DCC command parameters: block private IPs and invalid ports,
 	// then refuse the command regardless (DCC cannot work over I2P).
 	inspector.AddFilter(ircinspector.Filter{
@@ -48,7 +50,13 @@ func ApplyIRCClientFilterRules(inspector *ircinspector.Inspector, i2pHost string
 		Callback: func(msg *ircinspector.Message) error {
 			body := "DCC " + strings.Join(msg.Params, " ")
 			if err := filterDCCRequest(body); err != nil {
+				if m != nil {
+					m.RecordFilterBlock()
+				}
 				return err
+			}
+			if m != nil {
+				m.RecordFilterBlock()
 			}
 			return fmt.Errorf("DCC commands are not permitted over I2P")
 		},
@@ -84,6 +92,6 @@ func ApplyIRCClientFilterRules(inspector *ircinspector.Inspector, i2pHost string
 // Blocks dangerous commands like DCC and filters potentially leaky content.
 func ApplyIRCClientFilters(listener net.Listener, i2pHost string) net.Listener {
 	inspector := ircinspector.New(listener, DefaultIRCClientConfig())
-	ApplyIRCClientFilterRules(inspector, i2pHost)
+	ApplyIRCClientFilterRules(inspector, i2pHost, nil)
 	return inspector
 }

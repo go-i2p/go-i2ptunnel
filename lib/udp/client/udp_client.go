@@ -36,8 +36,8 @@ import (
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
-	limitedlistener "github.com/go-i2p/go-limit"
 	udpconst "github.com/go-i2p/go-i2ptunnel/lib/udp/const"
+	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/go-sam-go/datagram"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
@@ -161,7 +161,7 @@ func (u *UDPClient) Start() error {
 		default:
 			fwdCfg := udpconst.NewDatagramForwardConfig()
 			fwdCfg.ShutdownSignal = done
-			packet.Forward(context.Background(), i2pConnection.(*datagram.DatagramSession), lCon, fwdCfg)
+			packet.Forward(context.Background(), i2pConnection.(*datagram.DatagramSession), metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg)
 			// packet.Forward returned (error or idle timeout). Retry unless stopped.
 			select {
 			case <-done:
