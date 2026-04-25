@@ -250,6 +250,9 @@ func (u *UDPBidirectional) ID() string {
 }
 
 // Options returns the tunnel's configuration as a string map.
+// Note: the "max-conns" and "rate-limit" keys are included for config
+// round-trip compatibility only — they are not enforced at runtime because
+// UDP tunnels operate on net.PacketConn (datagrams), not net.Listener.
 func (u *UDPBidirectional) Options() map[string]string {
 	options := i2ptunnel.BuildCommonOptions(u.TunnelConfig)
 	i2ptunnel.AddRateLimitOptions(options, u.LimitedConfig.MaxConns, u.LimitedConfig.RateLimit)
@@ -260,6 +263,8 @@ func (u *UDPBidirectional) Options() map[string]string {
 }
 
 // SetOptions applies configuration options from a string map with validation.
+// Note: the "max-conns" and "rate-limit" keys are stored for config round-trip
+// compatibility but are not enforced — see Options() for details.
 func (u *UDPBidirectional) SetOptions(opts map[string]string) error {
 	if err := i2ptunnel.ApplyCommonOptions(opts, &u.TunnelConfig); err != nil {
 		return err
