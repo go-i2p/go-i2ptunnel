@@ -16,14 +16,12 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
@@ -99,20 +97,10 @@ func (t *TCPBidirectional) Start() error {
 	defer i2pListener.Close()
 	defer t.Stop()
 
-	// Create SOCKS5 proxy for outbound connections
-	socksAddr := net.JoinHostPort(t.TunnelConfig.Interface, strconv.Itoa(t.TunnelConfig.Port))
-	socksServer, err := socks5.NewClassicServer(socksAddr, "", "", "", 0, 0)
+	socksErrCh, err := t.startSOCKS5Proxy()
 	if err != nil {
-		return fmt.Errorf("failed to create SOCKS5 server: %w", err)
+		return err
 	}
-	t.socksServer = socksServer
-	t.socksServer.Handle = &socksHandler{garlic: t.Garlic}
-
-	// Start SOCKS5 proxy in a background goroutine
-	socksErrCh := make(chan error, 1)
-	go func() {
-		socksErrCh <- t.socksServer.ListenAndServe(t.socksServer.Handle)
-	}()
 
 	t.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 	if t.Metrics != nil {
@@ -139,29 +127,59 @@ func (t *TCPBidirectional) Start() error {
 		default:
 			con, err := limitedI2PListener.Accept()
 			if err != nil {
-				if (err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded) && t.Metrics != nil {
-					t.Metrics.RecordRateLimitHit()
+				if cont, fatal := t.handleAcceptError(err, &consecutiveErrors, t.done); !cont {
+					return fatal
 				}
-				select {
-				case <-t.done:
-					return nil
-				default:
-				}
-				if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
-					consecutiveErrors++
-					t.RecordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
-					if consecutiveErrors >= maxConsecutiveErrors {
-						t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-						return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveErrors)
-					}
-				}
-				time.Sleep(50 * time.Millisecond)
 				continue
 			}
 			consecutiveErrors = 0
 			go t.handleServerConnection(con)
 		}
 	}
+}
+
+// startSOCKS5Proxy creates and starts the outbound SOCKS5 proxy goroutine.
+// Returns the error channel for monitoring the proxy.
+func (t *TCPBidirectional) startSOCKS5Proxy() (<-chan error, error) {
+	socksAddr := net.JoinHostPort(t.TunnelConfig.Interface, strconv.Itoa(t.TunnelConfig.Port))
+	socksServer, err := socks5.NewClassicServer(socksAddr, "", "", "", 0, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SOCKS5 server: %w", err)
+	}
+	t.socksServer = socksServer
+	t.socksServer.Handle = &socksHandler{garlic: t.Garlic}
+
+	socksErrCh := make(chan error, 1)
+	go func() {
+		socksErrCh <- t.socksServer.ListenAndServe(t.socksServer.Handle)
+	}()
+	return socksErrCh, nil
+}
+
+// handleAcceptError processes an Accept() failure and returns whether to continue.
+// cont=true means sleep-and-retry; cont=false with nil fatal means shutting down;
+// cont=false with non-nil fatal means the tunnel should fail.
+func (t *TCPBidirectional) handleAcceptError(err error, consecutiveErrors *int, done <-chan struct{}) (cont bool, fatal error) {
+	if err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded {
+		if t.Metrics != nil {
+			t.Metrics.RecordRateLimitHit()
+		}
+	}
+	select {
+	case <-done:
+		return false, nil
+	default:
+	}
+	if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
+		*consecutiveErrors++
+		t.RecordError(fmt.Errorf("accept error (%d consecutive): %w", *consecutiveErrors, err))
+		if *consecutiveErrors >= maxConsecutiveErrors {
+			t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
+			return false, fmt.Errorf("listener failed after %d consecutive accept errors", *consecutiveErrors)
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	return true, nil
 }
 
 // handleServerConnection forwards a single inbound I2P connection to the local target.
@@ -248,37 +266,20 @@ func (t *TCPBidirectional) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file. The tunnel must be stopped first.
 func (t *TCPBidirectional) LoadConfig(path string) error {
-	status := t.Status()
-	if status == i2ptunnel.I2PTunnelStatusRunning ||
-		status == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
+	if err := i2ptunnel.CheckTunnelStopped(t.Status()); err != nil {
+		return err
 	}
-
-	conv := i2pconv.Converter{}
-	format, err := conv.DetectFormat(path)
+	newConfig, err := i2ptunnel.ParseConfigFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to detect config format: %w", err)
+		return err
 	}
-
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	newConfig, err := conv.ParseInput(bytes, format)
-	if err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
-	}
-
 	if newConfig.Type != "tcpbidirectional" {
 		return fmt.Errorf("config file contains %s tunnel, expected tcpbidirectional", newConfig.Type)
 	}
-
 	targetAddr, err := net.ResolveTCPAddr("tcp", newConfig.Target)
 	if err != nil {
 		return fmt.Errorf("invalid target address in config: %w", err)
 	}
-
 	t.TunnelConfig = *newConfig
 	t.Addr = targetAddr
 	return nil

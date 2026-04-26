@@ -73,69 +73,60 @@ func (c *Config) handlePostConfig(w http.ResponseWriter, r *http.Request) {
 		c.renderConfigWithError(w, fmt.Sprintf("Failed to parse form: %v", err))
 		return
 	}
-
-	// Validate that tunnel is not running before applying config changes
 	if c.Status() == i2ptunnel.I2PTunnelStatusRunning {
 		c.renderConfigWithError(w, "Cannot modify configuration while tunnel is running. Stop the tunnel first.")
 		return
 	}
 
-	// Build new options map from form data
-	newOptions := make(map[string]string)
-	for key := range r.Form {
-		// Skip non-option fields
-		if key == "name" || key == "id" || key == "type" || key == "destination" {
-			continue
-		}
-		newOptions[key] = r.FormValue(key)
+	newOptions, errMsg := buildConfigOptions(r)
+	if errMsg != "" {
+		c.renderConfigWithError(w, errMsg)
+		return
 	}
 
-	// Validate port if provided
-	if portStr := r.FormValue("port"); portStr != "" {
-		port, err := strconv.Atoi(portStr)
-		if err != nil {
-			c.renderConfigWithError(w, "Invalid port number")
-			return
-		}
-		if port < 1 || port > 65535 {
-			c.renderConfigWithError(w, "Port must be between 1 and 65535")
-			return
-		}
-		newOptions["port"] = portStr
-	}
-
-	// Validate encrypted LeaseSet credential: if authType 1 or 2 is selected,
-	// a private key must be provided. Without it the tunnel will start but fail
-	// silently at the SAM bridge level.
-	authType := newOptions["i2cp.leaseSetAuthType"]
-	if authType == "1" || authType == "2" {
-		if strings.TrimSpace(newOptions["i2cp.leaseSetPrivKey"]) == "" {
-			c.renderConfigWithError(w, "i2cp.leaseSetPrivKey is required when LeaseSet authentication type is DH (1) or PSK (2)")
-			return
-		}
-	}
-
-	// Validate host if provided
-	if host := r.FormValue("host"); host != "" {
-		newOptions["host"] = host
-	}
-
-	// Apply new options to tunnel
 	if err := c.SetOptions(newOptions); err != nil {
 		c.renderConfigWithError(w, fmt.Sprintf("Failed to apply options: %v", err))
 		return
 	}
-
-	// Persist configuration to disk if config path is available
 	if c.configPath != "" {
 		if err := c.saveConfig(); err != nil {
 			c.renderConfigWithError(w, fmt.Sprintf("Configuration applied but failed to save to disk: %v", err))
 			return
 		}
 	}
-
-	// Redirect to control page after successful save
 	http.Redirect(w, r, fmt.Sprintf("/%s/control", c.ID()), http.StatusSeeOther)
+}
+
+// buildConfigOptions extracts and validates config options from a POST form.
+// Returns (options, errorMessage). errorMessage is empty on success.
+func buildConfigOptions(r *http.Request) (map[string]string, string) {
+	newOptions := make(map[string]string)
+	for key := range r.Form {
+		if key == "name" || key == "id" || key == "type" || key == "destination" {
+			continue
+		}
+		newOptions[key] = r.FormValue(key)
+	}
+	if portStr := r.FormValue("port"); portStr != "" {
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return nil, "Invalid port number"
+		}
+		if port < 1 || port > 65535 {
+			return nil, "Port must be between 1 and 65535"
+		}
+		newOptions["port"] = portStr
+	}
+	authType := newOptions["i2cp.leaseSetAuthType"]
+	if authType == "1" || authType == "2" {
+		if strings.TrimSpace(newOptions["i2cp.leaseSetPrivKey"]) == "" {
+			return nil, "i2cp.leaseSetPrivKey is required when LeaseSet authentication type is DH (1) or PSK (2)"
+		}
+	}
+	if host := r.FormValue("host"); host != "" {
+		newOptions["host"] = host
+	}
+	return newOptions, ""
 }
 
 // renderConfigWithError displays the config form with an error message
@@ -153,19 +144,35 @@ func (c *Config) renderConfigWithError(w http.ResponseWriter, errMsg string) {
 }
 
 // saveConfig persists the current tunnel configuration to disk in YAML format.
-// Uses the tunnels: wrapper format expected by loader.Load() / Converter.ParseInput().
 func (c *Config) saveConfig() error {
-	// Build inner tunnel config matching loader expectations
-	tunnelConfig := map[string]interface{}{
-		"name": c.Name(),
-		"type": c.Type(),
+	data, err := marshalTunnelConfig(c.Name(), c.Type(), c.Target(), c.Options())
+	if err != nil {
+		return err
 	}
+	dir := filepath.Dir(c.configPath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	tempPath := c.configPath + ".tmp"
+	if err := os.WriteFile(tempPath, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write temp config: %w", err)
+	}
+	if err := os.Rename(tempPath, c.configPath); err != nil {
+		os.Remove(tempPath)
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+	return nil
+}
 
-	if target := c.Target(); target != "" {
+// marshalTunnelConfig builds and marshals the YAML config structure.
+func marshalTunnelConfig(name, tunnelType, target string, opts map[string]string) ([]byte, error) {
+	tunnelConfig := map[string]interface{}{
+		"name": name,
+		"type": tunnelType,
+	}
+	if target != "" {
 		tunnelConfig["target"] = target
 	}
-
-	opts := c.Options()
 	if port, ok := opts["port"]; ok {
 		if p, err := strconv.Atoi(port); err == nil {
 			tunnelConfig["port"] = p
@@ -174,44 +181,19 @@ func (c *Config) saveConfig() error {
 	if iface, ok := opts["interface"]; ok {
 		tunnelConfig["interface"] = iface
 	}
-
-	// Persist I2CP options (encrypted LeaseSet, authentication, etc.)
-	i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts)
-	if i2cpOpts != nil {
+	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
 		tunnelConfig["i2cp"] = i2cpOpts
 	}
-
-	// Wrap in the "tunnels:" top-level key expected by the parser
 	config := map[string]interface{}{
 		"tunnels": map[string]interface{}{
-			c.Name(): tunnelConfig,
+			name: tunnelConfig,
 		},
 	}
-
-	// Marshal to YAML
 	data, err := yaml.Marshal(config)
 	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
 	}
-
-	// Ensure directory exists
-	dir := filepath.Dir(c.configPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	// Write to file atomically using temp file + rename
-	tempPath := c.configPath + ".tmp"
-	if err := os.WriteFile(tempPath, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write temp config: %w", err)
-	}
-
-	if err := os.Rename(tempPath, c.configPath); err != nil {
-		os.Remove(tempPath) // Clean up temp file
-		return fmt.Errorf("failed to save config: %w", err)
-	}
-
-	return nil
+	return data, nil
 }
 
 // NewConfig loads a tunnel configuration from a YAML file and returns a Config.

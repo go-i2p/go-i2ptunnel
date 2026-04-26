@@ -108,18 +108,13 @@ func startMetricsServer(addr string, registry *metrics.Registry, tunnel i2ptunne
 // startAndWait starts the tunnel and blocks until a shutdown signal is received.
 // SIGHUP triggers a config reload cycle. SIGINT/SIGTERM trigger graceful shutdown.
 func startAndWait(tunnel i2ptunnel.I2PTunnel, tunnelType, configPath, samAddr string) error {
-	// Start tunnel in a goroutine since Start() may block (e.g., SOCKS ListenAndServe)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- tunnel.Start()
 	}()
 
-	// Set up signal handling
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-
-	// reloading guards against a second SIGHUP arriving while a reload cycle
-	// (stop → LoadConfig → Start) is still in progress.
 	reloading := false
 
 	for {
@@ -132,23 +127,14 @@ func startAndWait(tunnel i2ptunnel.I2PTunnel, tunnelType, configPath, samAddr st
 					continue
 				}
 				reloading = true
-				fmt.Printf("Received SIGHUP, reloading %s tunnel config...\n", tunnelType)
-				reloaded, err := reload(tunnel, tunnelType, configPath, samAddr)
+				newTunnel, newErrCh, err := handleSIGHUP(tunnel, tunnelType, configPath, samAddr)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Config reload failed: %v (keeping current config)\n", err)
 					reloading = false
 					continue
 				}
-				// Allocate a fresh errCh so a stale error from the old tunnel's
-				// Start() goroutine cannot be misread as coming from the new one.
-				// The old goroutine may still write to the old channel but nobody
-				// reads from it, so it will simply be GC'd.
-				errCh = make(chan error, 1)
-				// Replace tunnel reference and restart the error listener
-				tunnel = reloaded
-				go func() {
-					errCh <- tunnel.Start()
-				}()
+				errCh = newErrCh
+				tunnel = newTunnel
 				reloading = false
 				fmt.Printf("Tunnel %q reloaded successfully\n", tunnel.Name())
 
@@ -162,14 +148,25 @@ func startAndWait(tunnel i2ptunnel.I2PTunnel, tunnelType, configPath, samAddr st
 			}
 
 		case err := <-errCh:
-			// Start() returned — either it finished or errored
 			if err != nil {
 				return fmt.Errorf("%s tunnel error: %w", tunnelType, err)
 			}
-			// Some tunnels return nil from Start() after setup (non-blocking).
-			// Keep waiting for signals in that case.
 		}
 	}
+}
+
+// handleSIGHUP performs the reload cycle and returns the new tunnel and errCh.
+func handleSIGHUP(tunnel i2ptunnel.I2PTunnel, tunnelType, configPath, samAddr string) (i2ptunnel.I2PTunnel, chan error, error) {
+	fmt.Printf("Received SIGHUP, reloading %s tunnel config...\n", tunnelType)
+	reloaded, err := reload(tunnel, tunnelType, configPath, samAddr)
+	if err != nil {
+		return nil, nil, err
+	}
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- reloaded.Start()
+	}()
+	return reloaded, errCh, nil
 }
 
 // reload performs a stop -> LoadConfig -> start cycle for hot config reload.

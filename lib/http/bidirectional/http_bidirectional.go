@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -26,7 +25,6 @@ import (
 	httpinspector "github.com/go-i2p/go-connfilter/http"
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	httpclient "github.com/go-i2p/go-i2ptunnel/lib/http/client"
@@ -167,29 +165,39 @@ func (h *HTTPBidirectional) Start() error {
 		default:
 			con, err := limitedI2PListener.Accept()
 			if err != nil {
-				if (err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded) && h.Metrics != nil {
-					h.Metrics.RecordRateLimitHit()
+				if cont, fatal := h.handleAcceptError(err, &consecutiveErrors, h.done); !cont {
+					return fatal
 				}
-				select {
-				case <-h.done:
-					return nil
-				default:
-				}
-				if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
-					consecutiveErrors++
-					h.RecordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
-					if consecutiveErrors >= maxConsecutiveErrors {
-						h.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-						return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveErrors)
-					}
-				}
-				time.Sleep(50 * time.Millisecond)
 				continue
 			}
 			consecutiveErrors = 0
 			go h.handleServerConnection(con)
 		}
 	}
+}
+
+// handleAcceptError processes an Accept() failure and returns whether to continue.
+func (h *HTTPBidirectional) handleAcceptError(err error, consecutiveErrors *int, done <-chan struct{}) (cont bool, fatal error) {
+	if err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded {
+		if h.Metrics != nil {
+			h.Metrics.RecordRateLimitHit()
+		}
+	}
+	select {
+	case <-done:
+		return false, nil
+	default:
+	}
+	if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
+		*consecutiveErrors++
+		h.RecordError(fmt.Errorf("accept error (%d consecutive): %w", *consecutiveErrors, err))
+		if *consecutiveErrors >= maxConsecutiveErrors {
+			h.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
+			return false, fmt.Errorf("listener failed after %d consecutive accept errors", *consecutiveErrors)
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	return true, nil
 }
 
 // handleServerConnection forwards a single inbound I2P connection to the local HTTP service.
@@ -309,37 +317,20 @@ func (h *HTTPBidirectional) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file. The tunnel must be stopped first.
 func (h *HTTPBidirectional) LoadConfig(path string) error {
-	status := h.Status()
-	if status == i2ptunnel.I2PTunnelStatusRunning ||
-		status == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
+	if err := i2ptunnel.CheckTunnelStopped(h.Status()); err != nil {
+		return err
 	}
-
-	conv := i2pconv.Converter{}
-	format, err := conv.DetectFormat(path)
+	newConfig, err := i2ptunnel.ParseConfigFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to detect config format: %w", err)
+		return err
 	}
-
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	newConfig, err := conv.ParseInput(bytes, format)
-	if err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
-	}
-
 	if newConfig.Type != "httpbidirectional" {
 		return fmt.Errorf("config file contains %s tunnel, expected httpbidirectional", newConfig.Type)
 	}
-
 	targetAddr, err := net.ResolveTCPAddr("tcp", newConfig.Target)
 	if err != nil {
 		return fmt.Errorf("invalid target address in config: %w", err)
 	}
-
 	h.TunnelConfig = *newConfig
 	h.Addr = targetAddr
 	return nil

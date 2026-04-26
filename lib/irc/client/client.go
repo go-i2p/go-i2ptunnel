@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -26,7 +25,6 @@ import (
 	ircinspector "github.com/go-i2p/go-connfilter/irc"
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
@@ -113,29 +111,39 @@ func (i *IRCClient) Start() error {
 		default:
 			con, err := filteredListener.Accept()
 			if err != nil {
-				if (err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded) && i.Metrics != nil {
-					i.Metrics.RecordRateLimitHit()
+				if cont, fatal := i.handleAcceptError(err, &consecutiveErrors, i.done); !cont {
+					return fatal
 				}
-				select {
-				case <-i.done:
-					return nil
-				default:
-				}
-				if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
-					consecutiveErrors++
-					i.RecordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
-					if consecutiveErrors >= maxConsecutiveErrors {
-						i.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-						return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveErrors)
-					}
-				}
-				time.Sleep(50 * time.Millisecond)
 				continue
 			}
 			consecutiveErrors = 0
 			go i.handleConnection(con)
 		}
 	}
+}
+
+// handleAcceptError processes an Accept() failure and returns whether to continue.
+func (i *IRCClient) handleAcceptError(err error, consecutiveErrors *int, done <-chan struct{}) (cont bool, fatal error) {
+	if err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded {
+		if i.Metrics != nil {
+			i.Metrics.RecordRateLimitHit()
+		}
+	}
+	select {
+	case <-done:
+		return false, nil
+	default:
+	}
+	if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
+		*consecutiveErrors++
+		i.RecordError(fmt.Errorf("accept error (%d consecutive): %w", *consecutiveErrors, err))
+		if *consecutiveErrors >= maxConsecutiveErrors {
+			i.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
+			return false, fmt.Errorf("listener failed after %d consecutive accept errors", *consecutiveErrors)
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	return true, nil
 }
 
 // handleConnection forwards a single local connection over its own I2P stream.
@@ -214,46 +222,22 @@ func (i *IRCClient) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file and updates the tunnel settings.
 // The tunnel must be stopped before calling LoadConfig to prevent inconsistent state.
-// Supported formats: .properties, .ini, .yaml/.yml
 func (i *IRCClient) LoadConfig(path string) error {
-	// Prevent config changes while tunnel is running to avoid race conditions
-	status := i.Status()
-	if status == i2ptunnel.I2PTunnelStatusRunning ||
-		status == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
+	if err := i2ptunnel.CheckTunnelStopped(i.Status()); err != nil {
+		return err
 	}
-
-	// Parse config file using the converter library
-	conv := i2pconv.Converter{}
-	format, err := conv.DetectFormat(path)
+	newConfig, err := i2ptunnel.ParseConfigFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to detect config format: %w", err)
+		return err
 	}
-
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	newConfig, err := conv.ParseInput(bytes, format)
-	if err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
-	}
-
-	// Type safety: ensure loaded config matches expected tunnel type
 	if newConfig.Type != "ircclient" {
 		return fmt.Errorf("config file contains %s tunnel, expected ircclient", newConfig.Type)
 	}
-
-	// Validate target address before applying changes
 	addr, err := i2pkeys.Lookup(newConfig.Target)
 	if err != nil {
 		return fmt.Errorf("invalid target address in config: %w", err)
 	}
-
-	// Update mutable configuration fields
 	i.TunnelConfig = *newConfig
 	i.I2PAddr = addr
-
 	return nil
 }

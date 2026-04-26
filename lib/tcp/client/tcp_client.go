@@ -26,14 +26,12 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
@@ -411,83 +409,38 @@ func (t *TCPClient) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file and updates the tunnel settings.
 // The tunnel must be stopped before calling LoadConfig to prevent inconsistent state.
-// Supported formats: .properties, .ini, .yaml/.yml
-//
-// Why: Production deployments need to reload configuration without recreating tunnel objects.
-// This enables configuration management tools and web UIs to persist changes.
-//
-// Design: All I/O (file reads, address lookups) happens before acquiring any lock to avoid
-// priority inversions. The status check and struct update are then applied atomically under
-// lifeMu, closing the TOCTOU window where a concurrent Start() could bind the old address
-// while LoadConfig simultaneously replaces the struct.
-//
-// I2CP preservation: if the config file omits the i2cp section, any options previously
-// applied via SetOptions() (e.g. encrypted-leaseset keys) are preserved rather than wiped.
+// All I/O (file reads, address lookups) occurs before acquiring lifeMu to avoid
+// priority inversions. The status check and struct update are applied under lifeMu.
 func (t *TCPClient) LoadConfig(path string) error {
-	// Quick pre-check: reject an obviously running tunnel before any I/O so that
-	// callers get an immediate, actionable error without waiting for file reads or
-	// network lookups.  This is non-authoritative (no lock held); the authoritative
-	// check is repeated atomically under lifeMu before applying changes below.
-	preStatus := t.Status()
-	if preStatus == i2ptunnel.I2PTunnelStatusRunning ||
-		preStatus == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", preStatus)
+	// Quick pre-check before I/O — authoritative check is repeated under lifeMu below.
+	if err := i2ptunnel.CheckTunnelStopped(t.Status()); err != nil {
+		return err
 	}
 
 	// Phase 1 — all I/O outside any lock.
-	// Parse config file using the converter library
-	// This handles format detection and validation for .properties, .ini, .yaml
-	conv := i2pconv.Converter{}
-	format, err := conv.DetectFormat(path)
+	newConfig, err := i2ptunnel.ParseConfigFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to detect config format: %w", err)
+		return err
 	}
-
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	newConfig, err := conv.ParseInput(bytes, format)
-	if err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
-	}
-
-	// Type safety: ensure loaded config matches expected tunnel type
 	if newConfig.Type != "tcpclient" {
 		return fmt.Errorf("config file contains %s tunnel, expected tcpclient", newConfig.Type)
 	}
-
-	// Validate target address before acquiring the lock (may do network I/O).
 	addr, err := i2pkeys.Lookup(newConfig.Target)
 	if err != nil {
 		return fmt.Errorf("invalid target address in config: %w", err)
 	}
 
-	// Phase 2 — atomically check status and apply config under lifeMu.
-	// Locking order: lifeMu first, then statusMu (via Status()) — consistent with
-	// Start() and Stop() which hold lifeMu while calling setStatus(lifeMu→statusMu).
+	// Phase 2 — atomically check status and apply under lifeMu.
 	t.lifeMu.Lock()
 	defer t.lifeMu.Unlock()
-
-	status := t.Status()
-	if status == i2ptunnel.I2PTunnelStatusRunning ||
-		status == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
+	if err := i2ptunnel.CheckTunnelStopped(t.Status()); err != nil {
+		return err
 	}
-
 	// Preserve I2CP options when the config file omits the i2cp section.
-	// Encrypted-leaseSet keys and other fine-grained options applied via SetOptions()
-	// or the Web UI form part of the tunnel's operational identity. A config reload
-	// that simply lacks an i2cp block must not silently discard those settings.
 	if len(newConfig.I2CP) == 0 && len(t.TunnelConfig.I2CP) > 0 {
 		newConfig.I2CP = t.TunnelConfig.I2CP
 	}
-
-	// Update mutable configuration fields.
-	// The Garlic connection (SAM) is preserved to maintain tunnel identity and keys.
 	t.TunnelConfig = *newConfig
 	t.I2PAddr = addr
-
 	return nil
 }

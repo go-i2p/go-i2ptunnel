@@ -16,7 +16,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -124,7 +123,6 @@ func (u *UDPBidirectional) Start() error {
 	u.setStatus(i2ptunnel.I2PTunnelStatusStarting)
 	u.lifeMu.Unlock()
 
-	// Start the server side: listen for I2P datagrams
 	i2pListener, err := u.Garlic.ListenPacket()
 	if err != nil {
 		return fmt.Errorf("failed to start I2P datagram listener: %w", err)
@@ -132,33 +130,21 @@ func (u *UDPBidirectional) Start() error {
 	defer i2pListener.Close()
 	defer u.Stop()
 
-	// Create SOCKS5 proxy for outbound connections
-	socksAddr := net.JoinHostPort(u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port))
-	socksServer, err := socks5.NewClassicServer(socksAddr, "", "", "", 0, 0)
+	socksErrCh, err := u.startSOCKS5Proxy()
 	if err != nil {
-		return fmt.Errorf("failed to create SOCKS5 server: %w", err)
+		return err
 	}
-	u.socksServer = socksServer
-	u.socksServer.Handle = &socksHandler{garlic: u.Garlic}
-
-	// Start SOCKS5 proxy in a background goroutine
-	socksErrCh := make(chan error, 1)
-	go func() {
-		socksErrCh <- u.socksServer.ListenAndServe(u.socksServer.Handle)
-	}()
 
 	u.setStatus(i2ptunnel.I2PTunnelStatusRunning)
 	if u.Metrics != nil {
 		u.Metrics.RecordStart()
 	}
 
-	// Resolve target address once before entering the loop
 	raddr, err := net.ResolveUDPAddr("udp", u.Target())
 	if err != nil {
 		return fmt.Errorf("failed to resolve target UDP address: %w", err)
 	}
 
-	// Server-side datagram forwarding loop
 	backoff := udpconst.MinBackoff
 	consecutiveErrors := 0
 	for {
@@ -166,38 +152,18 @@ func (u *UDPBidirectional) Start() error {
 		case <-done:
 			return nil
 		case err := <-socksErrCh:
-			// Log transient SOCKS errors and restart the listener instead
-			// of tearing down the entire bidirectional tunnel.
-			if err != nil {
-				u.recordError(fmt.Errorf("SOCKS5 server error (restarting): %w", err))
+			if cont, fatal := u.handleSOCKSError(err, done, socksErrCh); !cont {
+				return fatal
 			}
-			select {
-			case <-done:
-				return nil
-			default:
-			}
-			go func() {
-				socksErrCh <- u.socksServer.ListenAndServe(u.socksServer.Handle)
-			}()
 		default:
 			lCon, err := net.DialUDP("udp", nil, raddr)
 			if err != nil {
-				select {
-				case <-done:
-					return nil
-				default:
+				if cont, fatal := u.handleDialError(err, &consecutiveErrors, &backoff, done); !cont {
+					return fatal
 				}
-				consecutiveErrors++
-				u.recordError(fmt.Errorf("dial error (%d consecutive): %w", consecutiveErrors, err))
-				if consecutiveErrors >= maxConsecutiveErrors {
-					u.setStatus(i2ptunnel.I2PTunnelStatusFailed)
-					return fmt.Errorf("tunnel failed after %d consecutive dial errors", consecutiveErrors)
-				}
-				time.Sleep(backoff)
-				backoff = udpconst.NextBackoff(backoff)
 				continue
 			}
-			backoff = udpconst.MinBackoff // reset on success
+			backoff = udpconst.MinBackoff
 			consecutiveErrors = 0
 			func() {
 				defer lCon.Close()
@@ -206,8 +172,6 @@ func (u *UDPBidirectional) Start() error {
 				fwdCfg.ShutdownSignal = done
 				packet.Forward(ctx, i2pListener, metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg)
 			}()
-			// Brief pause between forwarding attempts to prevent rapid socket
-			// churn when packet.Forward returns quickly (e.g., on error or timeout).
 			select {
 			case <-done:
 				return nil
@@ -215,6 +179,57 @@ func (u *UDPBidirectional) Start() error {
 			}
 		}
 	}
+}
+
+// startSOCKS5Proxy creates and starts the SOCKS5 proxy goroutine.
+func (u *UDPBidirectional) startSOCKS5Proxy() (chan error, error) {
+	socksAddr := net.JoinHostPort(u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port))
+	socksServer, err := socks5.NewClassicServer(socksAddr, "", "", "", 0, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SOCKS5 server: %w", err)
+	}
+	u.socksServer = socksServer
+	u.socksServer.Handle = &socksHandler{garlic: u.Garlic}
+	socksErrCh := make(chan error, 1)
+	go func() {
+		socksErrCh <- u.socksServer.ListenAndServe(u.socksServer.Handle)
+	}()
+	return socksErrCh, nil
+}
+
+// handleSOCKSError logs transient SOCKS errors and restarts the listener.
+// Returns (true, nil) to continue, (false, nil) to stop cleanly.
+func (u *UDPBidirectional) handleSOCKSError(err error, done <-chan struct{}, socksErrCh chan error) (cont bool, fatal error) {
+	if err != nil {
+		u.recordError(fmt.Errorf("SOCKS5 server error (restarting): %w", err))
+	}
+	select {
+	case <-done:
+		return false, nil
+	default:
+	}
+	go func() {
+		socksErrCh <- u.socksServer.ListenAndServe(u.socksServer.Handle)
+	}()
+	return true, nil
+}
+
+// handleDialError processes a DialUDP failure and returns whether to continue.
+func (u *UDPBidirectional) handleDialError(err error, consecutiveErrors *int, backoff *time.Duration, done <-chan struct{}) (cont bool, fatal error) {
+	select {
+	case <-done:
+		return false, nil
+	default:
+	}
+	*consecutiveErrors++
+	u.recordError(fmt.Errorf("dial error (%d consecutive): %w", *consecutiveErrors, err))
+	if *consecutiveErrors >= maxConsecutiveErrors {
+		u.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+		return false, fmt.Errorf("tunnel failed after %d consecutive dial errors", *consecutiveErrors)
+	}
+	time.Sleep(*backoff)
+	*backoff = udpconst.NextBackoff(*backoff)
+	return true, nil
 }
 
 // Status returns the current tunnel status.
@@ -299,37 +314,20 @@ func (u *UDPBidirectional) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file. The tunnel must be stopped first.
 func (u *UDPBidirectional) LoadConfig(path string) error {
-	status := u.Status()
-	if status == i2ptunnel.I2PTunnelStatusRunning ||
-		status == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
+	if err := i2ptunnel.CheckTunnelStopped(u.Status()); err != nil {
+		return err
 	}
-
-	conv := i2pconv.Converter{}
-	format, err := conv.DetectFormat(path)
+	newConfig, err := i2ptunnel.ParseConfigFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to detect config format: %w", err)
+		return err
 	}
-
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	newConfig, err := conv.ParseInput(bytes, format)
-	if err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
-	}
-
 	if newConfig.Type != "udpbidirectional" {
 		return fmt.Errorf("config file contains %s tunnel, expected udpbidirectional", newConfig.Type)
 	}
-
 	targetAddr, err := net.ResolveUDPAddr("udp", newConfig.Target)
 	if err != nil {
 		return fmt.Errorf("invalid target address in config: %w", err)
 	}
-
 	u.TunnelConfig = *newConfig
 	u.Addr = targetAddr
 	return nil

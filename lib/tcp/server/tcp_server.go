@@ -17,14 +17,12 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
@@ -110,29 +108,40 @@ func (t *TCPServer) Start() error {
 		default:
 			con, err := limitedI2PListener.Accept()
 			if err != nil {
-				if (err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded) && t.Metrics != nil {
-					t.Metrics.RecordRateLimitHit()
+				if cont, fatal := t.handleAcceptError(err, &consecutiveErrors, t.done); !cont {
+					return fatal
 				}
-				select {
-				case <-t.done:
-					return nil
-				default:
-				}
-				if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
-					consecutiveErrors++
-					t.RecordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
-					if consecutiveErrors >= maxConsecutiveErrors {
-						t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-						return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveErrors)
-					}
-				}
-				time.Sleep(50 * time.Millisecond)
 				continue
 			}
 			consecutiveErrors = 0
 			go t.handleConnection(con)
 		}
 	}
+}
+
+// handleAcceptError processes an Accept() failure and returns whether to continue.
+// cont=true means sleep-and-retry; cont=false with nil fatal means shutting down.
+func (t *TCPServer) handleAcceptError(err error, consecutiveErrors *int, done <-chan struct{}) (cont bool, fatal error) {
+	if err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded {
+		if t.Metrics != nil {
+			t.Metrics.RecordRateLimitHit()
+		}
+	}
+	select {
+	case <-done:
+		return false, nil
+	default:
+	}
+	if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
+		*consecutiveErrors++
+		t.RecordError(fmt.Errorf("accept error (%d consecutive): %w", *consecutiveErrors, err))
+		if *consecutiveErrors >= maxConsecutiveErrors {
+			t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
+			return false, fmt.Errorf("listener failed after %d consecutive accept errors", *consecutiveErrors)
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	return true, nil
 }
 
 // handleConnection forwards a single I2P connection to the local target service.
@@ -216,49 +225,22 @@ func (t *TCPServer) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file and updates the tunnel settings.
 // The tunnel must be stopped before calling LoadConfig to prevent inconsistent state.
-// Supported formats: .properties, .ini, .yaml/.yml
-//
-// Why: Production deployments need to reload configuration without recreating tunnel objects.
-// Design: Uses go-i2ptunnel-config library for parsing. Preserves SAM connection and I2P keys.
 func (t *TCPServer) LoadConfig(path string) error {
-	// Prevent config changes while tunnel is running to avoid race conditions
-	status := t.Status()
-	if status == i2ptunnel.I2PTunnelStatusRunning ||
-		status == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
+	if err := i2ptunnel.CheckTunnelStopped(t.Status()); err != nil {
+		return err
 	}
-
-	// Parse config file using the converter library
-	conv := i2pconv.Converter{}
-	format, err := conv.DetectFormat(path)
+	newConfig, err := i2ptunnel.ParseConfigFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to detect config format: %w", err)
+		return err
 	}
-
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	newConfig, err := conv.ParseInput(bytes, format)
-	if err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
-	}
-
-	// Type safety: ensure loaded config matches expected tunnel type
 	if newConfig.Type != "tcpserver" {
 		return fmt.Errorf("config file contains %s tunnel, expected tcpserver", newConfig.Type)
 	}
-
-	// Validate target address (local service) before applying changes
 	targetAddr, err := net.ResolveTCPAddr("tcp", newConfig.Target)
 	if err != nil {
 		return fmt.Errorf("invalid target address in config: %w", err)
 	}
-
-	// Update mutable configuration fields
 	t.TunnelConfig = *newConfig
 	t.Addr = targetAddr
-
 	return nil
 }

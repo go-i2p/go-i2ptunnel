@@ -26,13 +26,11 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/go-i2p/go-forward/packet"
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
@@ -88,7 +86,7 @@ func (u *UDPClient) Start() error {
 	u.lifeMu.Lock()
 	u.done = make(chan struct{})
 	u.stopOnce = sync.Once{}
-	done := u.done // capture local ref before unlock to avoid data race with restart
+	done := u.done
 	u.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 	u.lifeMu.Unlock()
 	i2pConnection, err := u.Garlic.Dial("udp", u.Target())
@@ -98,15 +96,10 @@ func (u *UDPClient) Start() error {
 	defer i2pConnection.Close()
 	defer u.Stop()
 
-	// Resolve local address once before entering the loop
 	raddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port)))
 	if err != nil {
 		return fmt.Errorf("failed to resolve local UDP address: %w", err)
 	}
-
-	// Listen on the configured local address for packets from local applications.
-	// net.ListenUDP creates an unconnected socket that can receive from any sender,
-	// unlike net.DialUDP which restricts to a single remote address.
 	lCon, err := net.ListenUDP("udp", raddr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on local UDP address: %w", err)
@@ -123,26 +116,33 @@ func (u *UDPClient) Start() error {
 		case <-done:
 			return nil
 		default:
-			fwdCfg := udpconst.NewDatagramForwardConfig()
-			fwdCfg.ShutdownSignal = done
-			if err := packet.Forward(context.Background(), i2pConnection.(*datagram.DatagramSession), metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg); err != nil {
-				consecutiveErrors++
-				u.RecordError(fmt.Errorf("forward error (%d consecutive): %w", consecutiveErrors, err))
-				if consecutiveErrors >= maxConsecutiveForwardErrors {
-					u.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-					return fmt.Errorf("tunnel failed after %d consecutive forward errors", consecutiveErrors)
-				}
-			} else {
-				consecutiveErrors = 0
-			}
-			// packet.Forward returned (error or idle timeout). Retry unless stopped.
-			select {
-			case <-done:
-				return nil
-			case <-time.After(100 * time.Millisecond):
+			if cont, fatal := u.forwardOnce(i2pConnection, lCon, &consecutiveErrors, done); !cont {
+				return fatal
 			}
 		}
 	}
+}
+
+// forwardOnce runs one iteration of packet forwarding and handles errors.
+func (u *UDPClient) forwardOnce(i2pConnection net.Conn, lCon *net.UDPConn, consecutiveErrors *int, done chan struct{}) (cont bool, fatal error) {
+	fwdCfg := udpconst.NewDatagramForwardConfig()
+	fwdCfg.ShutdownSignal = done
+	if err := packet.Forward(context.Background(), i2pConnection.(*datagram.DatagramSession), metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg); err != nil {
+		*consecutiveErrors++
+		u.RecordError(fmt.Errorf("forward error (%d consecutive): %w", *consecutiveErrors, err))
+		if *consecutiveErrors >= maxConsecutiveForwardErrors {
+			u.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
+			return false, fmt.Errorf("tunnel failed after %d consecutive forward errors", *consecutiveErrors)
+		}
+	} else {
+		*consecutiveErrors = 0
+	}
+	select {
+	case <-done:
+		return false, nil
+	case <-time.After(100 * time.Millisecond):
+	}
+	return true, nil
 }
 
 // Stop the tunnel. Safe to call multiple times.
@@ -202,46 +202,22 @@ func (u *UDPClient) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file and updates the tunnel settings.
 // The tunnel must be stopped before calling LoadConfig to prevent inconsistent state.
-// Supported formats: .properties, .ini, .yaml/.yml
 func (u *UDPClient) LoadConfig(path string) error {
-	// Prevent config changes while tunnel is running to avoid race conditions
-	status := u.Status()
-	if status == i2ptunnel.I2PTunnelStatusRunning ||
-		status == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
+	if err := i2ptunnel.CheckTunnelStopped(u.Status()); err != nil {
+		return err
 	}
-
-	// Parse config file using the converter library
-	conv := i2pconv.Converter{}
-	format, err := conv.DetectFormat(path)
+	newConfig, err := i2ptunnel.ParseConfigFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to detect config format: %w", err)
+		return err
 	}
-
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	newConfig, err := conv.ParseInput(bytes, format)
-	if err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
-	}
-
-	// Type safety: ensure loaded config matches expected tunnel type
 	if newConfig.Type != "udpclient" {
 		return fmt.Errorf("config file contains %s tunnel, expected udpclient", newConfig.Type)
 	}
-
-	// Validate target address before applying changes
 	addr, err := i2pkeys.Lookup(newConfig.Target)
 	if err != nil {
 		return fmt.Errorf("invalid target address in config: %w", err)
 	}
-
-	// Update mutable configuration fields
 	u.TunnelConfig = *newConfig
 	u.I2PAddr = addr
-
 	return nil
 }

@@ -26,13 +26,11 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/go-i2p/go-forward/packet"
-	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
@@ -92,7 +90,7 @@ func (u *UDPServer) Start() error {
 	u.lifeMu.Lock()
 	u.done = make(chan struct{})
 	u.stopOnce = sync.Once{}
-	done := u.done // capture local ref before unlock to avoid data race with restart
+	done := u.done
 	u.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 	u.lifeMu.Unlock()
 	i2pListener, err := u.Garlic.ListenPacket()
@@ -102,7 +100,6 @@ func (u *UDPServer) Start() error {
 	defer i2pListener.Close()
 	defer u.Stop()
 
-	// Resolve target address once before entering the loop
 	raddr, err := net.ResolveUDPAddr("udp", u.Target())
 	if err != nil {
 		return fmt.Errorf("failed to resolve target UDP address: %w", err)
@@ -121,22 +118,12 @@ func (u *UDPServer) Start() error {
 		default:
 			lCon, err := net.DialUDP("udp", nil, raddr)
 			if err != nil {
-				select {
-				case <-done:
-					return nil
-				default:
+				if cont, fatal := u.handleDialError(err, &consecutiveErrors, &backoff, done); !cont {
+					return fatal
 				}
-				consecutiveErrors++
-				u.RecordError(fmt.Errorf("dial error (%d consecutive): %w", consecutiveErrors, err))
-				if consecutiveErrors >= maxConsecutiveErrors {
-					u.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-					return fmt.Errorf("tunnel failed after %d consecutive dial errors", consecutiveErrors)
-				}
-				time.Sleep(backoff)
-				backoff = udpconst.NextBackoff(backoff)
 				continue
 			}
-			backoff = udpconst.MinBackoff // reset on success
+			backoff = udpconst.MinBackoff
 			consecutiveErrors = 0
 			func() {
 				defer lCon.Close()
@@ -145,8 +132,6 @@ func (u *UDPServer) Start() error {
 				fwdCfg.ShutdownSignal = done
 				packet.Forward(ctx, i2pListener, metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg)
 			}()
-			// Brief pause between forwarding attempts to prevent rapid socket
-			// churn when packet.Forward returns quickly (e.g., on error or timeout).
 			select {
 			case <-done:
 				return nil
@@ -154,6 +139,24 @@ func (u *UDPServer) Start() error {
 			}
 		}
 	}
+}
+
+// handleDialError processes a DialUDP failure and returns whether to continue.
+func (u *UDPServer) handleDialError(err error, consecutiveErrors *int, backoff *time.Duration, done <-chan struct{}) (cont bool, fatal error) {
+	select {
+	case <-done:
+		return false, nil
+	default:
+	}
+	*consecutiveErrors++
+	u.RecordError(fmt.Errorf("dial error (%d consecutive): %w", *consecutiveErrors, err))
+	if *consecutiveErrors >= maxConsecutiveErrors {
+		u.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
+		return false, fmt.Errorf("tunnel failed after %d consecutive dial errors", *consecutiveErrors)
+	}
+	time.Sleep(*backoff)
+	*backoff = udpconst.NextBackoff(*backoff)
+	return true, nil
 }
 
 // Stop the tunnel. Safe to call multiple times.
@@ -213,46 +216,22 @@ func (u *UDPServer) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file and updates the tunnel settings.
 // The tunnel must be stopped before calling LoadConfig to prevent inconsistent state.
-// Supported formats: .properties, .ini, .yaml/.yml
 func (u *UDPServer) LoadConfig(path string) error {
-	// Prevent config changes while tunnel is running to avoid race conditions
-	status := u.Status()
-	if status == i2ptunnel.I2PTunnelStatusRunning ||
-		status == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
+	if err := i2ptunnel.CheckTunnelStopped(u.Status()); err != nil {
+		return err
 	}
-
-	// Parse config file using the converter library
-	conv := i2pconv.Converter{}
-	format, err := conv.DetectFormat(path)
+	newConfig, err := i2ptunnel.ParseConfigFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to detect config format: %w", err)
+		return err
 	}
-
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	newConfig, err := conv.ParseInput(bytes, format)
-	if err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
-	}
-
-	// Type safety: ensure loaded config matches expected tunnel type
 	if newConfig.Type != "udpserver" {
 		return fmt.Errorf("config file contains %s tunnel, expected udpserver", newConfig.Type)
 	}
-
-	// Validate target address (local service) before applying changes
 	targetAddr, err := net.ResolveUDPAddr("udp", newConfig.Target)
 	if err != nil {
 		return fmt.Errorf("invalid target address in config: %w", err)
 	}
-
-	// Update mutable configuration fields
 	u.TunnelConfig = *newConfig
 	u.Addr = targetAddr
-
 	return nil
 }

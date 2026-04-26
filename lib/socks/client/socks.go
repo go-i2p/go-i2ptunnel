@@ -43,7 +43,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"sync"
 
@@ -262,43 +261,17 @@ func (s *SOCKS) SetOptions(opts map[string]string) error {
 
 // LoadConfig loads tunnel configuration from a file and updates the tunnel settings.
 // The tunnel must be stopped before calling LoadConfig to prevent inconsistent state.
-// Supported formats: .properties, .ini, .yaml/.yml
-//
-// Why: SOCKS proxies need dynamic configuration for production deployments.
-// Design: Uses go-i2ptunnel-config library for parsing. Preserves SAM connection and I2P keys.
 func (s *SOCKS) LoadConfig(path string) error {
-	// Prevent config changes while tunnel is running to avoid race conditions
-	status := s.Status()
-	if status == i2ptunnel.I2PTunnelStatusRunning ||
-		status == i2ptunnel.I2PTunnelStatusStarting {
-		return fmt.Errorf("cannot load config while tunnel is %s - stop tunnel first", status)
+	if err := i2ptunnel.CheckTunnelStopped(s.Status()); err != nil {
+		return err
 	}
-
-	// Parse config file using the converter library
-	conv := i2pconv.Converter{}
-	format, err := conv.DetectFormat(path)
+	newConfig, err := i2ptunnel.ParseConfigFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to detect config format: %w", err)
+		return err
 	}
-
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	newConfig, err := conv.ParseInput(bytes, format)
-	if err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
-	}
-
-	// Type safety: ensure loaded config matches expected tunnel type
 	if newConfig.Type != "socks" && newConfig.Type != "socksclient" {
 		return fmt.Errorf("config file contains %s tunnel, expected socks or socksclient", newConfig.Type)
 	}
-
-	// Update mutable configuration fields
-	// The Garlic connection (SAM) is preserved to maintain tunnel identity and keys
 	s.TunnelConfig = *newConfig
-
 	return nil
 }

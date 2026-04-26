@@ -138,109 +138,103 @@ func (cg *ControllerGroup) handlePostNew(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	name := r.FormValue("name")
-	tunnelType := r.FormValue("type")
-
-	if name == "" {
-		cg.renderNewWithError(w, "Tunnel name is required")
-		return
-	}
-	if tunnelType == "" {
-		cg.renderNewWithError(w, "Tunnel type is required")
+	name, tunnelType, validErr := validateNewTunnelForm(r, cg.I2PTunnels)
+	if validErr != "" {
+		cg.renderNewWithError(w, validErr)
 		return
 	}
 
-	// Check for duplicate name
 	cleanName := i2ptunnel.Clean(name)
-	for _, c := range cg.I2PTunnels {
-		if i2ptunnel.Clean(c.Name()) == cleanName {
-			cg.renderNewWithError(w, fmt.Sprintf("A tunnel named %q already exists", name))
-			return
-		}
-	}
-
-	// Build tunnel config
-	tunnelConfig := map[string]interface{}{
-		"name": name,
-		"type": tunnelType,
-	}
-
-	if target := r.FormValue("destination"); target != "" {
-		tunnelConfig["target"] = target
-	}
-
-	if portStr := r.FormValue("port"); portStr != "" {
-		if p, err := strconv.Atoi(portStr); err == nil && p > 0 && p <= 65535 {
-			tunnelConfig["port"] = p
-		}
-	}
-
-	if iface := r.FormValue("interface"); iface != "" {
-		tunnelConfig["interface"] = iface
-	}
-
-	// Collect i2cp.* options (encrypted LeaseSet settings) from the form.
-	i2cpForm := make(map[string]string)
-	for key := range r.Form {
-		if strings.HasPrefix(key, "i2cp.") && r.FormValue(key) != "" {
-			i2cpForm[key] = r.FormValue(key)
-		}
-	}
-
-	// Validate LeaseSet credentials: auth type DH (1) or PSK (2) requires a private key.
-	authType := i2cpForm["i2cp.leaseSetAuthType"]
-	if authType == "1" || authType == "2" {
-		if strings.TrimSpace(i2cpForm["i2cp.leaseSetPrivKey"]) == "" {
-			cg.renderNewWithError(w, "i2cp.leaseSetPrivKey is required when LeaseSet authentication type is DH (1) or PSK (2)")
-			return
-		}
-	}
-
-	if extracted := i2ptunnel.ExtractI2CPOptions(i2cpForm); extracted != nil {
-		tunnelConfig["i2cp"] = extracted
-	}
-
-	// Wrap in "tunnels:" top-level key expected by loader
-	config := map[string]interface{}{
-		"tunnels": map[string]interface{}{
-			name: tunnelConfig,
-		},
-	}
-
-	// Marshal to YAML
-	data, err := yaml.Marshal(config)
-	if err != nil {
-		cg.renderNewWithError(w, fmt.Sprintf("Failed to generate config: %v", err))
-		return
-	}
-
-	// Write config file
 	configPath := filepath.Join(cg.configDir, cleanName+".yaml")
-	if err := os.WriteFile(configPath, data, 0o644); err != nil {
-		cg.renderNewWithError(w, fmt.Sprintf("Failed to save config: %v", err))
+	if err := writeTunnelConfigYAML(r, name, tunnelType, configPath); err != nil {
+		cg.renderNewWithError(w, err.Error())
 		return
 	}
 
-	// Load the new tunnel
 	controller, err := NewController(configPath)
 	if err != nil {
-		os.Remove(configPath) // Clean up on failure
+		os.Remove(configPath)
 		cg.renderNewWithError(w, fmt.Sprintf("Failed to create tunnel: %v", err))
 		return
 	}
 
 	cg.I2PTunnels = append(cg.I2PTunnels, *controller)
-
-	// Register new tunnel in metrics registry.
 	if cg.metricsHandler != nil {
 		m := cg.metricsHandler.Registry.Register(controller.Name(), controller.ID(), controller.Type())
 		if bearer, ok := controller.I2PTunnel.(metrics.MetricsBearer); ok {
 			bearer.SetTunnelMetrics(m)
 		}
 	}
-
-	// Redirect to the new tunnel's control page
 	http.Redirect(w, r, fmt.Sprintf("/%s/control", controller.ID()), http.StatusSeeOther)
+}
+
+// validateNewTunnelForm checks required fields and duplicate names.
+// Returns (name, tunnelType, errorMessage). errorMessage is empty on success.
+func validateNewTunnelForm(r *http.Request, tunnels []Controller) (name, tunnelType, errMsg string) {
+	name = r.FormValue("name")
+	tunnelType = r.FormValue("type")
+	if name == "" {
+		return "", "", "Tunnel name is required"
+	}
+	if tunnelType == "" {
+		return "", "", "Tunnel type is required"
+	}
+	cleanName := i2ptunnel.Clean(name)
+	for _, c := range tunnels {
+		if i2ptunnel.Clean(c.Name()) == cleanName {
+			return "", "", fmt.Sprintf("A tunnel named %q already exists", name)
+		}
+	}
+	return name, tunnelType, ""
+}
+
+// writeTunnelConfigYAML builds the tunnel config map from form values and writes it to path.
+func writeTunnelConfigYAML(r *http.Request, name, tunnelType, configPath string) error {
+	tunnelConfig := map[string]interface{}{
+		"name": name,
+		"type": tunnelType,
+	}
+	if target := r.FormValue("destination"); target != "" {
+		tunnelConfig["target"] = target
+	}
+	if portStr := r.FormValue("port"); portStr != "" {
+		if p, err := strconv.Atoi(portStr); err == nil && p > 0 && p <= 65535 {
+			tunnelConfig["port"] = p
+		}
+	}
+	if iface := r.FormValue("interface"); iface != "" {
+		tunnelConfig["interface"] = iface
+	}
+
+	i2cpForm := make(map[string]string)
+	for key := range r.Form {
+		if strings.HasPrefix(key, "i2cp.") && r.FormValue(key) != "" {
+			i2cpForm[key] = r.FormValue(key)
+		}
+	}
+	authType := i2cpForm["i2cp.leaseSetAuthType"]
+	if authType == "1" || authType == "2" {
+		if strings.TrimSpace(i2cpForm["i2cp.leaseSetPrivKey"]) == "" {
+			return fmt.Errorf("i2cp.leaseSetPrivKey is required when LeaseSet authentication type is DH (1) or PSK (2)")
+		}
+	}
+	if extracted := i2ptunnel.ExtractI2CPOptions(i2cpForm); extracted != nil {
+		tunnelConfig["i2cp"] = extracted
+	}
+
+	config := map[string]interface{}{
+		"tunnels": map[string]interface{}{
+			name: tunnelConfig,
+		},
+	}
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("Failed to generate config: %v", err)
+	}
+	if err := os.WriteFile(configPath, data, 0o644); err != nil {
+		return fmt.Errorf("Failed to save config: %v", err)
+	}
+	return nil
 }
 
 func (cg *ControllerGroup) renderNewWithError(w http.ResponseWriter, errMsg string) {
