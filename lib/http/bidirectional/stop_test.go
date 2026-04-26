@@ -18,7 +18,9 @@ import (
 // TestStopIdempotent verifies that calling Stop() multiple times does not panic.
 func TestStopIdempotent(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -37,7 +39,9 @@ func TestStopIdempotent(t *testing.T) {
 // TestDoneChannelSignaling verifies the done channel is properly closed on Stop().
 func TestDoneChannelSignaling(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -60,8 +64,10 @@ func TestDoneChannelSignaling(t *testing.T) {
 // TestHTTPBidirectionalType verifies the tunnel reports its type correctly.
 func TestHTTPBidirectionalType(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Type: "httpbidirectional",
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -73,8 +79,10 @@ func TestHTTPBidirectionalType(t *testing.T) {
 // TestHTTPBidirectionalName verifies the tunnel reports its name correctly.
 func TestHTTPBidirectionalName(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name: "test-http-bidi",
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -86,8 +94,10 @@ func TestHTTPBidirectionalName(t *testing.T) {
 // TestHTTPBidirectionalID verifies clean ID generation from tunnel name.
 func TestHTTPBidirectionalID(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name: "my http bidi",
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -99,6 +109,7 @@ func TestHTTPBidirectionalID(t *testing.T) {
 // TestHTTPBidirectionalOptions verifies Options returns all expected keys.
 func TestHTTPBidirectionalOptions(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "test-bidi",
 			Type:      "httpbidirectional",
@@ -108,6 +119,7 @@ func TestHTTPBidirectionalOptions(t *testing.T) {
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  500,
 			RateLimit: 50,
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -133,6 +145,7 @@ func TestHTTPBidirectionalOptions(t *testing.T) {
 // TestHTTPBidirectionalSetOptions verifies option setting with validation.
 func TestHTTPBidirectionalSetOptions(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "original",
 			Interface: "127.0.0.1",
@@ -141,6 +154,7 @@ func TestHTTPBidirectionalSetOptions(t *testing.T) {
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  1000,
 			RateLimit: 100,
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -165,8 +179,10 @@ func TestHTTPBidirectionalSetOptions(t *testing.T) {
 // TestHTTPBidirectionalSetOptionsValidation verifies option validation catches errors.
 func TestHTTPBidirectionalSetOptionsValidation(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name: "test",
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -190,9 +206,11 @@ func TestHTTPBidirectionalSetOptionsValidation(t *testing.T) {
 // TestHTTPBidirectionalLocalAddress verifies LocalAddress returns the HTTP proxy address.
 func TestHTTPBidirectionalLocalAddress(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Interface: "127.0.0.1",
 			Port:      4449,
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -228,7 +246,9 @@ func TestHTTPBidirectionalErrorNil(t *testing.T) {
 // TestHTTPBidirectionalLoadConfigWhileRunning verifies LoadConfig fails when running.
 func TestHTTPBidirectionalLoadConfigWhileRunning(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 	err := tunnel.LoadConfig("/nonexistent")
@@ -240,7 +260,9 @@ func TestHTTPBidirectionalLoadConfigWhileRunning(t *testing.T) {
 // TestHTTPBidirectionalLoadConfigWhileStarting verifies LoadConfig fails when starting.
 func TestHTTPBidirectionalLoadConfigWhileStarting(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStarting,
+		},
 		done:            make(chan struct{}),
 	}
 	err := tunnel.LoadConfig("/nonexistent")
@@ -258,7 +280,9 @@ func TestHTTPBidirectionalImplementsInterface(t *testing.T) {
 // can be reset (as Start() now does) so the tunnel is restartable.
 func TestRestartAfterStop(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -304,7 +328,9 @@ func TestStopWithServerUsesTimeout(t *testing.T) {
 	go srv.Serve(listener)
 
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		httpServer:      srv,
 		done:            make(chan struct{}),
 		// ctx is intentionally nil — simulates Stop() called without Start()
@@ -368,7 +394,9 @@ func TestStartNilGarlic(t *testing.T) {
 // TestConcurrentStop verifies that concurrent Stop() calls don't race.
 func TestConcurrentStop(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 	var wg sync.WaitGroup
@@ -391,7 +419,7 @@ func TestErrorTrackerBounds(t *testing.T) {
 		done: make(chan struct{}),
 	}
 	for i := 0; i < 150; i++ {
-		tunnel.recordError(fmt.Errorf("error %d", i))
+		tunnel.RecordError(fmt.Errorf("error %d", i))
 	}
 	all := tunnel.ErrorTracker.All()
 	if len(all) > i2ptunnel.MaxErrors {
@@ -402,7 +430,9 @@ func TestErrorTrackerBounds(t *testing.T) {
 // TestLoadConfigNonexistentFile verifies LoadConfig returns error for missing files.
 func TestLoadConfigNonexistentFile(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 	}
 	err := tunnel.LoadConfig("/nonexistent/config.yaml")
@@ -414,7 +444,9 @@ func TestLoadConfigNonexistentFile(t *testing.T) {
 // TestLoadConfigWrongType verifies LoadConfig rejects mismatched tunnel type.
 func TestLoadConfigWrongType(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 	}
 	cfg := t.TempDir() + "/wrong.yaml"

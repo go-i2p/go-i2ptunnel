@@ -399,7 +399,7 @@ func TestIRCClientErrorTracking(t *testing.T) {
 
 	// Record an error
 	testErr := fmt.Errorf("test error")
-	client.recordError(testErr)
+	client.RecordError(testErr)
 
 	// Verify error was recorded
 	if client.Error() == nil {

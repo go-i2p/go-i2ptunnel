@@ -16,18 +16,20 @@ import (
 func TestTCPBidirectionalSetOptionsTarget(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:8080")
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "tb-target",
 			Type:      "tcpbidirectional",
 			Interface: "127.0.0.1",
 			Port:      4449,
 		},
-		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  100,
 			RateLimit: 10,
 		},
+		},
+		Addr:            addr,
 		done: make(chan struct{}),
 	}
 
@@ -61,18 +63,20 @@ func TestTCPBidirectionalSetOptionsTarget(t *testing.T) {
 func TestTCPBidirectionalSetOptionsTargetValidation(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:8080")
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "tb-validate",
 			Type:      "tcpbidirectional",
 			Interface: "127.0.0.1",
 			Port:      4449,
 		},
-		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  100,
 			RateLimit: 10,
 		},
+		},
+		Addr:            addr,
 		done: make(chan struct{}),
 	}
 

@@ -11,7 +11,9 @@ import (
 // TestStopIdempotent verifies that calling Stop() multiple times does not panic.
 func TestStopIdempotent(t *testing.T) {
 	tunnel := &IRCClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -36,7 +38,9 @@ func TestStopIdempotent(t *testing.T) {
 // TestDoneChannelSignaling verifies the done channel is properly closed on Stop().
 func TestDoneChannelSignaling(t *testing.T) {
 	tunnel := &IRCClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -60,7 +64,9 @@ func TestDoneChannelSignaling(t *testing.T) {
 // can be reset (as Start() now does) so the tunnel is restartable.
 func TestRestartAfterStop(t *testing.T) {
 	tunnel := &IRCClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 

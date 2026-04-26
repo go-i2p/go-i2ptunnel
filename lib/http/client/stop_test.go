@@ -16,7 +16,9 @@ import (
 // for the done channel. When Server is nil (never started), Stop() is a no-op.
 func TestStopIdempotent(t *testing.T) {
 	tunnel := &HTTPClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -38,7 +40,9 @@ func TestStopIdempotent(t *testing.T) {
 // also resets stopOnce.
 func TestRestartAfterStop(t *testing.T) {
 	tunnel := &HTTPClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -78,7 +82,9 @@ func TestStopWithServerUsesTimeout(t *testing.T) {
 	go srv.Serve(listener)
 
 	tunnel := &HTTPClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		Server:          srv,
 		done:            make(chan struct{}),
 		// ctx is intentionally nil — simulates Stop() called without Start()

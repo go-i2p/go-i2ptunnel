@@ -16,7 +16,9 @@ import (
 // TestStopIdempotent verifies that calling Stop() multiple times does not panic.
 func TestStopIdempotent(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -38,7 +40,9 @@ func TestStopIdempotent(t *testing.T) {
 // TestDoneChannelSignaling verifies the done channel is properly closed on Stop().
 func TestDoneChannelSignaling(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -61,8 +65,10 @@ func TestDoneChannelSignaling(t *testing.T) {
 // TestTCPBidirectionalType verifies the tunnel reports its type correctly.
 func TestTCPBidirectionalType(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Type: "tcpbidirectional",
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -74,8 +80,10 @@ func TestTCPBidirectionalType(t *testing.T) {
 // TestTCPBidirectionalName verifies the tunnel reports its name correctly.
 func TestTCPBidirectionalName(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name: "test-tcp-bidi",
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -87,8 +95,10 @@ func TestTCPBidirectionalName(t *testing.T) {
 // TestTCPBidirectionalID verifies clean ID generation from tunnel name.
 func TestTCPBidirectionalID(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name: "my tcp bidi",
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -100,6 +110,7 @@ func TestTCPBidirectionalID(t *testing.T) {
 // TestTCPBidirectionalOptions verifies Options returns all expected keys.
 func TestTCPBidirectionalOptions(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "test-bidi",
 			Type:      "tcpbidirectional",
@@ -109,6 +120,7 @@ func TestTCPBidirectionalOptions(t *testing.T) {
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  500,
 			RateLimit: 50,
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -134,6 +146,7 @@ func TestTCPBidirectionalOptions(t *testing.T) {
 // TestTCPBidirectionalSetOptions verifies option setting with validation.
 func TestTCPBidirectionalSetOptions(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "original",
 			Interface: "127.0.0.1",
@@ -142,6 +155,7 @@ func TestTCPBidirectionalSetOptions(t *testing.T) {
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  1000,
 			RateLimit: 100,
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -166,8 +180,10 @@ func TestTCPBidirectionalSetOptions(t *testing.T) {
 // TestTCPBidirectionalSetOptionsValidation verifies option validation catches errors.
 func TestTCPBidirectionalSetOptionsValidation(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name: "test",
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -194,9 +210,11 @@ func TestTCPBidirectionalSetOptionsValidation(t *testing.T) {
 // TestTCPBidirectionalLocalAddress verifies LocalAddress returns the SOCKS proxy address.
 func TestTCPBidirectionalLocalAddress(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Interface: "127.0.0.1",
 			Port:      4447,
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -232,7 +250,9 @@ func TestTCPBidirectionalErrorNil(t *testing.T) {
 // TestTCPBidirectionalLoadConfigWhileRunning verifies LoadConfig fails when running.
 func TestTCPBidirectionalLoadConfigWhileRunning(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 	err := tunnel.LoadConfig("/nonexistent")
@@ -244,7 +264,9 @@ func TestTCPBidirectionalLoadConfigWhileRunning(t *testing.T) {
 // TestTCPBidirectionalLoadConfigWhileStarting verifies LoadConfig fails when starting.
 func TestTCPBidirectionalLoadConfigWhileStarting(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStarting,
+		},
 		done:            make(chan struct{}),
 	}
 	err := tunnel.LoadConfig("/nonexistent")
@@ -262,7 +284,9 @@ func TestTCPBidirectionalImplementsInterface(t *testing.T) {
 // can be reset (as Start() now does) so the tunnel is restartable.
 func TestRestartAfterStop(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -319,10 +343,12 @@ func TestStopClosesGarlic(t *testing.T) {
 // (the underlying onramp library dereferences the nil pointer).
 func TestStartNilGarlic(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "test-nil-garlic",
 			Interface: "127.0.0.1",
 			Port:      4450,
+		},
 		},
 		done: make(chan struct{}),
 	}
@@ -341,7 +367,7 @@ func TestErrorTrackerBounds(t *testing.T) {
 		done: make(chan struct{}),
 	}
 	for i := 0; i < 150; i++ {
-		tunnel.recordError(fmt.Errorf("error %d", i))
+		tunnel.RecordError(fmt.Errorf("error %d", i))
 	}
 	all := tunnel.ErrorTracker.All()
 	if len(all) > i2ptunnel.MaxErrors {
@@ -356,7 +382,9 @@ func TestErrorTrackerBounds(t *testing.T) {
 // TestConcurrentStop verifies that concurrent Stop() calls don't race.
 func TestConcurrentStop(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 	var wg sync.WaitGroup
@@ -376,7 +404,9 @@ func TestConcurrentStop(t *testing.T) {
 // TestLoadConfigNonexistentFile verifies LoadConfig returns error for missing files.
 func TestLoadConfigNonexistentFile(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 	}
 	err := tunnel.LoadConfig("/nonexistent/config.yaml")
@@ -388,7 +418,9 @@ func TestLoadConfigNonexistentFile(t *testing.T) {
 // TestLoadConfigWrongType verifies LoadConfig rejects mismatched tunnel type.
 func TestLoadConfigWrongType(t *testing.T) {
 	tunnel := &TCPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 	}
 	configFile := filepath.Join(t.TempDir(), "wrong.yaml")

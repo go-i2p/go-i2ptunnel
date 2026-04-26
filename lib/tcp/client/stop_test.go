@@ -13,7 +13,9 @@ import (
 // close() panics with "close of closed channel". This test ensures the fix works.
 func TestStopIdempotent(t *testing.T) {
 	tunnel := &TCPClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -42,7 +44,9 @@ func TestStopIdempotent(t *testing.T) {
 // TestDoneChannelSignaling verifies the done channel is properly closed on Stop().
 func TestDoneChannelSignaling(t *testing.T) {
 	tunnel := &TCPClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -70,7 +74,9 @@ func TestDoneChannelSignaling(t *testing.T) {
 // Before this fix, Stop() left done permanently closed and stopOnce spent.
 func TestRestartAfterStop(t *testing.T) {
 	tunnel := &TCPClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 

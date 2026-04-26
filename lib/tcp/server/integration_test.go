@@ -412,8 +412,10 @@ func TestTCPServerLoadConfigWithSAM(t *testing.T) {
 func TestTCPServerHandleConnectionError(t *testing.T) {
 	// Use a port that is not listening so net.Dial fails.
 	srv := &TCPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{Name: "hc-err"},
-	}
+	
+		},}
 	// Point target at a port that should be closed.
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:1")
 	srv.Addr = addr
@@ -478,7 +480,7 @@ func TestTCPServerRecordErrorWithMetrics(t *testing.T) {
 	}
 	defer srv.Garlic.Close()
 
-	srv.recordError(fmt.Errorf("test error"))
+	srv.RecordError(fmt.Errorf("test error"))
 	if srv.Error() == nil {
 		t.Error("Error() should be non-nil after recording an error")
 	}

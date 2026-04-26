@@ -15,18 +15,20 @@ import (
 func TestTCPServerSetOptionsTarget(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:8080")
 	tunnel := &TCPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "ts-target",
 			Type:      "tcpserver",
 			Interface: "127.0.0.1",
 			Port:      4449,
 		},
-		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  100,
 			RateLimit: 10,
 		},
+		},
+		Addr:            addr,
 		done: make(chan struct{}),
 	}
 
@@ -60,18 +62,20 @@ func TestTCPServerSetOptionsTarget(t *testing.T) {
 func TestTCPServerSetOptionsTargetValidation(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:8080")
 	tunnel := &TCPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "ts-validate",
 			Type:      "tcpserver",
 			Interface: "127.0.0.1",
 			Port:      4449,
 		},
-		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  100,
 			RateLimit: 10,
 		},
+		},
+		Addr:            addr,
 		done: make(chan struct{}),
 	}
 

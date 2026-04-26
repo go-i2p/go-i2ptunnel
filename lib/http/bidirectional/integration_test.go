@@ -93,8 +93,10 @@ func TestNewHTTPBidirectionalBadSAM(t *testing.T) {
 // the metrics tracker and that recordError increments the error counter.
 func TestHTTPBidirectionalSetTunnelMetrics(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig:    i2pconv.TunnelConfig{Name: "http-bi-metrics", Type: "httpbidirectional"},
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -105,7 +107,7 @@ func TestHTTPBidirectionalSetTunnelMetrics(t *testing.T) {
 	}
 
 	initial := tunnel.Metrics.Snapshot().ErrorCount
-	tunnel.recordError(nil)
+	tunnel.RecordError(nil)
 	after := tunnel.Metrics.Snapshot().ErrorCount
 	if after <= initial {
 		t.Error("recordError did not increment Metrics.ErrorCount")
@@ -157,14 +159,16 @@ func TestHTTPBidirectionalSetOptionsErrors(t *testing.T) {
 	makeHTTP := func() *HTTPBidirectional {
 		addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:8080")
 		return &HTTPBidirectional{
+			TunnelBase: i2ptunnel.TunnelBase{
 			TunnelConfig: i2pconv.TunnelConfig{
 				Name:      "http-bi-setopt",
 				Type:      "httpbidirectional",
 				Interface: "127.0.0.1",
 				Port:      4450,
 			},
-			Addr:            addr,
 			I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+			},
+			Addr:            addr,
 			done:            make(chan struct{}),
 		}
 	}
@@ -195,14 +199,16 @@ func TestHTTPBidirectionalSetOptionsErrors(t *testing.T) {
 func TestHTTPBidirectionalSetOptionsI2CP(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:8080")
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "http-bi-i2cp",
 			Type:      "httpbidirectional",
 			Interface: "127.0.0.1",
 			Port:      4450,
 		},
-		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
+		Addr:            addr,
 		done:            make(chan struct{}),
 	}
 
@@ -223,9 +229,11 @@ func TestHTTPBidirectionalLoadConfigErrors(t *testing.T) {
 	makeHTTP := func() *HTTPBidirectional {
 		addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:9999")
 		return &HTTPBidirectional{
+			TunnelBase: i2ptunnel.TunnelBase{
 			TunnelConfig:    i2pconv.TunnelConfig{Name: "http-bi-lc-err", Type: "httpbidirectional"},
-			Addr:            addr,
 			I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+			},
+			Addr:            addr,
 			done:            make(chan struct{}),
 		}
 	}
@@ -314,9 +322,11 @@ func TestHTTPBidirectionalLoadConfigErrors(t *testing.T) {
 func TestHTTPBidirectionalLoadConfigSuccess(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:9999")
 	h := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig:    i2pconv.TunnelConfig{Name: "http-bi-lc-ok", Type: "httpbidirectional"},
-		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
+		Addr:            addr,
 		done:            make(chan struct{}),
 	}
 
@@ -343,8 +353,10 @@ func TestHTTPBidirectionalLoadConfigSuccess(t *testing.T) {
 // Outproxy when opts["outproxy"] is set and Outproxy is nil (covers nil-init branch).
 func TestHTTPBidirectionalSetOptionsOutproxy(t *testing.T) {
 	h := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig:    i2pconv.TunnelConfig{Name: "http-bi-outproxy", Type: "httpbidirectional"},
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 		Outproxy:        nil, // explicitly nil so the nil-init branch is taken
 	}
@@ -364,8 +376,10 @@ func TestHTTPBidirectionalSetOptionsOutproxy(t *testing.T) {
 // TestHTTPBidirectionalSetOptionsOutproxyEnabled covers the nil-init branch of outproxy.enabled.
 func TestHTTPBidirectionalSetOptionsOutproxyEnabled(t *testing.T) {
 	h := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig:    i2pconv.TunnelConfig{Name: "http-bi-op-enabled", Type: "httpbidirectional"},
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 		Outproxy:        nil,
 	}
@@ -387,9 +401,11 @@ func TestHTTPBidirectionalSetOptionsOutproxyEnabled(t *testing.T) {
 func TestHTTPBidirectionalOptionsEnabledOutproxy(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:9999")
 	h := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig:    i2pconv.TunnelConfig{Name: "http-bi-opts-op", Type: "httpbidirectional"},
-		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
+		Addr:            addr,
 		done:            make(chan struct{}),
 		Outproxy: &httpclient.Outproxy{
 			Address: "outproxy.i2p",
@@ -412,8 +428,10 @@ func TestHTTPBidirectionalStopWithListenerAndCancel(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig:    i2pconv.TunnelConfig{Name: "http-bi-stop-ln", Type: "httpbidirectional"},
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 		listener:        ln,
 		ctx:             ctx,

@@ -17,18 +17,20 @@ func newTestServer(t *testing.T) *TCPServer {
 	t.Helper()
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:9090")
 	return &TCPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "test-server",
 			Type:      "tcpserver",
 			Interface: "127.0.0.1",
 			Port:      4449,
 		},
-		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  100,
 			RateLimit: 10,
 		},
+		},
+		Addr:            addr,
 		done: make(chan struct{}),
 	}
 }
@@ -45,14 +47,14 @@ func TestSetTunnelMetricsTCPServer(t *testing.T) {
 func TestRecordErrorTCPServer(t *testing.T) {
 	ts := newTestServer(t)
 	// Without metrics — must not panic
-	ts.recordError(fmt.Errorf("test error"))
+	ts.RecordError(fmt.Errorf("test error"))
 	if ts.Error() == nil {
 		t.Error("Error() should be non-nil after recording an error")
 	}
 
 	// With metrics — must call RecordError without panic
 	ts.SetTunnelMetrics(&metrics.TunnelMetrics{})
-	ts.recordError(fmt.Errorf("second error"))
+	ts.RecordError(fmt.Errorf("second error"))
 	if ts.Error() == nil {
 		t.Error("Error() should remain non-nil after second recorded error")
 	}
@@ -223,7 +225,7 @@ func writeTCPServerYAML(t *testing.T, tunnelName, tunnelType, target, iface stri
 func TestLoadConfigTCPServer(t *testing.T) {
 	t.Run("running tunnel rejects reload", func(t *testing.T) {
 		ts := newTestServer(t)
-		ts.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+		ts.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 		if err := ts.LoadConfig("/any"); err == nil {
 			t.Error("expected error when tunnel is running, got nil")
 		}
@@ -231,7 +233,7 @@ func TestLoadConfigTCPServer(t *testing.T) {
 
 	t.Run("starting tunnel rejects reload", func(t *testing.T) {
 		ts := newTestServer(t)
-		ts.setStatus(i2ptunnel.I2PTunnelStatusStarting)
+		ts.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 		if err := ts.LoadConfig("/any"); err == nil {
 			t.Error("expected error when tunnel is starting, got nil")
 		}

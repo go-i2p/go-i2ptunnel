@@ -12,7 +12,9 @@ import (
 // TestStopIdempotent verifies that calling Stop() multiple times does not panic.
 func TestStopIdempotent(t *testing.T) {
 	tunnel := &TCPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -32,7 +34,9 @@ func TestStopIdempotent(t *testing.T) {
 // TestDoneChannelSignaling verifies the done channel is properly closed on Stop().
 func TestDoneChannelSignaling(t *testing.T) {
 	tunnel := &TCPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -56,7 +60,9 @@ func TestDoneChannelSignaling(t *testing.T) {
 // can be reset (as Start() now does) so the tunnel is restartable.
 func TestRestartAfterStop(t *testing.T) {
 	tunnel := &TCPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 
@@ -125,7 +131,9 @@ func TestStartNilGarlic(t *testing.T) {
 // TestConcurrentStop verifies that concurrent Stop() calls don't race.
 func TestConcurrentStop(t *testing.T) {
 	tunnel := &TCPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 	}
 	var wg sync.WaitGroup
@@ -145,7 +153,9 @@ func TestConcurrentStop(t *testing.T) {
 // TestLoadConfigNonexistentFile verifies LoadConfig returns error for missing files.
 func TestLoadConfigNonexistentFile(t *testing.T) {
 	tunnel := &TCPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 	}
 	err := tunnel.LoadConfig("/nonexistent/config.yaml")
@@ -157,7 +167,9 @@ func TestLoadConfigNonexistentFile(t *testing.T) {
 // TestLoadConfigWrongType verifies LoadConfig rejects mismatched tunnel type.
 func TestLoadConfigWrongType(t *testing.T) {
 	tunnel := &TCPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 	}
 	dir := t.TempDir()

@@ -18,7 +18,9 @@ import (
 // fields (proxyServer, httpServer) instead of SOCKS5.
 func TestHTTPBidirectionalHasHTTPProxy(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 	}
 	// proxyServer and httpServer should be nil when not started
@@ -101,7 +103,9 @@ func TestServerConfigStripsHeaders(t *testing.T) {
 // TestStopBeforeStart verifies Stop is safe when Start was never called.
 func TestStopBeforeStart(t *testing.T) {
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 	}
 	if err := tunnel.Stop(); err != nil {
@@ -124,7 +128,9 @@ func TestStopWithHTTPServer(t *testing.T) {
 	go srv.Serve(listener)
 
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		httpServer:      srv,
 		ctx:             ctx,
 		cancel:          cancel,
@@ -144,7 +150,7 @@ func TestHTTPBidirectionalRecordError(t *testing.T) {
 	tunnel := &HTTPBidirectional{
 		done: make(chan struct{}),
 	}
-	tunnel.recordError(net.ErrClosed)
+	tunnel.RecordError(net.ErrClosed)
 
 	if tunnel.Error() == nil {
 		t.Fatal("Expected error after recordError, got nil")
@@ -161,6 +167,7 @@ func TestHTTPBidirectionalRecordError(t *testing.T) {
 func TestHTTPBidirectionalFullStruct(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:8080")
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "test-bidi",
 			Type:      "httpbidirectional",
@@ -168,14 +175,15 @@ func TestHTTPBidirectionalFullStruct(t *testing.T) {
 			Port:      4449,
 			Target:    "127.0.0.1:8080",
 		},
-		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
-		ServerConfig:    httpserver.DefaultHTTPServerConfig(),
-		ClientConfig:    httpclient.DefaultHTTPClientConfig(),
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  1000,
 			RateLimit: 100,
 		},
+		},
+		Addr:            addr,
+		ServerConfig:    httpserver.DefaultHTTPServerConfig(),
+		ClientConfig:    httpclient.DefaultHTTPClientConfig(),
 		done: make(chan struct{}),
 	}
 
@@ -232,17 +240,19 @@ func TestHTTPBidirectionalInspectorIntegration(t *testing.T) {
 func TestHTTPBidirectionalOptionsIncludesTarget(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:8080")
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "test",
 			Type:      "httpbidirectional",
 			Interface: "127.0.0.1",
 			Port:      4449,
 		},
-		Addr: addr,
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  500,
 			RateLimit: 50,
 		},
+		},
+		Addr: addr,
 		done: make(chan struct{}),
 	}
 
@@ -260,17 +270,19 @@ func TestHTTPBidirectionalOptionsIncludesTarget(t *testing.T) {
 func TestHTTPBidirectionalSetOptionsTarget(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:8080")
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "test-target",
 			Type:      "httpbidirectional",
 			Interface: "127.0.0.1",
 			Port:      4449,
 		},
-		Addr: addr,
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  500,
 			RateLimit: 50,
 		},
+		},
+		Addr: addr,
 		done: make(chan struct{}),
 	}
 
@@ -297,17 +309,19 @@ func TestHTTPBidirectionalSetOptionsTarget(t *testing.T) {
 func TestHTTPBidirectionalSetOptionsTargetValidation(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:8080")
 	tunnel := &HTTPBidirectional{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "test-validate",
 			Type:      "httpbidirectional",
 			Interface: "127.0.0.1",
 			Port:      4449,
 		},
-		Addr: addr,
 		LimitedConfig: limitedlistener.LimitedConfig{
 			MaxConns:  500,
 			RateLimit: 50,
 		},
+		},
+		Addr: addr,
 		done: make(chan struct{}),
 	}
 

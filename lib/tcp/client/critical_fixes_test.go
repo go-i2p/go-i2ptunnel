@@ -59,7 +59,9 @@ func TestTarget_NonNilAddr(t *testing.T) {
 // itself requires a live I2P session.
 func TestHandleConnection_RecordsNoTargetError(t *testing.T) {
 	c := &TCPClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusRunning,
+		},
 		done:            make(chan struct{}),
 		// I2PAddr intentionally nil → Target() returns ""
 	}
@@ -181,7 +183,7 @@ func TestLoadConfig_ErrorMessageUsesStatusVariable(t *testing.T) {
 	}
 	defer tunnel.Garlic.Close()
 
-	tunnel.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	tunnel.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 
 	loadErr := tunnel.LoadConfig("/tmp/nonexistent.yaml")
 	if loadErr == nil {
@@ -201,7 +203,7 @@ func TestLoadConfig_ErrorMessageStarting(t *testing.T) {
 	}
 	defer tunnel.Garlic.Close()
 
-	tunnel.setStatus(i2ptunnel.I2PTunnelStatusStarting)
+	tunnel.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 
 	loadErr := tunnel.LoadConfig("/tmp/nonexistent.yaml")
 	if loadErr == nil {

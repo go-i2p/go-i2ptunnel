@@ -501,7 +501,7 @@ func TestHTTPServerErrorTracking(t *testing.T) {
 
 	// Record an error
 	testErr := fmt.Errorf("test error")
-	server.recordError(testErr)
+	server.RecordError(testErr)
 
 	// Verify error was recorded
 	if server.Error() == nil {

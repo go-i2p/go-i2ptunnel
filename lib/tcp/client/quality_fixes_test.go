@@ -41,7 +41,7 @@ func TestErrorHistory_ReturnsSnapshot(t *testing.T) {
 	c := &TCPClient{
 		done: make(chan struct{}),
 	}
-	c.recordError(nil) // nil error produces a NewError with empty message, but is valid
+	c.RecordError(nil) // nil error produces a NewError with empty message, but is valid
 
 	snap := c.ErrorHistory()
 	if len(snap) == 0 {
@@ -73,7 +73,7 @@ func TestErrorHistory_Concurrent(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iters; i++ {
-			c.recordError(nil)
+			c.RecordError(nil)
 		}
 	}()
 
@@ -230,14 +230,14 @@ func TestLoadConfig_AtomicCheck(t *testing.T) {
 	}
 
 	// Set status to Running — LoadConfig must reject this atomically under lifeMu.
-	tunnel.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	tunnel.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 
 	if err := tunnel.LoadConfig(configPath); err == nil {
 		t.Error("LoadConfig must return an error when tunnel is in Running state")
 	}
 
 	// Also verify Starting is rejected.
-	tunnel.setStatus(i2ptunnel.I2PTunnelStatusStarting)
+	tunnel.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 	if err := tunnel.LoadConfig(configPath); err == nil {
 		t.Error("LoadConfig must return an error when tunnel is in Starting state")
 	}
@@ -266,8 +266,10 @@ func TestStart_ExitsOnConsecutiveAcceptErrors(t *testing.T) {
 	// Build a minimal TCPClient without a SAM session — the accept loop does not
 	// require Garlic until an actual connection arrives.
 	c := &TCPClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig:    cfg,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 		dialTimeout:     defaultDialTimeout,
 	}
@@ -332,8 +334,10 @@ func TestStart_ConsecutiveErrorCounterResetsOnSuccess(t *testing.T) {
 		Target:    testTarget,
 	}
 	c := &TCPClient{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig:    cfg,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
 		done:            make(chan struct{}),
 		dialTimeout:     defaultDialTimeout,
 	}

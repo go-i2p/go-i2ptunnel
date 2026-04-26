@@ -19,14 +19,16 @@ import (
 func TestUDPServerSetOptionsTarget(t *testing.T) {
 	addr, _ := net.ResolveUDPAddr("udp", "127.0.0.1:8080")
 	tunnel := &UDPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "us-target",
 			Type:      "udpserver",
 			Interface: "127.0.0.1",
 			Port:      4449,
 		},
-		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
+		Addr:            addr,
 		done:            make(chan struct{}),
 	}
 
@@ -60,14 +62,16 @@ func TestUDPServerSetOptionsTarget(t *testing.T) {
 func TestUDPServerSetOptionsTargetValidation(t *testing.T) {
 	addr, _ := net.ResolveUDPAddr("udp", "127.0.0.1:8080")
 	tunnel := &UDPServer{
+		TunnelBase: i2ptunnel.TunnelBase{
 		TunnelConfig: i2pconv.TunnelConfig{
 			Name:      "us-validate",
 			Type:      "udpserver",
 			Interface: "127.0.0.1",
 			Port:      4449,
 		},
-		Addr:            addr,
 		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
+		Addr:            addr,
 		done:            make(chan struct{}),
 	}
 
@@ -528,7 +532,7 @@ func TestUDPServerErrorTracking(t *testing.T) {
 
 	// Record an error
 	testErr := fmt.Errorf("test error")
-	server.recordError(testErr)
+	server.RecordError(testErr)
 
 	// Verify error was recorded
 	if server.Error() == nil {
