@@ -28,6 +28,7 @@ type mockTunnel struct {
 	localAddrVal  string
 	localAddrErr  error
 	setOptsErr    error
+	statusVal     i2ptunnel.I2PTunnelStatus
 
 	opts        map[string]string
 	lastSetOpts map[string]string
@@ -51,13 +52,20 @@ func (m *mockTunnel) LoadConfig(path string) error {
 	m.configLoaded = true
 	return m.loadConfigErr
 }
-func (m *mockTunnel) Name() string                      { return "mock-tunnel" }
-func (m *mockTunnel) ID() string                        { return "mock-tunnel" }
-func (m *mockTunnel) Type() string                      { return "mock" }
-func (m *mockTunnel) Address() string                   { return "" }
-func (m *mockTunnel) Target() string                    { return "" }
-func (m *mockTunnel) Error() error                      { return nil }
-func (m *mockTunnel) Status() i2ptunnel.I2PTunnelStatus { return i2ptunnel.I2PTunnelStatusStopped }
+func (m *mockTunnel) Name() string    { return "mock-tunnel" }
+func (m *mockTunnel) ID() string      { return "mock-tunnel" }
+func (m *mockTunnel) Type() string    { return "mock" }
+func (m *mockTunnel) Address() string { return "" }
+func (m *mockTunnel) Target() string  { return "" }
+func (m *mockTunnel) Error() error    { return nil }
+func (m *mockTunnel) Status() i2ptunnel.I2PTunnelStatus {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.statusVal != "" {
+		return m.statusVal
+	}
+	return i2ptunnel.I2PTunnelStatusStopped
+}
 func (m *mockTunnel) Options() map[string]string {
 	if m.opts != nil {
 		return m.opts
@@ -159,6 +167,26 @@ func TestNameDelegates(t *testing.T) {
 	tun, _ := Wrap(mock)
 	if tun.Name() != "mock-tunnel" {
 		t.Errorf("Name() = %q, want mock-tunnel", tun.Name())
+	}
+}
+
+// TestIsRunningFalseWhenStopped verifies IsRunning returns false when the
+// underlying tunnel status is stopped.
+func TestIsRunningFalseWhenStopped(t *testing.T) {
+	mock := &mockTunnel{statusVal: i2ptunnel.I2PTunnelStatusStopped}
+	tun, _ := Wrap(mock)
+	if tun.IsRunning() {
+		t.Error("IsRunning() = true, want false for stopped tunnel")
+	}
+}
+
+// TestIsRunningTrueWhenRunning verifies IsRunning returns true when the
+// underlying tunnel status is running.
+func TestIsRunningTrueWhenRunning(t *testing.T) {
+	mock := &mockTunnel{statusVal: i2ptunnel.I2PTunnelStatusRunning}
+	tun, _ := Wrap(mock)
+	if !tun.IsRunning() {
+		t.Error("IsRunning() = false, want true for running tunnel")
 	}
 }
 

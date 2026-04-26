@@ -117,6 +117,11 @@ func (t *Tunnel) Name() string { return t.tunnel.Name() }
 // LocalAddress returns the tunnel's local listening address.
 func (t *Tunnel) LocalAddress() (string, error) { return t.tunnel.LocalAddress() }
 
+// IsRunning reports whether the underlying tunnel is in the running state.
+func (t *Tunnel) IsRunning() bool {
+	return t.tunnel.Status() == i2ptunnel.I2PTunnelStatusRunning
+}
+
 // Start starts the underlying tunnel. It blocks until the tunnel exits or
 // encounters a fatal error. Call it in a goroutine for non-blocking use.
 func (t *Tunnel) Start() error { return t.tunnel.Start() }
