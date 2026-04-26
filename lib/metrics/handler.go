@@ -172,8 +172,11 @@ func writePrometheusMetrics(w io.Writer, snapshots []MetricSnapshot) error {
 			return err
 		}
 	}
+	return writeUptimeMetric(w, snapshots)
+}
 
-	// Uptime gauge (float64 — handled separately).
+// writeUptimeMetric writes the i2ptunnel_uptime_seconds gauge family.
+func writeUptimeMetric(w io.Writer, snapshots []MetricSnapshot) error {
 	if _, err := fmt.Fprintf(w, "# HELP i2ptunnel_uptime_seconds Tunnel uptime in seconds\n"); err != nil {
 		return err
 	}

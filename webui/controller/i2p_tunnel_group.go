@@ -157,13 +157,21 @@ func (cg *ControllerGroup) handlePostNew(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	controller, err := NewController(configPath)
+	controller, err := cg.createAndRegisterController(configPath)
 	if err != nil {
 		os.Remove(configPath)
-		cg.renderNewWithError(w, fmt.Sprintf("Failed to create tunnel: %v", err))
+		cg.renderNewWithError(w, err.Error())
 		return
 	}
+	http.Redirect(w, r, fmt.Sprintf("/%s/control", controller.ID()), http.StatusSeeOther)
+}
 
+// createAndRegisterController loads a tunnel config, appends it to I2PTunnels, and registers metrics.
+func (cg *ControllerGroup) createAndRegisterController(configPath string) (*Controller, error) {
+	controller, err := NewController(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create tunnel: %v", err)
+	}
 	cg.I2PTunnels = append(cg.I2PTunnels, *controller)
 	if cg.metricsHandler != nil {
 		m := cg.metricsHandler.Registry.Register(controller.Name(), controller.ID(), controller.Type())
@@ -171,7 +179,7 @@ func (cg *ControllerGroup) handlePostNew(w http.ResponseWriter, r *http.Request)
 			bearer.SetTunnelMetrics(m)
 		}
 	}
-	http.Redirect(w, r, fmt.Sprintf("/%s/control", controller.ID()), http.StatusSeeOther)
+	return controller, nil
 }
 
 // validateNewTunnelForm checks required fields and duplicate names.
@@ -274,32 +282,36 @@ func NewControllerGroup(directory string) (*ControllerGroup, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	registry := metrics.NewRegistry()
-
 	group := &ControllerGroup{
 		I2PTunnels:     make([]Controller, 0),
 		configDir:      directory,
 		csrfProtection: http.NewCrossOriginProtection(),
 	}
+	if err := group.loadControllersFromFiles(files, directory, registry); err != nil {
+		return nil, err
+	}
+	group.metricsHandler = metrics.NewHandler(registry, group.tunnelStatus)
+	return group, nil
+}
 
+// loadControllersFromFiles loads each non-directory config file and registers metrics.
+func (cg *ControllerGroup) loadControllersFromFiles(files []os.DirEntry, directory string, registry *metrics.Registry) error {
 	for _, file := range files {
-		if !file.IsDir() {
-			controller, err := NewController(filepath.Join(directory, file.Name()))
-			if err != nil {
-				return nil, err
-			}
-			group.I2PTunnels = append(group.I2PTunnels, *controller)
-			m := registry.Register(controller.Name(), controller.ID(), controller.Type())
-			if bearer, ok := controller.I2PTunnel.(metrics.MetricsBearer); ok {
-				bearer.SetTunnelMetrics(m)
-			}
+		if file.IsDir() {
+			continue
+		}
+		controller, err := NewController(filepath.Join(directory, file.Name()))
+		if err != nil {
+			return err
+		}
+		cg.I2PTunnels = append(cg.I2PTunnels, *controller)
+		m := registry.Register(controller.Name(), controller.ID(), controller.Type())
+		if bearer, ok := controller.I2PTunnel.(metrics.MetricsBearer); ok {
+			bearer.SetTunnelMetrics(m)
 		}
 	}
-
-	group.metricsHandler = metrics.NewHandler(registry, group.tunnelStatus)
-
-	return group, nil
+	return nil
 }
 
 // tunnelStatus returns the live state of all tunnels for the metrics handler.

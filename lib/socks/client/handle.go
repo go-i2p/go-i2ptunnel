@@ -21,6 +21,9 @@ func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Reque
 	if err := s.admitConnection(); err != nil {
 		return err
 	}
+	if s.connSem != nil {
+		defer func() { <-s.connSem }()
+	}
 	if s.Metrics != nil {
 		s.Metrics.RecordConnection()
 		defer s.Metrics.RecordDisconnection()
@@ -39,6 +42,8 @@ func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Reque
 }
 
 // admitConnection enforces rate limiting and concurrency limits.
+// For connSem, it only acquires the semaphore slot; the caller is responsible
+// for releasing it (via defer <-s.connSem) at connection end.
 func (s *SOCKS) admitConnection() error {
 	if s.rateLimiter != nil && !s.rateLimiter.Allow() {
 		if s.Metrics != nil {
@@ -50,7 +55,6 @@ func (s *SOCKS) admitConnection() error {
 	if s.connSem != nil {
 		select {
 		case s.connSem <- struct{}{}:
-			defer func() { <-s.connSem }()
 		default:
 			s.recordError(fmt.Errorf("connection rejected: at capacity (%d max concurrent)", cap(s.connSem)))
 			return fmt.Errorf("connection limit reached")

@@ -190,26 +190,7 @@ func (h *HTTPBidirectional) wrapListener(l net.Listener) net.Listener {
 
 // handleAcceptError processes an Accept() failure and returns whether to continue.
 func (h *HTTPBidirectional) handleAcceptError(err error, consecutiveErrors *int, done <-chan struct{}) (cont bool, fatal error) {
-	if err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded {
-		if h.Metrics != nil {
-			h.Metrics.RecordRateLimitHit()
-		}
-	}
-	select {
-	case <-done:
-		return false, nil
-	default:
-	}
-	if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
-		*consecutiveErrors++
-		h.RecordError(fmt.Errorf("accept error (%d consecutive): %w", *consecutiveErrors, err))
-		if *consecutiveErrors >= maxConsecutiveErrors {
-			h.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-			return false, fmt.Errorf("listener failed after %d consecutive accept errors", *consecutiveErrors)
-		}
-	}
-	time.Sleep(50 * time.Millisecond)
-	return true, nil
+	return h.TunnelBase.HandleAcceptError(err, consecutiveErrors, maxConsecutiveErrors, done)
 }
 
 // handleServerConnection forwards a single inbound I2P connection to the local HTTP service.

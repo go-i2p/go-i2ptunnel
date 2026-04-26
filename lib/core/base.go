@@ -1,7 +1,10 @@
 package i2ptunnel
 
 import (
+	"fmt"
+	"net"
 	"sync"
+	"time"
 
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
@@ -94,4 +97,56 @@ func (b *TunnelBase) SetOptions(opts map[string]string) error {
 		return err
 	}
 	return ApplyRateLimitOptions(opts, &b.LimitedConfig.MaxConns, &b.LimitedConfig.RateLimit)
+}
+
+// HandleAcceptError is the shared accept-loop error handler used by all tunnel
+// types. It checks for done-channel cancellation, increments consecutiveErrors
+// for non-rate-limit errors, records the error, and returns (false, fatal) once
+// maxErrors is reached. Returns (true, nil) to continue the accept loop, or
+// (false, nil) on shutdown. Rate-limit errors (ErrMaxConnsReached,
+// ErrRateLimitExceeded) are recorded as metrics hits but do not count toward
+// the consecutive-error limit.
+func (b *TunnelBase) HandleAcceptError(err error, consecutiveErrors *int, maxErrors int, done <-chan struct{}) (cont bool, fatal error) {
+	isRateLimit := err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded
+	if isRateLimit && b.Metrics != nil {
+		b.Metrics.RecordRateLimitHit()
+	}
+	select {
+	case <-done:
+		return false, nil
+	default:
+	}
+	if !isRateLimit {
+		*consecutiveErrors++
+		b.RecordError(fmt.Errorf("accept error (%d consecutive): %w", *consecutiveErrors, err))
+		if *consecutiveErrors >= maxErrors {
+			b.SetStatus(I2PTunnelStatusFailed)
+			return false, fmt.Errorf("listener failed after %d consecutive accept errors", *consecutiveErrors)
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	return true, nil
+}
+
+// RunAcceptDispatch runs a for-select accept loop on l, dispatching each
+// accepted connection via handleConn in a goroutine. maxErrors is the
+// consecutive-error limit. done is the shutdown channel.
+func (b *TunnelBase) RunAcceptDispatch(l net.Listener, maxErrors int, done <-chan struct{}, handleConn func(net.Conn)) error {
+	consecutiveErrors := 0
+	for {
+		select {
+		case <-done:
+			return nil
+		default:
+			con, err := l.Accept()
+			if err != nil {
+				if cont, fatal := b.HandleAcceptError(err, &consecutiveErrors, maxErrors, done); !cont {
+					return fatal
+				}
+				continue
+			}
+			consecutiveErrors = 0
+			go handleConn(con)
+		}
+	}
 }

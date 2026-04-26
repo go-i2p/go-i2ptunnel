@@ -32,6 +32,7 @@ import (
 
 	"github.com/go-i2p/go-forward/config"
 	"github.com/go-i2p/go-forward/stream"
+	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
@@ -159,19 +160,7 @@ func (t *TCPClient) runAcceptLoop(listener net.Listener, done <-chan struct{}) e
 // handleAcceptError processes a listener.Accept() error and returns (cont, fatal).
 // cont=false means the accept loop should exit cleanly; fatal!=nil means exit with error.
 func (t *TCPClient) handleAcceptError(err error, consecutiveErrors *int, done <-chan struct{}) (cont bool, fatal error) {
-	select {
-	case <-done:
-		return false, nil
-	default:
-	}
-	*consecutiveErrors++
-	t.RecordError(fmt.Errorf("listener.Accept error (%d consecutive): %w", *consecutiveErrors, err))
-	if *consecutiveErrors >= maxConsecutiveAcceptErrors {
-		t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-		return false, fmt.Errorf("listener failed after %d consecutive accept errors", *consecutiveErrors)
-	}
-	time.Sleep(50 * time.Millisecond)
-	return true, nil
+	return t.TunnelBase.HandleAcceptError(err, consecutiveErrors, maxConsecutiveAcceptErrors, done)
 }
 
 // spawnConnection acquires a semaphore slot (if any) and dispatches handleConnection in a goroutine.
@@ -421,6 +410,12 @@ func (t *TCPClient) SetOptions(opts map[string]string) error {
 
 // applyTCPClientOpts applies validated option values under the caller's lifeMu.
 func (t *TCPClient) applyTCPClientOpts(o *tcpClientOpts) {
+	t.applyTCPConfigFields(o)
+	t.applyTCPConnOpts(o)
+}
+
+// applyTCPConfigFields applies name/interface/port/address and I2CP map changes.
+func (t *TCPClient) applyTCPConfigFields(o *tcpClientOpts) {
 	if o.setName {
 		t.TunnelConfig.Name = o.newName
 	}
@@ -441,6 +436,10 @@ func (t *TCPClient) applyTCPClientOpts(o *tcpClientOpts) {
 			t.TunnelConfig.I2CP[k] = v
 		}
 	}
+}
+
+// applyTCPConnOpts applies connection semaphore and dial timeout changes.
+func (t *TCPClient) applyTCPConnOpts(o *tcpClientOpts) {
 	if o.setMaxConns {
 		if o.newMaxConns > 0 {
 			t.connSem = make(chan struct{}, o.newMaxConns)
@@ -458,35 +457,38 @@ func (t *TCPClient) applyTCPClientOpts(o *tcpClientOpts) {
 // All I/O (file reads, address lookups) occurs before acquiring lifeMu to avoid
 // priority inversions. The status check and struct update are applied under lifeMu.
 func (t *TCPClient) LoadConfig(path string) error {
-	// Quick pre-check before I/O — authoritative check is repeated under lifeMu below.
 	if err := i2ptunnel.CheckTunnelStopped(t.Status()); err != nil {
 		return err
 	}
-
-	// Phase 1 — all I/O outside any lock.
-	newConfig, err := i2ptunnel.ParseConfigFile(path)
+	newConfig, addr, err := loadTCPClientConfig(path)
 	if err != nil {
 		return err
 	}
-	if newConfig.Type != "tcpclient" {
-		return fmt.Errorf("config file contains %s tunnel, expected tcpclient", newConfig.Type)
-	}
-	addr, err := i2pkeys.Lookup(newConfig.Target)
-	if err != nil {
-		return fmt.Errorf("invalid target address in config: %w", err)
-	}
-
-	// Phase 2 — atomically check status and apply under lifeMu.
 	t.lifeMu.Lock()
 	defer t.lifeMu.Unlock()
 	if err := i2ptunnel.CheckTunnelStopped(t.Status()); err != nil {
 		return err
 	}
-	// Preserve I2CP options when the config file omits the i2cp section.
 	if len(newConfig.I2CP) == 0 && len(t.TunnelConfig.I2CP) > 0 {
 		newConfig.I2CP = t.TunnelConfig.I2CP
 	}
 	t.TunnelConfig = *newConfig
 	t.I2PAddr = addr
 	return nil
+}
+
+// loadTCPClientConfig parses and validates the config file outside any lock.
+func loadTCPClientConfig(path string) (*i2pconv.TunnelConfig, *i2pkeys.I2PAddr, error) {
+	newConfig, err := i2ptunnel.ParseConfigFile(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	if newConfig.Type != "tcpclient" {
+		return nil, nil, fmt.Errorf("config file contains %s tunnel, expected tcpclient", newConfig.Type)
+	}
+	addr, err := i2pkeys.Lookup(newConfig.Target)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid target address in config: %w", err)
+	}
+	return newConfig, addr, nil
 }

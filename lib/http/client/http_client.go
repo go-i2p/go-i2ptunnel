@@ -240,13 +240,27 @@ func (h *HTTPClient) SetOptions(opts map[string]string) error {
 	if err := i2ptunnel.ApplyCommonOptions(opts, &h.TunnelConfig); err != nil {
 		return err
 	}
+	if err := validateHTTPClientOpts(opts); err != nil {
+		return err
+	}
+	h.fieldsMu.Lock()
+	defer h.fieldsMu.Unlock()
+	h.applyHTTPClientOpts(opts)
+	return nil
+}
+
+// validateHTTPClientOpts validates option values before they are applied.
+func validateHTTPClientOpts(opts map[string]string) error {
 	if outAddr, ok := opts["outproxy"]; ok && outAddr != "" {
 		if !IsI2PAddress(outAddr) {
 			return fmt.Errorf("outproxy address must be an I2P address (.i2p), got %q", outAddr)
 		}
 	}
-	h.fieldsMu.Lock()
-	defer h.fieldsMu.Unlock()
+	return nil
+}
+
+// applyHTTPClientOpts applies pre-validated options under the caller's fieldsMu.
+func (h *HTTPClient) applyHTTPClientOpts(opts map[string]string) {
 	if jumpURL, ok := opts["jumpservice"]; ok {
 		h.applyJumpOption(jumpURL)
 	}
@@ -256,7 +270,6 @@ func (h *HTTPClient) SetOptions(opts map[string]string) error {
 	if enabledStr, ok := opts["outproxy.enabled"]; ok {
 		h.applyOutproxyEnabled(enabledStr)
 	}
-	return nil
 }
 
 func (h *HTTPClient) applyJumpOption(jumpURL string) {

@@ -88,6 +88,11 @@ func (c *Config) handlePostConfig(w http.ResponseWriter, r *http.Request) {
 		c.renderConfigWithError(w, fmt.Sprintf("Failed to apply options: %v", err))
 		return
 	}
+	c.saveAndRedirect(w, r)
+}
+
+// saveAndRedirect saves config to disk (if path set) then redirects to control page.
+func (c *Config) saveAndRedirect(w http.ResponseWriter, r *http.Request) {
 	if c.configPath != "" {
 		if err := c.saveConfig(); err != nil {
 			c.renderConfigWithError(w, fmt.Sprintf("Configuration applied but failed to save to disk: %v", err))
@@ -175,6 +180,21 @@ func (c *Config) saveConfig() error {
 
 // marshalTunnelConfig builds and marshals the YAML config structure.
 func marshalTunnelConfig(name, tunnelType, target string, opts map[string]string) ([]byte, error) {
+	tunnelConfig := buildTunnelConfigFields(name, tunnelType, target, opts)
+	config := map[string]interface{}{
+		"tunnels": map[string]interface{}{
+			name: tunnelConfig,
+		},
+	}
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
+	}
+	return data, nil
+}
+
+// buildTunnelConfigFields populates the per-tunnel fields for YAML serialisation.
+func buildTunnelConfigFields(name, tunnelType, target string, opts map[string]string) map[string]interface{} {
 	tunnelConfig := map[string]interface{}{
 		"name": name,
 		"type": tunnelType,
@@ -193,16 +213,7 @@ func marshalTunnelConfig(name, tunnelType, target string, opts map[string]string
 	if i2cpOpts := i2ptunnel.ExtractI2CPOptions(opts); i2cpOpts != nil {
 		tunnelConfig["i2cp"] = i2cpOpts
 	}
-	config := map[string]interface{}{
-		"tunnels": map[string]interface{}{
-			name: tunnelConfig,
-		},
-	}
-	data, err := yaml.Marshal(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config: %w", err)
-	}
-	return data, nil
+	return tunnelConfig
 }
 
 // NewConfig loads a tunnel configuration from a YAML file and returns a Config.

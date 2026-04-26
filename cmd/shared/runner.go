@@ -40,25 +40,10 @@ func Run(tunnelType string) {
 		os.Exit(1)
 	}
 
-	tunnel, err := loader.Load(*configPath, *samAddr)
+	tunnel, err := setupTunnel(tunnelType, *configPath, *samAddr, *metricsAddr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load %s tunnel config: %v\n", tunnelType, err)
+		fmt.Fprintf(os.Stderr, "Setup error: %v\n", err)
 		os.Exit(1)
-	}
-
-	if err := promptLeaseSetCredential(tunnel, os.Stdin, os.Stderr); err != nil {
-		fmt.Fprintf(os.Stderr, "LeaseSet credential error: %v\n", err)
-		os.Exit(1)
-	}
-
-	registry := metrics.NewRegistry()
-	m := registry.Register(tunnel.Name(), tunnel.ID(), tunnel.Type())
-	if bearer, ok := tunnel.(metrics.MetricsBearer); ok {
-		bearer.SetTunnelMetrics(m)
-	}
-
-	if *metricsAddr != "" {
-		startMetricsServer(*metricsAddr, registry, tunnel)
 	}
 
 	fmt.Printf("Starting %s tunnel %q on %s\n", tunnelType, tunnel.Name(), localAddr(tunnel))
@@ -67,6 +52,26 @@ func Run(tunnelType string) {
 		fmt.Fprintf(os.Stderr, "Tunnel error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// setupTunnel loads the tunnel, prompts for credentials, registers metrics, and optionally starts the metrics server.
+func setupTunnel(tunnelType, configPath, samAddr, metricsAddr string) (i2ptunnel.I2PTunnel, error) {
+	tunnel, err := loader.Load(configPath, samAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load %s tunnel config: %w", tunnelType, err)
+	}
+	if err := promptLeaseSetCredential(tunnel, os.Stdin, os.Stderr); err != nil {
+		return nil, fmt.Errorf("LeaseSet credential error: %w", err)
+	}
+	registry := metrics.NewRegistry()
+	m := registry.Register(tunnel.Name(), tunnel.ID(), tunnel.Type())
+	if bearer, ok := tunnel.(metrics.MetricsBearer); ok {
+		bearer.SetTunnelMetrics(m)
+	}
+	if metricsAddr != "" {
+		startMetricsServer(metricsAddr, registry, tunnel)
+	}
+	return tunnel, nil
 }
 
 // startMetricsServer starts an HTTP server on addr serving Prometheus metrics,

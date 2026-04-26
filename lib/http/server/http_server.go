@@ -30,7 +30,6 @@ import (
 	"net"
 	"strconv"
 	"sync"
-	"time"
 
 	httpinspector "github.com/go-i2p/go-connfilter/http"
 	"github.com/go-i2p/go-forward/config"
@@ -135,26 +134,7 @@ func (h *HTTPServer) runAcceptLoop(i2pListener net.Listener) error {
 
 // handleAcceptError processes an Accept() failure and returns whether to continue.
 func (h *HTTPServer) handleAcceptError(err error, consecutiveErrors *int, done <-chan struct{}) (cont bool, fatal error) {
-	if err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded {
-		if h.Metrics != nil {
-			h.Metrics.RecordRateLimitHit()
-		}
-	}
-	select {
-	case <-done:
-		return false, nil
-	default:
-	}
-	if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
-		*consecutiveErrors++
-		h.RecordError(fmt.Errorf("accept error (%d consecutive): %w", *consecutiveErrors, err))
-		if *consecutiveErrors >= maxConsecutiveErrors {
-			h.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-			return false, fmt.Errorf("listener failed after %d consecutive accept errors", *consecutiveErrors)
-		}
-	}
-	time.Sleep(50 * time.Millisecond)
-	return true, nil
+	return h.TunnelBase.HandleAcceptError(err, consecutiveErrors, maxConsecutiveErrors, done)
 }
 
 // handleConnection forwards a single I2P connection to the local HTTP service.
