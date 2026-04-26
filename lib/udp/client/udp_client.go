@@ -37,7 +37,6 @@ import (
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	udpconst "github.com/go-i2p/go-i2ptunnel/lib/udp/const"
-	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/go-sam-go/datagram"
 	"github.com/go-i2p/i2pkeys"
 	"github.com/go-i2p/onramp"
@@ -50,16 +49,10 @@ var implementUDPClient i2ptunnel.I2PTunnel = &UDPClient{}
 type UDPClient struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic
-	// The I2P Tunnel config itself
-	i2pconv.TunnelConfig
+	// TunnelBase provides Name, ID, Type, Status, Error, SetTunnelMetrics, SetStatus, RecordError, and the common Options/SetOptions keys.
+	i2ptunnel.TunnelBase
 	// The remote I2P destination target
 	*i2pkeys.I2PAddr
-	// The tunnel status
-	i2ptunnel.I2PTunnelStatus
-	// The rate-limiting configuration.
-	// Note: UDP uses net.PacketConn (datagrams), not net.Listener; MaxConns/RateLimit
-	// are persisted here for configuration round-trips.
-	limitedlistener.LimitedConfig
 	// Channel for shutdown signaling
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
@@ -67,31 +60,6 @@ type UDPClient struct {
 	// Mutex protecting lifecycle fields (done, stopOnce) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
-	statusMu sync.RWMutex
-	// ErrorTracker provides bounded error history.
-	i2ptunnel.ErrorTracker
-	// Metrics tracks live operational data for this tunnel.
-	// Set by the webui controller after construction. May be nil.
-	Metrics *metrics.TunnelMetrics
-}
-
-// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
-func (u *UDPClient) SetTunnelMetrics(m *metrics.TunnelMetrics) {
-	u.Metrics = m
-}
-
-func (u *UDPClient) recordError(err error) {
-	u.ErrorTracker.Record(u, err)
-	if u.Metrics != nil {
-		u.Metrics.RecordError()
-	}
-}
-
-func (u *UDPClient) setStatus(s i2ptunnel.I2PTunnelStatus) {
-	u.statusMu.Lock()
-	u.I2PTunnelStatus = s
-	u.statusMu.Unlock()
 }
 
 // Get the tunnel's I2P address
@@ -103,20 +71,10 @@ func (u *UDPClient) Address() string {
 	return ""
 }
 
-// Get the tunnel's error message
-func (u *UDPClient) Error() error {
-	return u.ErrorTracker.Last()
-}
-
 // Get the tunnel's local host:port
 func (u *UDPClient) LocalAddress() (string, error) {
 	addr := net.JoinHostPort(u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port))
 	return addr, nil
-}
-
-// Get the tunnel's name
-func (u *UDPClient) Name() string {
-	return u.TunnelConfig.Name
 }
 
 // maxConsecutiveForwardErrors is the number of consecutive packet.Forward failures
@@ -131,7 +89,7 @@ func (u *UDPClient) Start() error {
 	u.done = make(chan struct{})
 	u.stopOnce = sync.Once{}
 	done := u.done // capture local ref before unlock to avoid data race with restart
-	u.setStatus(i2ptunnel.I2PTunnelStatusStarting)
+	u.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 	u.lifeMu.Unlock()
 	i2pConnection, err := u.Garlic.Dial("udp", u.Target())
 	if err != nil {
@@ -155,7 +113,7 @@ func (u *UDPClient) Start() error {
 	}
 	defer lCon.Close()
 
-	u.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	u.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 	if u.Metrics != nil {
 		u.Metrics.RecordStart()
 	}
@@ -169,9 +127,9 @@ func (u *UDPClient) Start() error {
 			fwdCfg.ShutdownSignal = done
 			if err := packet.Forward(context.Background(), i2pConnection.(*datagram.DatagramSession), metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg); err != nil {
 				consecutiveErrors++
-				u.recordError(fmt.Errorf("forward error (%d consecutive): %w", consecutiveErrors, err))
+				u.RecordError(fmt.Errorf("forward error (%d consecutive): %w", consecutiveErrors, err))
 				if consecutiveErrors >= maxConsecutiveForwardErrors {
-					u.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+					u.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
 					return fmt.Errorf("tunnel failed after %d consecutive forward errors", consecutiveErrors)
 				}
 			} else {
@@ -187,13 +145,6 @@ func (u *UDPClient) Start() error {
 	}
 }
 
-// Get the tunnel's status
-func (u *UDPClient) Status() i2ptunnel.I2PTunnelStatus {
-	u.statusMu.RLock()
-	defer u.statusMu.RUnlock()
-	return u.I2PTunnelStatus
-}
-
 // Stop the tunnel. Safe to call multiple times.
 // Closes the Garlic (I2P SAM session) to release network resources.
 func (u *UDPClient) Stop() error {
@@ -204,7 +155,7 @@ func (u *UDPClient) Stop() error {
 		if u.Garlic != nil {
 			u.Garlic.Close()
 		}
-		u.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		u.SetStatus(i2ptunnel.I2PTunnelStatusStopped)
 		if u.Metrics != nil {
 			u.Metrics.RecordStop()
 		}
@@ -217,23 +168,12 @@ func (u *UDPClient) Target() string {
 	return u.I2PAddr.Base32()
 }
 
-// Get the tunnel's type
-func (u *UDPClient) Type() string {
-	return u.TunnelConfig.Type
-}
-
-// Get the tunnel's ID
-func (u *UDPClient) ID() string {
-	return i2ptunnel.Clean(u.Name())
-}
-
 // Options returns the tunnel's configuration as a string map.
 // Note: the "max-conns" and "rate-limit" keys are included for config
 // round-trip compatibility only — they are not enforced at runtime because
 // UDP tunnels operate on net.PacketConn (datagrams), not net.Listener.
 func (u *UDPClient) Options() map[string]string {
-	options := i2ptunnel.BuildCommonOptions(u.TunnelConfig)
-	i2ptunnel.AddRateLimitOptions(options, u.LimitedConfig.MaxConns, u.LimitedConfig.RateLimit)
+	options := u.TunnelBase.Options()
 	if u.I2PAddr != nil {
 		options["target"] = u.I2PAddr.Base32()
 	}
@@ -244,10 +184,7 @@ func (u *UDPClient) Options() map[string]string {
 // Note: the "max-conns" and "rate-limit" keys are stored for config round-trip
 // compatibility but are not enforced — see Options() for details.
 func (u *UDPClient) SetOptions(opts map[string]string) error {
-	if err := i2ptunnel.ApplyCommonOptions(opts, &u.TunnelConfig); err != nil {
-		return err
-	}
-	if err := i2ptunnel.ApplyRateLimitOptions(opts, &u.LimitedConfig.MaxConns, &u.LimitedConfig.RateLimit); err != nil {
+	if err := u.TunnelBase.SetOptions(opts); err != nil {
 		return err
 	}
 	if target, ok := opts["target"]; ok {

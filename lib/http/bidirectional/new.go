@@ -42,18 +42,20 @@ func NewHTTPBidirectional(config tunnelconfig.TunnelConfig, samAddr string) (*HT
 	}
 
 	return &HTTPBidirectional{
-		TunnelConfig:    config,
-		Garlic:          garlic,
-		Addr:            addr,
-		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
-		ServerConfig:    httpServerSanitize.DefaultHTTPServerConfig(),
-		ClientConfig:    httpClientSanitize.DefaultHTTPClientConfig(),
-		LimitedConfig: limitedlistener.LimitedConfig{
-			MaxConns:  i2ptunnel.TunnelOptionsMaxConns(config.Tunnel, 1000),
-			RateLimit: i2ptunnel.TunnelOptionsRateLimit(config.Tunnel, 100.0),
+		TunnelBase: i2ptunnel.TunnelBase{
+			TunnelConfig:    config,
+			I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+			LimitedConfig: limitedlistener.LimitedConfig{
+				MaxConns:  i2ptunnel.TunnelOptionsMaxConns(config.Tunnel, 1000),
+				RateLimit: i2ptunnel.TunnelOptionsRateLimit(config.Tunnel, 100.0),
+			},
 		},
-		Jump:     httpClientSanitize.NewJumpService(jumpClient, httpClientSanitize.DefaultJumpServiceURL),
-		Outproxy: &httpClientSanitize.Outproxy{},
-		done:     make(chan struct{}),
+		Garlic:       garlic,
+		Addr:         addr,
+		ServerConfig: httpServerSanitize.DefaultHTTPServerConfig(),
+		ClientConfig: httpClientSanitize.DefaultHTTPClientConfig(),
+		Jump:         httpClientSanitize.NewJumpService(jumpClient, httpClientSanitize.DefaultJumpServiceURL),
+		Outproxy:     &httpClientSanitize.Outproxy{},
+		done:         make(chan struct{}),
 	}, nil
 }

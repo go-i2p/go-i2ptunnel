@@ -37,7 +37,6 @@ import (
 	"github.com/go-i2p/go-i2ptunnel/lib/core/validate"
 	"github.com/go-i2p/go-i2ptunnel/lib/metrics"
 	udpconst "github.com/go-i2p/go-i2ptunnel/lib/udp/const"
-	limitedlistener "github.com/go-i2p/go-limit"
 	"github.com/go-i2p/onramp"
 	// github.com/go-i2p/go-forward/packet
 )
@@ -49,16 +48,10 @@ var implementUDPServer i2ptunnel.I2PTunnel = &UDPServer{}
 type UDPServer struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic
-	// The I2P Tunnel config itself
-	i2pconv.TunnelConfig
+	// TunnelBase provides Name, ID, Type, Status, Error, SetTunnelMetrics, SetStatus, RecordError, and the common Options/SetOptions keys.
+	i2ptunnel.TunnelBase
 	// The local UDP service address
 	net.Addr
-	// The tunnel status
-	i2ptunnel.I2PTunnelStatus
-	// The rate-limiting configuration.
-	// Note: UDP uses net.PacketConn (datagrams), not net.Listener; MaxConns/RateLimit
-	// are persisted here for configuration round-trips.
-	limitedlistener.LimitedConfig
 	// Channel for shutdown signaling
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
@@ -66,31 +59,6 @@ type UDPServer struct {
 	// Mutex protecting lifecycle fields (done, stopOnce) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
-	statusMu sync.RWMutex
-	// ErrorTracker provides bounded error history.
-	i2ptunnel.ErrorTracker
-	// Metrics tracks live operational data for this tunnel.
-	// Set by the webui controller after construction. May be nil.
-	Metrics *metrics.TunnelMetrics
-}
-
-// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
-func (u *UDPServer) SetTunnelMetrics(m *metrics.TunnelMetrics) {
-	u.Metrics = m
-}
-
-func (u *UDPServer) recordError(err error) {
-	u.ErrorTracker.Record(u, err)
-	if u.Metrics != nil {
-		u.Metrics.RecordError()
-	}
-}
-
-func (u *UDPServer) setStatus(s i2ptunnel.I2PTunnelStatus) {
-	u.statusMu.Lock()
-	u.I2PTunnelStatus = s
-	u.statusMu.Unlock()
 }
 
 // Get the tunnel's I2P address
@@ -100,11 +68,6 @@ func (u *UDPServer) Address() string {
 		return u.Garlic.ServiceKeys.Addr().Base32()
 	}
 	return ""
-}
-
-// Get the tunnel's error message
-func (u *UDPServer) Error() error {
-	return u.ErrorTracker.Last()
 }
 
 // Get the tunnel's local host:port
@@ -130,7 +93,7 @@ func (u *UDPServer) Start() error {
 	u.done = make(chan struct{})
 	u.stopOnce = sync.Once{}
 	done := u.done // capture local ref before unlock to avoid data race with restart
-	u.setStatus(i2ptunnel.I2PTunnelStatusStarting)
+	u.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 	u.lifeMu.Unlock()
 	i2pListener, err := u.Garlic.ListenPacket()
 	if err != nil {
@@ -145,7 +108,7 @@ func (u *UDPServer) Start() error {
 		return fmt.Errorf("failed to resolve target UDP address: %w", err)
 	}
 
-	u.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	u.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 	if u.Metrics != nil {
 		u.Metrics.RecordStart()
 	}
@@ -164,9 +127,9 @@ func (u *UDPServer) Start() error {
 				default:
 				}
 				consecutiveErrors++
-				u.recordError(fmt.Errorf("dial error (%d consecutive): %w", consecutiveErrors, err))
+				u.RecordError(fmt.Errorf("dial error (%d consecutive): %w", consecutiveErrors, err))
 				if consecutiveErrors >= maxConsecutiveErrors {
-					u.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+					u.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
 					return fmt.Errorf("tunnel failed after %d consecutive dial errors", consecutiveErrors)
 				}
 				time.Sleep(backoff)
@@ -193,13 +156,6 @@ func (u *UDPServer) Start() error {
 	}
 }
 
-// Get the tunnel's status
-func (u *UDPServer) Status() i2ptunnel.I2PTunnelStatus {
-	u.statusMu.RLock()
-	defer u.statusMu.RUnlock()
-	return u.I2PTunnelStatus
-}
-
 // Stop the tunnel. Safe to call multiple times.
 // Closes the Garlic (I2P SAM session) to release network resources.
 func (u *UDPServer) Stop() error {
@@ -210,7 +166,7 @@ func (u *UDPServer) Stop() error {
 		if u.Garlic != nil {
 			u.Garlic.Close()
 		}
-		u.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		u.SetStatus(i2ptunnel.I2PTunnelStatusStopped)
 		if u.Metrics != nil {
 			u.Metrics.RecordStop()
 		}
@@ -223,23 +179,12 @@ func (u *UDPServer) Target() string {
 	return u.Addr.String()
 }
 
-// Get the tunnel's type
-func (u *UDPServer) Type() string {
-	return u.TunnelConfig.Type
-}
-
-// Get the tunnel's ID
-func (u *UDPServer) ID() string {
-	return i2ptunnel.Clean(u.Name())
-}
-
 // Options returns the tunnel's configuration as a string map.
 // Note: the "max-conns" and "rate-limit" keys are included for config
 // round-trip compatibility only — they are not enforced at runtime because
 // UDP tunnels operate on net.PacketConn (datagrams), not net.Listener.
 func (u *UDPServer) Options() map[string]string {
-	options := i2ptunnel.BuildCommonOptions(u.TunnelConfig)
-	i2ptunnel.AddRateLimitOptions(options, u.LimitedConfig.MaxConns, u.LimitedConfig.RateLimit)
+	options := u.TunnelBase.Options()
 	if u.Addr != nil {
 		options["target"] = u.Addr.String()
 	}
@@ -250,10 +195,7 @@ func (u *UDPServer) Options() map[string]string {
 // Note: the "max-conns" and "rate-limit" keys are stored for config round-trip
 // compatibility but are not enforced — see Options() for details.
 func (u *UDPServer) SetOptions(opts map[string]string) error {
-	if err := i2ptunnel.ApplyCommonOptions(opts, &u.TunnelConfig); err != nil {
-		return err
-	}
-	if err := i2ptunnel.ApplyRateLimitOptions(opts, &u.LimitedConfig.MaxConns, &u.LimitedConfig.RateLimit); err != nil {
+	if err := u.TunnelBase.SetOptions(opts); err != nil {
 		return err
 	}
 	if target, ok := opts["target"]; ok {

@@ -18,15 +18,17 @@ func NewIRCClient(config i2pconv.TunnelConfig, samAddr string) (*IRCClient, erro
 		return nil, err
 	}
 	return &IRCClient{
-		TunnelConfig:    config,
-		Garlic:          garlic,
-		I2PAddr:         addr,
-		Config:          DefaultIRCClientConfig(),
-		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
-		LimitedConfig: limitedlistener.LimitedConfig{
-			MaxConns:  i2ptunnel.TunnelOptionsMaxConns(config.Tunnel, 1000),
-			RateLimit: i2ptunnel.TunnelOptionsRateLimit(config.Tunnel, 100.0),
+		TunnelBase: i2ptunnel.TunnelBase{
+			TunnelConfig:    config,
+			I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+			LimitedConfig: limitedlistener.LimitedConfig{
+				MaxConns:  i2ptunnel.TunnelOptionsMaxConns(config.Tunnel, 1000),
+				RateLimit: i2ptunnel.TunnelOptionsRateLimit(config.Tunnel, 100.0),
+			},
 		},
-		done: make(chan struct{}),
+		Garlic:  garlic,
+		I2PAddr: addr,
+		Config:  DefaultIRCClientConfig(),
+		done:    make(chan struct{}),
 	}, nil
 }

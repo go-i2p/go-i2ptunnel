@@ -44,14 +44,10 @@ var implementHTTPBidirectional i2ptunnel.I2PTunnel = &HTTPBidirectional{}
 type HTTPBidirectional struct {
 	// I2P connection (shared for both server and client sides)
 	*onramp.Garlic
-	// The I2P Tunnel config itself
-	i2pconv.TunnelConfig
+	// TunnelBase provides Name, ID, Type, Status, Error, SetTunnelMetrics, SetStatus, RecordError, and the common Options/SetOptions keys.
+	i2ptunnel.TunnelBase
 	// The local HTTP service address (forward target for inbound I2P connections)
 	net.Addr
-	// The tunnel status
-	i2ptunnel.I2PTunnelStatus
-	// The rate-limiting configuration for the server side
-	limitedlistener.LimitedConfig
 	// Server-side HTTP filtering for inbound I2P connections
 	ServerConfig httpinspector.Config
 	// Client-side HTTP filtering for the outbound HTTP proxy
@@ -71,13 +67,6 @@ type HTTPBidirectional struct {
 	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
-	statusMu sync.RWMutex
-	// ErrorTracker provides bounded error history.
-	i2ptunnel.ErrorTracker
-	// Metrics tracks live operational data for this tunnel.
-	// Set by the webui controller after construction. May be nil.
-	Metrics *metrics.TunnelMetrics
 	// Jump service client for resolving human-readable .i2p hostnames.
 	// Uses an I2P-routed HTTP client so stats.i2p is reachable.
 	// Initialized in NewHTTPBidirectional; nil disables jump service lookup.
@@ -90,24 +79,6 @@ type HTTPBidirectional struct {
 	cancel context.CancelFunc
 }
 
-// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
-func (h *HTTPBidirectional) SetTunnelMetrics(m *metrics.TunnelMetrics) {
-	h.Metrics = m
-}
-
-func (h *HTTPBidirectional) recordError(err error) {
-	h.ErrorTracker.Record(h, err)
-	if h.Metrics != nil {
-		h.Metrics.RecordError()
-	}
-}
-
-func (h *HTTPBidirectional) setStatus(s i2ptunnel.I2PTunnelStatus) {
-	h.statusMu.Lock()
-	h.I2PTunnelStatus = s
-	h.statusMu.Unlock()
-}
-
 // Address returns the tunnel's I2P address.
 func (h *HTTPBidirectional) Address() string {
 	if h.Garlic != nil && h.Garlic.ServiceKeys != nil {
@@ -116,20 +87,10 @@ func (h *HTTPBidirectional) Address() string {
 	return ""
 }
 
-// Error returns the most recent error, or nil.
-func (h *HTTPBidirectional) Error() error {
-	return h.ErrorTracker.Last()
-}
-
 // LocalAddress returns the HTTP proxy listen address.
 func (h *HTTPBidirectional) LocalAddress() (string, error) {
 	addr := net.JoinHostPort(h.TunnelConfig.Interface, strconv.Itoa(h.TunnelConfig.Port))
 	return addr, nil
-}
-
-// Name returns the tunnel's configured name.
-func (h *HTTPBidirectional) Name() string {
-	return h.TunnelConfig.Name
 }
 
 // maxConsecutiveErrors is the number of consecutive Accept() failures before
@@ -143,7 +104,7 @@ func (h *HTTPBidirectional) Start() error {
 	h.lifeMu.Lock()
 	h.done = make(chan struct{})
 	h.stopOnce = sync.Once{}
-	h.setStatus(i2ptunnel.I2PTunnelStatusStarting)
+	h.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 	h.ctx, h.cancel = context.WithCancel(context.Background())
 
 	// Server side: listen on I2P and forward to local HTTP service
@@ -179,7 +140,7 @@ func (h *HTTPBidirectional) Start() error {
 		proxyErrCh <- h.httpServer.Serve(filteredProxyListener)
 	}()
 
-	h.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	h.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 	if h.Metrics != nil {
 		h.Metrics.RecordStart()
 	}
@@ -199,8 +160,8 @@ func (h *HTTPBidirectional) Start() error {
 			return nil
 		case err := <-proxyErrCh:
 			if err != nil && err != http.ErrServerClosed {
-				h.recordError(err)
-				h.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+				h.RecordError(err)
+				h.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
 			}
 			return err
 		default:
@@ -216,9 +177,9 @@ func (h *HTTPBidirectional) Start() error {
 				}
 				if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
 					consecutiveErrors++
-					h.recordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
+					h.RecordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
 					if consecutiveErrors >= maxConsecutiveErrors {
-						h.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+						h.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
 						return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveErrors)
 					}
 				}
@@ -240,7 +201,7 @@ func (h *HTTPBidirectional) handleServerConnection(con net.Conn) {
 	defer wrapped.Close()
 	lCon, err := net.Dial("tcp", h.Target())
 	if err != nil {
-		h.recordError(err)
+		h.RecordError(err)
 		if h.Metrics != nil {
 			h.Metrics.RecordConnectionFailed()
 		}
@@ -249,13 +210,6 @@ func (h *HTTPBidirectional) handleServerConnection(con net.Conn) {
 	defer lCon.Close()
 	ctx := context.Background()
 	stream.Forward(ctx, wrapped, lCon, config.DefaultConfig())
-}
-
-// Status returns the current tunnel status.
-func (h *HTTPBidirectional) Status() i2ptunnel.I2PTunnelStatus {
-	h.statusMu.RLock()
-	defer h.statusMu.RUnlock()
-	return h.I2PTunnelStatus
 }
 
 // shutdownTimeout is the maximum time to wait for graceful HTTP server shutdown.
@@ -290,7 +244,7 @@ func (h *HTTPBidirectional) Stop() error {
 		if h.cancel != nil {
 			h.cancel()
 		}
-		h.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		h.SetStatus(i2ptunnel.I2PTunnelStatusStopped)
 		if h.Metrics != nil {
 			h.Metrics.RecordStop()
 		}
@@ -303,20 +257,9 @@ func (h *HTTPBidirectional) Target() string {
 	return h.Addr.String()
 }
 
-// Type returns the tunnel type identifier.
-func (h *HTTPBidirectional) Type() string {
-	return h.TunnelConfig.Type
-}
-
-// ID returns a clean identifier derived from the tunnel name.
-func (h *HTTPBidirectional) ID() string {
-	return i2ptunnel.Clean(h.Name())
-}
-
 // Options returns the tunnel's configuration as a string map.
 func (h *HTTPBidirectional) Options() map[string]string {
-	options := i2ptunnel.BuildCommonOptions(h.TunnelConfig)
-	i2ptunnel.AddRateLimitOptions(options, h.LimitedConfig.MaxConns, h.LimitedConfig.RateLimit)
+	options := h.TunnelBase.Options()
 	if h.Addr != nil {
 		options["target"] = h.Addr.String()
 	}
@@ -333,10 +276,7 @@ func (h *HTTPBidirectional) Options() map[string]string {
 
 // SetOptions applies configuration options from a string map with validation.
 func (h *HTTPBidirectional) SetOptions(opts map[string]string) error {
-	if err := i2ptunnel.ApplyCommonOptions(opts, &h.TunnelConfig); err != nil {
-		return err
-	}
-	if err := i2ptunnel.ApplyRateLimitOptions(opts, &h.LimitedConfig.MaxConns, &h.LimitedConfig.RateLimit); err != nil {
+	if err := h.TunnelBase.SetOptions(opts); err != nil {
 		return err
 	}
 	if target, ok := opts["target"]; ok {

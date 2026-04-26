@@ -27,13 +27,15 @@ func NewHTTPClient(config i2pconv.TunnelConfig, samAddr string) (*HTTPClient, er
 		Timeout: 30 * time.Second,
 	}
 	h := &HTTPClient{
-		TunnelConfig:    config,
-		Garlic:          garlic,
-		Config:          DefaultHTTPClientConfig(),
-		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
-		done:            make(chan struct{}),
-		Jump:            NewJumpService(jumpClient, DefaultJumpServiceURL),
-		Outproxy:        &Outproxy{},
+		TunnelBase: i2ptunnel.TunnelBase{
+			TunnelConfig:    config,
+			I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
+		Garlic:   garlic,
+		Config:   DefaultHTTPClientConfig(),
+		done:     make(chan struct{}),
+		Jump:     NewJumpService(jumpClient, DefaultJumpServiceURL),
+		Outproxy: &Outproxy{},
 	}
 	return h, nil
 }

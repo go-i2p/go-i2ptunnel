@@ -52,10 +52,8 @@ var implementHTTPClient i2ptunnel.I2PTunnel = &HTTPClient{}
 type HTTPClient struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic
-	// The I2P Tunnel config itself
-	i2pconv.TunnelConfig
-	// The tunnel status
-	i2ptunnel.I2PTunnelStatus
+	// TunnelBase provides Name, ID, Type, Status, Error, SetTunnelMetrics, SetStatus, RecordError, and the common Options/SetOptions keys.
+	i2ptunnel.TunnelBase
 	// The http filtering configuration
 	httpinspector.Config
 	// The proxy server
@@ -68,17 +66,10 @@ type HTTPClient struct {
 	stopOnce sync.Once
 	// Mutex for server operations
 	mu sync.Mutex
-	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
-	statusMu sync.RWMutex
 	// Mutex protecting Jump and Outproxy fields from concurrent read/write access.
 	// Separate from mu (held for the entire Start→Serve lifetime) to avoid deadlocks
 	// when dial handlers read these fields during active request serving.
 	fieldsMu sync.RWMutex
-	// ErrorTracker provides bounded error history.
-	i2ptunnel.ErrorTracker
-	// Metrics tracks live operational data for this tunnel.
-	// Set by the webui controller after construction. May be nil.
-	Metrics *metrics.TunnelMetrics
 	// Jump service client for resolving human-readable .i2p hostnames
 	Jump *JumpService
 	// Outproxy for routing clearnet HTTP requests through I2P
@@ -86,24 +77,6 @@ type HTTPClient struct {
 	// Context for cleanup
 	ctx    context.Context
 	cancel context.CancelFunc
-}
-
-// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
-func (h *HTTPClient) SetTunnelMetrics(m *metrics.TunnelMetrics) {
-	h.Metrics = m
-}
-
-func (h *HTTPClient) recordError(err error) {
-	h.ErrorTracker.Record(h, err)
-	if h.Metrics != nil {
-		h.Metrics.RecordError()
-	}
-}
-
-func (h *HTTPClient) setStatus(s i2ptunnel.I2PTunnelStatus) {
-	h.statusMu.Lock()
-	h.I2PTunnelStatus = s
-	h.statusMu.Unlock()
 }
 
 // connectDial handles HTTPS CONNECT method requests.
@@ -150,20 +123,10 @@ func (h *HTTPClient) Address() string {
 	return ""
 }
 
-// Get the tunnel's error message
-func (h *HTTPClient) Error() error {
-	return h.ErrorTracker.Last()
-}
-
 // Get the tunnel's local host:port
 func (h *HTTPClient) LocalAddress() (string, error) {
 	addr := net.JoinHostPort(h.TunnelConfig.Interface, strconv.Itoa(h.TunnelConfig.Port))
 	return addr, nil
-}
-
-// Get the tunnel's name
-func (h *HTTPClient) Name() string {
-	return h.TunnelConfig.Name
 }
 
 // Start the tunnel
@@ -179,7 +142,7 @@ func (h *HTTPClient) Start() error {
 	h.ctx, h.cancel = context.WithCancel(context.Background())
 	h.done = make(chan struct{})
 	h.stopOnce = sync.Once{}
-	h.setStatus(i2ptunnel.I2PTunnelStatusStarting)
+	h.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 	proxy := goproxy.NewProxyHttpServer()
 	h.ProxyHttpServer = proxy
 	h.ProxyHttpServer.Tr.DialContext = h.DialContext
@@ -195,23 +158,16 @@ func (h *HTTPClient) Start() error {
 	listenerInspector := httpinspector.New(listener, h.Config)
 	h.Server = &http.Server{}
 	h.Server.Handler = h.ProxyHttpServer
-	h.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	h.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 	if h.Metrics != nil {
 		h.Metrics.RecordStart()
 	}
 	if err := h.Server.Serve(listenerInspector); err != nil && err != http.ErrServerClosed {
-		h.setStatus(i2ptunnel.I2PTunnelStatusFailed)
-		h.recordError(err)
+		h.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
+		h.RecordError(err)
 		return err
 	}
 	return nil
-}
-
-// Get the tunnel's status
-func (h *HTTPClient) Status() i2ptunnel.I2PTunnelStatus {
-	h.statusMu.RLock()
-	defer h.statusMu.RUnlock()
-	return h.I2PTunnelStatus
 }
 
 // shutdownTimeout is the maximum time to wait for graceful HTTP server shutdown.
@@ -227,7 +183,7 @@ func (h *HTTPClient) Stop() error {
 	defer h.mu.Unlock()
 
 	if h.Server != nil {
-		h.setStatus(i2ptunnel.I2PTunnelStatusStopping)
+		h.SetStatus(i2ptunnel.I2PTunnelStatusStopping)
 		h.stopOnce.Do(func() {
 			close(h.done)
 		})
@@ -238,7 +194,7 @@ func (h *HTTPClient) Stop() error {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer shutdownCancel()
 		if err := h.Server.Shutdown(shutdownCtx); err != nil {
-			h.recordError(err)
+			h.RecordError(err)
 			return err
 		}
 		if h.Garlic != nil {
@@ -249,7 +205,7 @@ func (h *HTTPClient) Stop() error {
 		}
 		h.Server = nil
 		h.ProxyHttpServer = nil
-		h.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		h.SetStatus(i2ptunnel.I2PTunnelStatusStopped)
 		if h.Metrics != nil {
 			h.Metrics.RecordStop()
 		}
@@ -260,16 +216,6 @@ func (h *HTTPClient) Stop() error {
 // Get the tunnel's I2P target. Nil in the case of one-to-many clients like SOCKS5 and HTTP
 func (h *HTTPClient) Target() string {
 	return ""
-}
-
-// Get the tunnel's type
-func (h *HTTPClient) Type() string {
-	return h.TunnelConfig.Type
-}
-
-// Get the tunnel's ID
-func (h *HTTPClient) ID() string {
-	return i2ptunnel.Clean(h.Name())
 }
 
 // Get the tunnel's options

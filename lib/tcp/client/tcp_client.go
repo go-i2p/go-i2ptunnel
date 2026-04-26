@@ -49,12 +49,11 @@ var implementTCPClient i2ptunnel.I2PTunnel = &TCPClient{}
 type TCPClient struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic
-	// The I2P Tunnel config itself
-	i2pconv.TunnelConfig
+	// TunnelBase provides Name, ID, Type, Status, Error, SetTunnelMetrics,
+	// SetStatus, RecordError, and the common Options/SetOptions keys.
+	i2ptunnel.TunnelBase
 	// The remote I2P destination target
 	*i2pkeys.I2PAddr
-	// The tunnel status
-	i2ptunnel.I2PTunnelStatus
 	// Channel for shutdown signaling
 	done chan struct{}
 	// Ensures Stop() is only executed once to prevent double-close panic
@@ -64,13 +63,6 @@ type TCPClient struct {
 	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
-	statusMu sync.RWMutex
-	// ErrorTracker provides bounded error history.
-	i2ptunnel.ErrorTracker
-	// Metrics tracks live operational data for this tunnel.
-	// Set by the webui controller after construction. May be nil.
-	Metrics *metrics.TunnelMetrics
 	// TCPFilterConfig holds optional byte-level read/write filters applied to each
 	// forwarded connection. Nil means no filtering (passthrough).
 	*i2ptunnel.TCPFilterConfig
@@ -95,25 +87,6 @@ const maxConsecutiveAcceptErrors = 10
 // accommodating normal I2P routing delays.
 const defaultDialTimeout = 30 * time.Second
 
-// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
-func (t *TCPClient) SetTunnelMetrics(m *metrics.TunnelMetrics) {
-	t.Metrics = m
-}
-
-func (t *TCPClient) recordError(err error) {
-	t.ErrorTracker.Record(t, err)
-	if t.Metrics != nil {
-		t.Metrics.RecordError()
-	}
-}
-
-// setStatus updates the tunnel status with proper synchronization.
-func (t *TCPClient) setStatus(s i2ptunnel.I2PTunnelStatus) {
-	t.statusMu.Lock()
-	t.I2PTunnelStatus = s
-	t.statusMu.Unlock()
-}
-
 // Get the tunnel's I2P address
 func (t *TCPClient) Address() string {
 	// Return the target I2P address for client tunnels
@@ -121,11 +94,6 @@ func (t *TCPClient) Address() string {
 		return t.I2PAddr.Base32()
 	}
 	return ""
-}
-
-// Get the tunnel's error message
-func (t *TCPClient) Error() error {
-	return t.ErrorTracker.Last()
 }
 
 // ErrorHistory returns a snapshot of all recorded errors, delegating to ErrorTracker.
@@ -139,11 +107,6 @@ func (t *TCPClient) LocalAddress() (string, error) {
 	return addr, nil
 }
 
-// Get the tunnel's name
-func (t *TCPClient) Name() string {
-	return t.TunnelConfig.Name
-}
-
 // Start the tunnel.
 // Each accepted local connection gets its own I2P stream to the target destination.
 // Connections are handled concurrently in separate goroutines.
@@ -153,7 +116,7 @@ func (t *TCPClient) Start() error {
 	t.done = make(chan struct{})
 	t.stopOnce = sync.Once{}
 	done := t.done // capture local ref before unlock to avoid data race with restart
-	t.setStatus(i2ptunnel.I2PTunnelStatusStarting)
+	t.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 	listener, err := net.Listen("tcp", net.JoinHostPort(t.Interface, strconv.Itoa(t.Port)))
 	if err != nil {
 		t.lifeMu.Unlock()
@@ -163,7 +126,7 @@ func (t *TCPClient) Start() error {
 	t.lifeMu.Unlock()
 	defer listener.Close()
 	defer t.Stop()
-	t.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	t.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 	if t.Metrics != nil {
 		t.Metrics.RecordStart()
 	}
@@ -185,9 +148,9 @@ func (t *TCPClient) Start() error {
 				// errors so operators see I2PTunnelStatusFailed rather than a silently
 				// looping tunnel that claims to be running.
 				consecutiveAcceptErrors++
-				t.recordError(fmt.Errorf("listener.Accept error (%d consecutive): %w", consecutiveAcceptErrors, err))
+				t.RecordError(fmt.Errorf("listener.Accept error (%d consecutive): %w", consecutiveAcceptErrors, err))
 				if consecutiveAcceptErrors >= maxConsecutiveAcceptErrors {
-					t.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+					t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
 					return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveAcceptErrors)
 				}
 				// Backoff to prevent CPU-burning tight loop on persistent errors
@@ -204,7 +167,7 @@ func (t *TCPClient) Start() error {
 					// Acquired a slot; the goroutine releases it on exit.
 				default:
 					// At capacity — reject immediately so the local client gets a fast error.
-					t.recordError(fmt.Errorf("connection rejected: at capacity (%d max concurrent)", cap(sem)))
+					t.RecordError(fmt.Errorf("connection rejected: at capacity (%d max concurrent)", cap(sem)))
 					con.Close()
 					continue
 				}
@@ -230,12 +193,12 @@ func (t *TCPClient) handleConnection(con net.Conn) {
 	defer wrapped.Close()
 	filtered, err := i2ptunnel.ApplyTCPFilter(wrapped, t.TCPFilterConfig)
 	if err != nil {
-		t.recordError(err)
+		t.RecordError(err)
 		return
 	}
 	target := t.Target()
 	if target == "" {
-		t.recordError(fmt.Errorf("handleConnection: no target I2P address configured"))
+		t.RecordError(fmt.Errorf("handleConnection: no target I2P address configured"))
 		if t.Metrics != nil {
 			t.Metrics.RecordConnectionFailed()
 		}
@@ -245,7 +208,7 @@ func (t *TCPClient) handleConnection(con net.Conn) {
 	defer dialCancel()
 	i2pConn, err := t.Garlic.DialContext(dialCtx, "tcp", target)
 	if err != nil {
-		t.recordError(err)
+		t.RecordError(err)
 		if t.Metrics != nil {
 			t.Metrics.RecordConnectionFailed()
 		}
@@ -264,7 +227,7 @@ func (t *TCPClient) handleConnection(con net.Conn) {
 		}
 	}()
 	if err := stream.Forward(fwdCtx, filtered, i2pConn, config.DefaultConfig()); err != nil {
-		t.recordError(err)
+		t.RecordError(err)
 	}
 }
 
@@ -290,13 +253,6 @@ func (t *TCPClient) snapshotConnSem() chan struct{} {
 	return t.connSem
 }
 
-// Get the tunnel's status
-func (t *TCPClient) Status() i2ptunnel.I2PTunnelStatus {
-	t.statusMu.RLock()
-	defer t.statusMu.RUnlock()
-	return t.I2PTunnelStatus
-}
-
 // Stop the tunnel. Safe to call multiple times.
 // Closes the Garlic (I2P SAM session) to release network resources.
 func (t *TCPClient) Stop() error {
@@ -310,7 +266,7 @@ func (t *TCPClient) Stop() error {
 		if t.Garlic != nil {
 			t.Garlic.Close()
 		}
-		t.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		t.SetStatus(i2ptunnel.I2PTunnelStatusStopped)
 		if t.Metrics != nil {
 			t.Metrics.RecordStop()
 		}
@@ -326,16 +282,6 @@ func (t *TCPClient) Target() string {
 		return ""
 	}
 	return t.I2PAddr.Base32()
-}
-
-// Get the tunnel's type
-func (t *TCPClient) Type() string {
-	return t.TunnelConfig.Type
-}
-
-// Get the tunnel's ID
-func (t *TCPClient) ID() string {
-	return i2ptunnel.Clean(t.Name())
 }
 
 // Get the tunnel's options

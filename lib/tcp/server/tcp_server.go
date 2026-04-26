@@ -40,14 +40,11 @@ var implementTCPServer i2ptunnel.I2PTunnel = &TCPServer{}
 type TCPServer struct {
 	// I2P Connection to listen to the I2P network
 	*onramp.Garlic
-	// The I2P Tunnel config itself
-	i2pconv.TunnelConfig
+	// TunnelBase provides Name, ID, Type, Status, Error, SetTunnelMetrics,
+	// SetStatus, RecordError, Options and SetOptions for the common keys.
+	i2ptunnel.TunnelBase
 	// The local TCP service address
 	net.Addr
-	// The tunnel status
-	i2ptunnel.I2PTunnelStatus
-	// The rate-limiting configuration
-	limitedlistener.LimitedConfig
 	// Optional byte-level content filter applied per-connection. Nil means no filtering.
 	*i2ptunnel.TCPFilterConfig
 	// Channel for shutdown signaling
@@ -59,31 +56,6 @@ type TCPServer struct {
 	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
-	statusMu sync.RWMutex
-	// ErrorTracker provides bounded error history.
-	i2ptunnel.ErrorTracker
-	// Metrics tracks live operational data for this tunnel.
-	// Set by the webui controller after construction. May be nil.
-	Metrics *metrics.TunnelMetrics
-}
-
-// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
-func (t *TCPServer) SetTunnelMetrics(m *metrics.TunnelMetrics) {
-	t.Metrics = m
-}
-
-func (t *TCPServer) recordError(err error) {
-	t.ErrorTracker.Record(t, err)
-	if t.Metrics != nil {
-		t.Metrics.RecordError()
-	}
-}
-
-func (t *TCPServer) setStatus(s i2ptunnel.I2PTunnelStatus) {
-	t.statusMu.Lock()
-	t.I2PTunnelStatus = s
-	t.statusMu.Unlock()
 }
 
 // Get the tunnel's I2P address
@@ -98,20 +70,10 @@ func (t *TCPServer) Address() string {
 	return ""
 }
 
-// Get the tunnel's error message
-func (t *TCPServer) Error() error {
-	return t.ErrorTracker.Last()
-}
-
 // Get the tunnel's local host:port
 func (t *TCPServer) LocalAddress() (string, error) {
 	addr := net.JoinHostPort(t.TunnelConfig.Interface, strconv.Itoa(t.TunnelConfig.Port))
 	return addr, nil
-}
-
-// Get the tunnel's name
-func (t *TCPServer) Name() string {
-	return t.TunnelConfig.Name
 }
 
 // maxConsecutiveErrors is the number of consecutive Accept() failures before
@@ -125,7 +87,7 @@ func (t *TCPServer) Start() error {
 	t.lifeMu.Lock()
 	t.done = make(chan struct{})
 	t.stopOnce = sync.Once{}
-	t.setStatus(i2ptunnel.I2PTunnelStatusStarting)
+	t.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 	i2pListener, err := t.Garlic.ListenStream()
 	if err != nil {
 		t.lifeMu.Unlock()
@@ -135,7 +97,7 @@ func (t *TCPServer) Start() error {
 	t.lifeMu.Unlock()
 	defer i2pListener.Close()
 	defer t.Stop()
-	t.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	t.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 	if t.Metrics != nil {
 		t.Metrics.RecordStart()
 	}
@@ -158,9 +120,9 @@ func (t *TCPServer) Start() error {
 				}
 				if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
 					consecutiveErrors++
-					t.recordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
+					t.RecordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
 					if consecutiveErrors >= maxConsecutiveErrors {
-						t.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+						t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
 						return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveErrors)
 					}
 				}
@@ -183,12 +145,12 @@ func (t *TCPServer) handleConnection(con net.Conn) {
 	defer wrapped.Close()
 	filtered, err := i2ptunnel.ApplyTCPFilter(wrapped, t.TCPFilterConfig)
 	if err != nil {
-		t.recordError(err)
+		t.RecordError(err)
 		return
 	}
 	lCon, err := net.Dial("tcp", t.Target())
 	if err != nil {
-		t.recordError(err)
+		t.RecordError(err)
 		if t.Metrics != nil {
 			t.Metrics.RecordConnectionFailed()
 		}
@@ -197,13 +159,6 @@ func (t *TCPServer) handleConnection(con net.Conn) {
 	defer lCon.Close()
 	ctx := context.Background()
 	stream.Forward(ctx, filtered, lCon, config.DefaultConfig())
-}
-
-// Get the tunnel's status
-func (t *TCPServer) Status() i2ptunnel.I2PTunnelStatus {
-	t.statusMu.RLock()
-	defer t.statusMu.RUnlock()
-	return t.I2PTunnelStatus
 }
 
 // Stop the tunnel. Safe to call multiple times.
@@ -219,7 +174,7 @@ func (t *TCPServer) Stop() error {
 		if t.Garlic != nil {
 			t.Garlic.Close()
 		}
-		t.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		t.SetStatus(i2ptunnel.I2PTunnelStatusStopped)
 		if t.Metrics != nil {
 			t.Metrics.RecordStop()
 		}
@@ -232,20 +187,9 @@ func (t *TCPServer) Target() string {
 	return t.Addr.String()
 }
 
-// Get the tunnel's type
-func (t *TCPServer) Type() string {
-	return t.TunnelConfig.Type
-}
-
-// Get the tunnel's ID
-func (t *TCPServer) ID() string {
-	return i2ptunnel.Clean(t.Name())
-}
-
 // Get the tunnel's options
 func (t *TCPServer) Options() map[string]string {
-	options := i2ptunnel.BuildCommonOptions(t.TunnelConfig)
-	i2ptunnel.AddRateLimitOptions(options, t.LimitedConfig.MaxConns, t.LimitedConfig.RateLimit)
+	options := t.TunnelBase.Options()
 	if t.Addr != nil {
 		options["target"] = t.Addr.String()
 	}
@@ -254,10 +198,7 @@ func (t *TCPServer) Options() map[string]string {
 
 // Set the tunnel's options
 func (t *TCPServer) SetOptions(opts map[string]string) error {
-	if err := i2ptunnel.ApplyCommonOptions(opts, &t.TunnelConfig); err != nil {
-		return err
-	}
-	if err := i2ptunnel.ApplyRateLimitOptions(opts, &t.LimitedConfig.MaxConns, &t.LimitedConfig.RateLimit); err != nil {
+	if err := t.TunnelBase.SetOptions(opts); err != nil {
 		return err
 	}
 	if target, ok := opts["target"]; ok {

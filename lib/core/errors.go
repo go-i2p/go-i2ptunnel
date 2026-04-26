@@ -21,8 +21,9 @@ func (i I2PTunnelError) Error() string {
 var _ error = I2PTunnelError{}
 
 // NewError creates an I2PTunnelError that includes the tunnel name and the
-// underlying error message.
-func NewError(tun I2PTunnel, err error) I2PTunnelError {
+// underlying error message. tun must implement Name() string; passing a full
+// I2PTunnel value (or a *TunnelBase) both satisfy this constraint.
+func NewError(tun interface{ Name() string }, err error) I2PTunnelError {
 	details := fmt.Sprintf("Name:%s\n\tError:%s\n", tun.Name(), err)
 	return I2PTunnelError{
 		errorString: details,

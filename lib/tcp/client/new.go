@@ -1,7 +1,6 @@
 package tcpclient
 
 import (
-
 	i2pconv "github.com/go-i2p/go-i2ptunnel-config/i2pconv"
 	i2ptunnel "github.com/go-i2p/go-i2ptunnel/lib/core"
 	"github.com/go-i2p/i2pkeys"
@@ -18,11 +17,13 @@ func NewTCPClient(config i2pconv.TunnelConfig, samAddr string) (*TCPClient, erro
 		return nil, err
 	}
 	return &TCPClient{
-		TunnelConfig:    config,
-		Garlic:          garlic,
-		I2PAddr:         addr,
-		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
-		done:            make(chan struct{}),
-		dialTimeout:     defaultDialTimeout,
+		TunnelBase: i2ptunnel.TunnelBase{
+			TunnelConfig:    config,
+			I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+		},
+		Garlic:      garlic,
+		I2PAddr:     addr,
+		done:        make(chan struct{}),
+		dialTimeout: defaultDialTimeout,
 	}, nil
 }

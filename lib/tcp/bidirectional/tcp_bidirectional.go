@@ -39,14 +39,11 @@ var implementTCPBidirectional i2ptunnel.I2PTunnel = &TCPBidirectional{}
 type TCPBidirectional struct {
 	// I2P connection (shared for both server and client sides)
 	*onramp.Garlic
-	// The I2P Tunnel config itself
-	i2pconv.TunnelConfig
+	// TunnelBase provides Name, ID, Type, Status, Error, SetTunnelMetrics,
+	// SetStatus, RecordError, and the common Options/SetOptions keys.
+	i2ptunnel.TunnelBase
 	// The local TCP service address (forward target for inbound I2P connections)
 	net.Addr
-	// The tunnel status
-	i2ptunnel.I2PTunnelStatus
-	// The rate-limiting configuration for the server side
-	limitedlistener.LimitedConfig
 	// SOCKS5 server instance for outbound connections
 	socksServer *socks5.Server
 	// Channel for shutdown signaling
@@ -58,34 +55,9 @@ type TCPBidirectional struct {
 	// Mutex protecting lifecycle fields (done, stopOnce, listener) during Start/Stop transitions.
 	// Prevents the race where Start() resets stopOnce while Stop() is calling stopOnce.Do().
 	lifeMu sync.Mutex
-	// Mutex protecting the I2PTunnelStatus field from concurrent read/write access
-	statusMu sync.RWMutex
-	// ErrorTracker provides bounded error history.
-	i2ptunnel.ErrorTracker
-	// Metrics tracks live operational data for this tunnel.
-	// Set by the webui controller after construction. May be nil.
-	Metrics *metrics.TunnelMetrics
 	// TCPFilterConfig holds optional byte-level read/write filters applied to each
 	// inbound I2P connection. Nil means no filtering (passthrough).
 	*i2ptunnel.TCPFilterConfig
-}
-
-// SetTunnelMetrics injects a live metrics tracker. Implements metrics.MetricsBearer.
-func (t *TCPBidirectional) SetTunnelMetrics(m *metrics.TunnelMetrics) {
-	t.Metrics = m
-}
-
-func (t *TCPBidirectional) recordError(err error) {
-	t.ErrorTracker.Record(t, err)
-	if t.Metrics != nil {
-		t.Metrics.RecordError()
-	}
-}
-
-func (t *TCPBidirectional) setStatus(s i2ptunnel.I2PTunnelStatus) {
-	t.statusMu.Lock()
-	t.I2PTunnelStatus = s
-	t.statusMu.Unlock()
 }
 
 // Address returns the tunnel's I2P address.
@@ -96,20 +68,10 @@ func (t *TCPBidirectional) Address() string {
 	return ""
 }
 
-// Error returns the most recent error, or nil.
-func (t *TCPBidirectional) Error() error {
-	return t.ErrorTracker.Last()
-}
-
 // LocalAddress returns the SOCKS5 proxy listen address.
 func (t *TCPBidirectional) LocalAddress() (string, error) {
 	addr := net.JoinHostPort(t.TunnelConfig.Interface, strconv.Itoa(t.TunnelConfig.Port))
 	return addr, nil
-}
-
-// Name returns the tunnel's configured name.
-func (t *TCPBidirectional) Name() string {
-	return t.TunnelConfig.Name
 }
 
 // maxConsecutiveErrors is the number of consecutive Accept() failures before
@@ -124,7 +86,7 @@ func (t *TCPBidirectional) Start() error {
 	t.lifeMu.Lock()
 	t.done = make(chan struct{})
 	t.stopOnce = sync.Once{}
-	t.setStatus(i2ptunnel.I2PTunnelStatusStarting)
+	t.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 
 	// Start the server side: listen on I2P and forward to local target
 	i2pListener, err := t.Garlic.ListenStream()
@@ -152,7 +114,7 @@ func (t *TCPBidirectional) Start() error {
 		socksErrCh <- t.socksServer.ListenAndServe(t.socksServer.Handle)
 	}()
 
-	t.setStatus(i2ptunnel.I2PTunnelStatusRunning)
+	t.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 	if t.Metrics != nil {
 		t.Metrics.RecordStart()
 	}
@@ -170,8 +132,8 @@ func (t *TCPBidirectional) Start() error {
 			return nil
 		case err := <-socksErrCh:
 			if err != nil {
-				t.recordError(err)
-				t.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+				t.RecordError(err)
+				t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
 			}
 			return err
 		default:
@@ -187,9 +149,9 @@ func (t *TCPBidirectional) Start() error {
 				}
 				if err != limitedlistener.ErrMaxConnsReached && err != limitedlistener.ErrRateLimitExceeded {
 					consecutiveErrors++
-					t.recordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
+					t.RecordError(fmt.Errorf("accept error (%d consecutive): %w", consecutiveErrors, err))
 					if consecutiveErrors >= maxConsecutiveErrors {
-						t.setStatus(i2ptunnel.I2PTunnelStatusFailed)
+						t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
 						return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveErrors)
 					}
 				}
@@ -211,12 +173,12 @@ func (t *TCPBidirectional) handleServerConnection(con net.Conn) {
 	defer wrapped.Close()
 	filtered, err := i2ptunnel.ApplyTCPFilter(wrapped, t.TCPFilterConfig)
 	if err != nil {
-		t.recordError(err)
+		t.RecordError(err)
 		return
 	}
 	lCon, err := net.Dial("tcp", t.Target())
 	if err != nil {
-		t.recordError(err)
+		t.RecordError(err)
 		if t.Metrics != nil {
 			t.Metrics.RecordConnectionFailed()
 		}
@@ -225,13 +187,6 @@ func (t *TCPBidirectional) handleServerConnection(con net.Conn) {
 	defer lCon.Close()
 	ctx := context.Background()
 	stream.Forward(ctx, filtered, lCon, config.DefaultConfig())
-}
-
-// Status returns the current tunnel status.
-func (t *TCPBidirectional) Status() i2ptunnel.I2PTunnelStatus {
-	t.statusMu.RLock()
-	defer t.statusMu.RUnlock()
-	return t.I2PTunnelStatus
 }
 
 // Stop gracefully shuts down both the server and SOCKS5 proxy sides.
@@ -251,7 +206,7 @@ func (t *TCPBidirectional) Stop() error {
 		if t.Garlic != nil {
 			t.Garlic.Close()
 		}
-		t.setStatus(i2ptunnel.I2PTunnelStatusStopped)
+		t.SetStatus(i2ptunnel.I2PTunnelStatusStopped)
 		if t.Metrics != nil {
 			t.Metrics.RecordStop()
 		}
@@ -264,20 +219,9 @@ func (t *TCPBidirectional) Target() string {
 	return t.Addr.String()
 }
 
-// Type returns the tunnel type identifier.
-func (t *TCPBidirectional) Type() string {
-	return t.TunnelConfig.Type
-}
-
-// ID returns a clean identifier derived from the tunnel name.
-func (t *TCPBidirectional) ID() string {
-	return i2ptunnel.Clean(t.Name())
-}
-
 // Options returns the tunnel's configuration as a string map.
 func (t *TCPBidirectional) Options() map[string]string {
-	options := i2ptunnel.BuildCommonOptions(t.TunnelConfig)
-	i2ptunnel.AddRateLimitOptions(options, t.LimitedConfig.MaxConns, t.LimitedConfig.RateLimit)
+	options := t.TunnelBase.Options()
 	if t.Addr != nil {
 		options["target"] = t.Addr.String()
 	}
@@ -286,10 +230,7 @@ func (t *TCPBidirectional) Options() map[string]string {
 
 // SetOptions applies configuration options from a string map with validation.
 func (t *TCPBidirectional) SetOptions(opts map[string]string) error {
-	if err := i2ptunnel.ApplyCommonOptions(opts, &t.TunnelConfig); err != nil {
-		return err
-	}
-	if err := i2ptunnel.ApplyRateLimitOptions(opts, &t.LimitedConfig.MaxConns, &t.LimitedConfig.RateLimit); err != nil {
+	if err := t.TunnelBase.SetOptions(opts); err != nil {
 		return err
 	}
 	if target, ok := opts["target"]; ok {

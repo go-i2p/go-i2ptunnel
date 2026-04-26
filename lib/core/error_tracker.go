@@ -18,8 +18,9 @@ type ErrorTracker struct {
 }
 
 // Record appends err to the error history. When the history exceeds MaxErrors,
-// the oldest entries are discarded to bound memory usage.
-func (et *ErrorTracker) Record(owner I2PTunnel, err error) {
+// the oldest entries are discarded to bound memory usage. owner must implement
+// Name() string; any I2PTunnel or *TunnelBase value satisfies this.
+func (et *ErrorTracker) Record(owner interface{ Name() string }, err error) {
 	et.mu.Lock()
 	et.Errors = append(et.Errors, NewError(owner, err))
 	if len(et.Errors) > MaxErrors {

@@ -28,14 +28,16 @@ func NewTCPServer(config i2pconv.TunnelConfig, samAddr string) (*TCPServer, erro
 		return nil, fmt.Errorf("invalid target address %q: %w", config.Target, err)
 	}
 	return &TCPServer{
-		TunnelConfig:    config,
-		Garlic:          garlic,
-		Addr:            addr,
-		I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
-		LimitedConfig: limitedlistener.LimitedConfig{
-			MaxConns:  i2ptunnel.TunnelOptionsMaxConns(config.Tunnel, defaultMaxConns),
-			RateLimit: i2ptunnel.TunnelOptionsRateLimit(config.Tunnel, defaultRateLimit),
+		TunnelBase: i2ptunnel.TunnelBase{
+			TunnelConfig:    config,
+			I2PTunnelStatus: i2ptunnel.I2PTunnelStatusStopped,
+			LimitedConfig: limitedlistener.LimitedConfig{
+				MaxConns:  i2ptunnel.TunnelOptionsMaxConns(config.Tunnel, defaultMaxConns),
+				RateLimit: i2ptunnel.TunnelOptionsRateLimit(config.Tunnel, defaultRateLimit),
+			},
 		},
-		done: make(chan struct{}),
+		Garlic: garlic,
+		Addr:   addr,
+		done:   make(chan struct{}),
 	}, nil
 }
