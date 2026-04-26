@@ -141,7 +141,6 @@ func startAndWait(tunnel i2ptunnel.I2PTunnel, tunnelType, configPath, samAddr st
 	}
 }
 
-// handleSignal processes one OS signal and returns the (possibly new) tunnel state.
 // Returns (nil, nil, false, nil) to indicate clean shutdown.
 // Returns (tunnel, errCh, reloading, err) for continued operation.
 func handleSignal(sig os.Signal, tunnel i2ptunnel.I2PTunnel, tunnelType, configPath, samAddr string, errCh chan error, reloading bool) (i2ptunnel.I2PTunnel, chan error, bool, error) {

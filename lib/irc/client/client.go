@@ -107,23 +107,7 @@ func (i *IRCClient) runAcceptLoop(listener net.Listener) error {
 	filteredListener := ircinspector.New(limitedL, i.Config)
 	ApplyIRCClientFilterRules(filteredListener, i.Address(), i.Metrics)
 	defer filteredListener.Close()
-	consecutiveErrors := 0
-	for {
-		select {
-		case <-i.done:
-			return nil
-		default:
-			con, err := filteredListener.Accept()
-			if err != nil {
-				if cont, fatal := i.handleAcceptError(err, &consecutiveErrors, i.done); !cont {
-					return fatal
-				}
-				continue
-			}
-			consecutiveErrors = 0
-			go i.handleConnection(con)
-		}
-	}
+	return i.TunnelBase.RunAcceptDispatch(filteredListener, maxConsecutiveErrors, i.done, i.handleConnection)
 }
 
 // handleAcceptError processes an Accept() failure and returns whether to continue.

@@ -113,23 +113,7 @@ func (h *HTTPServer) Start() error {
 func (h *HTTPServer) runAcceptLoop(i2pListener net.Listener) error {
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(h.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(h.LimitedConfig.RateLimit))
 	httpInspectorListener := httpinspector.New(limitedI2PListener, h.Config)
-	consecutiveErrors := 0
-	for {
-		select {
-		case <-h.done:
-			return nil
-		default:
-			con, err := httpInspectorListener.Accept()
-			if err != nil {
-				if cont, fatal := h.handleAcceptError(err, &consecutiveErrors, h.done); !cont {
-					return fatal
-				}
-				continue
-			}
-			consecutiveErrors = 0
-			go h.handleConnection(con)
-		}
-	}
+	return h.TunnelBase.RunAcceptDispatch(httpInspectorListener, maxConsecutiveErrors, h.done, h.handleConnection)
 }
 
 // handleAcceptError processes an Accept() failure and returns whether to continue.

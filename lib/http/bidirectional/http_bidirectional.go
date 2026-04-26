@@ -153,6 +153,11 @@ func (h *HTTPBidirectional) startHTTPProxy() (chan error, error) {
 // runAcceptLoop runs the server-side inbound I2P accept loop.
 func (h *HTTPBidirectional) runAcceptLoop(i2pListener net.Listener, proxyErrCh chan error) error {
 	limitedI2PListener := h.wrapListener(i2pListener)
+	return h.runBidirectionalAcceptLoop(limitedI2PListener, proxyErrCh)
+}
+
+// runBidirectionalAcceptLoop is the core accept loop with proxy error monitoring.
+func (h *HTTPBidirectional) runBidirectionalAcceptLoop(l net.Listener, proxyErrCh chan error) error {
 	consecutiveErrors := 0
 	for {
 		select {
@@ -165,7 +170,7 @@ func (h *HTTPBidirectional) runAcceptLoop(i2pListener net.Listener, proxyErrCh c
 			}
 			return err
 		default:
-			con, err := limitedI2PListener.Accept()
+			con, err := l.Accept()
 			if err != nil {
 				if cont, fatal := h.handleAcceptError(err, &consecutiveErrors, h.done); !cont {
 					return fatal

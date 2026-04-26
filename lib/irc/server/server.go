@@ -102,23 +102,7 @@ func (i *IRCServer) runAcceptLoop(i2pListener net.Listener) error {
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(i.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(i.LimitedConfig.RateLimit))
 	ircInspectorListener := ircinspector.New(limitedI2PListener, DefaultIRCServerConfigWithMetrics(i.Metrics))
 	ApplyIRCServerFilterRules(ircInspectorListener, i.Address(), i.Metrics)
-	consecutiveErrors := 0
-	for {
-		select {
-		case <-i.done:
-			return nil
-		default:
-			con, err := ircInspectorListener.Accept()
-			if err != nil {
-				if cont, fatal := i.handleAcceptError(err, &consecutiveErrors, i.done); !cont {
-					return fatal
-				}
-				continue
-			}
-			consecutiveErrors = 0
-			go i.handleConnection(con)
-		}
-	}
+	return i.TunnelBase.RunAcceptDispatch(ircInspectorListener, maxConsecutiveErrors, i.done, i.handleConnection)
 }
 
 // handleAcceptError processes an Accept() failure and returns whether to continue.

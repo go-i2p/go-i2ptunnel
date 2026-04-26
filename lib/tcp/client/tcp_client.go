@@ -134,27 +134,9 @@ func (t *TCPClient) Start() error {
 
 // runAcceptLoop runs the main TCP accept loop until done is closed or a fatal error occurs.
 func (t *TCPClient) runAcceptLoop(listener net.Listener, done <-chan struct{}) error {
-	consecutiveAcceptErrors := 0
-	for {
-		select {
-		case <-done:
-			return nil
-		default:
-			con, err := listener.Accept()
-			if err != nil {
-				cont, fatal := t.handleAcceptError(err, &consecutiveAcceptErrors, done)
-				if fatal != nil {
-					return fatal
-				}
-				if !cont {
-					return nil
-				}
-				continue
-			}
-			consecutiveAcceptErrors = 0
-			t.spawnConnection(con)
-		}
-	}
+	return t.TunnelBase.RunAcceptDispatch(listener, maxConsecutiveAcceptErrors, done, func(con net.Conn) {
+		t.spawnConnection(con)
+	})
 }
 
 // handleAcceptError processes a listener.Accept() error and returns (cont, fatal).
@@ -334,6 +316,17 @@ func validateTCPClientOptions(opts map[string]string) (tcpClientOpts, error) {
 
 // validateCommonFields validates name, interface, port, and target options.
 func validateCommonFields(opts map[string]string, o *tcpClientOpts) error {
+	if err := validateNameIFacePort(opts, o); err != nil {
+		return err
+	}
+	if v, ok := opts["target"]; ok {
+		return validateTarget(v, o)
+	}
+	return nil
+}
+
+// validateNameIFacePort validates name, interface, and port fields.
+func validateNameIFacePort(opts map[string]string, o *tcpClientOpts) error {
 	if v, ok := opts["name"]; ok {
 		if err := validate.RequiredString("name", v); err != nil {
 			return err
@@ -352,9 +345,6 @@ func validateCommonFields(opts map[string]string, o *tcpClientOpts) error {
 			return err
 		}
 		o.newPort, o.setPort = port, true
-	}
-	if v, ok := opts["target"]; ok {
-		return validateTarget(v, o)
 	}
 	return nil
 }
@@ -428,13 +418,19 @@ func (t *TCPClient) applyTCPConfigFields(o *tcpClientOpts) {
 	if o.setAddr {
 		t.I2PAddr = o.newAddr
 	}
-	if o.i2cpOpts != nil {
-		if t.TunnelConfig.I2CP == nil {
-			t.TunnelConfig.I2CP = make(map[string]interface{})
-		}
-		for k, v := range o.i2cpOpts {
-			t.TunnelConfig.I2CP[k] = v
-		}
+	t.mergeI2CPOpts(o.i2cpOpts)
+}
+
+// mergeI2CPOpts merges extra I2CP key-value pairs into the tunnel config.
+func (t *TCPClient) mergeI2CPOpts(i2cpOpts map[string]interface{}) {
+	if i2cpOpts == nil {
+		return
+	}
+	if t.TunnelConfig.I2CP == nil {
+		t.TunnelConfig.I2CP = make(map[string]interface{})
+	}
+	for k, v := range i2cpOpts {
+		t.TunnelConfig.I2CP[k] = v
 	}
 }
 

@@ -116,6 +116,11 @@ func (t *TCPBidirectional) runAcceptLoop(i2pListener net.Listener, socksErrCh <-
 		limitedlistener.WithMaxConnections(t.LimitedConfig.MaxConns),
 		limitedlistener.WithRateLimit(t.LimitedConfig.RateLimit),
 	)
+	return t.runBidirectionalAcceptLoop(limitedI2PListener, socksErrCh)
+}
+
+// runBidirectionalAcceptLoop is the core accept loop with socks error monitoring.
+func (t *TCPBidirectional) runBidirectionalAcceptLoop(l net.Listener, socksErrCh <-chan error) error {
 	consecutiveErrors := 0
 	for {
 		select {
@@ -128,7 +133,7 @@ func (t *TCPBidirectional) runAcceptLoop(i2pListener net.Listener, socksErrCh <-
 			}
 			return err
 		default:
-			con, err := limitedI2PListener.Accept()
+			con, err := l.Accept()
 			if err != nil {
 				if cont, fatal := t.handleAcceptError(err, &consecutiveErrors, t.done); !cont {
 					return fatal

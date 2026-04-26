@@ -278,36 +278,40 @@ func (j *JumpService) query(hostname string) (string, error) {
 // service HTTP response. Handles redirects, plain text bodies,
 // and error responses.
 func parseJumpResponse(resp *http.Response, hostname string) (string, error) {
-	// Case 1: Redirect — Location header contains the resolved URL.
-	// The new host in the redirect URL is the base32 address.
-	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently {
-		location := resp.Header.Get("Location")
-		if location == "" {
-			return "", fmt.Errorf("jump service returned redirect without Location header")
-		}
-		// Extract the host from the redirect URL
-		dest := extractHostFromURL(location)
-		if dest == "" {
-			return "", fmt.Errorf("could not extract destination from redirect: %s", location)
-		}
-		return dest, nil
+	switch resp.StatusCode {
+	case http.StatusFound, http.StatusMovedPermanently:
+		return parseJumpRedirect(resp)
+	case http.StatusOK:
+		return parseJumpBody(resp, hostname)
+	default:
+		return "", fmt.Errorf("jump service returned status %d for %s", resp.StatusCode, hostname)
 	}
+}
 
-	// Case 2: Successful response with body containing the destination
-	if resp.StatusCode == http.StatusOK {
-		body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBody))
-		if err != nil {
-			return "", fmt.Errorf("failed to read jump service response: %w", err)
-		}
-		dest := parseDestinationFromBody(string(body), hostname)
-		if dest == "" {
-			return "", fmt.Errorf("jump service returned no destination for %s", hostname)
-		}
-		return dest, nil
+// parseJumpRedirect extracts the destination from a redirect Location header.
+func parseJumpRedirect(resp *http.Response) (string, error) {
+	location := resp.Header.Get("Location")
+	if location == "" {
+		return "", fmt.Errorf("jump service returned redirect without Location header")
 	}
+	dest := extractHostFromURL(location)
+	if dest == "" {
+		return "", fmt.Errorf("could not extract destination from redirect: %s", location)
+	}
+	return dest, nil
+}
 
-	// Case 3: Error response
-	return "", fmt.Errorf("jump service returned status %d for %s", resp.StatusCode, hostname)
+// parseJumpBody reads the response body and extracts the destination.
+func parseJumpBody(resp *http.Response, hostname string) (string, error) {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBody))
+	if err != nil {
+		return "", fmt.Errorf("failed to read jump service response: %w", err)
+	}
+	dest := parseDestinationFromBody(string(body), hostname)
+	if dest == "" {
+		return "", fmt.Errorf("jump service returned no destination for %s", hostname)
+	}
+	return dest, nil
 }
 
 // parseDestinationFromBody tries to extract a base64 I2P destination
@@ -334,15 +338,17 @@ func parseDestinationFromBody(body, hostname string) string {
 		return body
 	}
 
-	// Format: look for base64 destination in HTML or mixed content
-	// Search for a long base64-like string (I2P destinations are 516+ chars)
+	return scanLinesForDestination(body)
+}
+
+// scanLinesForDestination scans multi-line/HTML content for an I2P base64 destination.
+func scanLinesForDestination(body string) string {
 	for _, line := range strings.Split(body, "\n") {
 		line = strings.TrimSpace(line)
 		if isI2PDestination(line) {
 			return line
 		}
 	}
-
 	return ""
 }
 

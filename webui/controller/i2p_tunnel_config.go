@@ -117,16 +117,22 @@ func buildConfigOptions(r *http.Request) (map[string]string, string) {
 			return nil, errMsg
 		}
 	}
-	authType := newOptions["i2cp.leaseSetAuthType"]
-	if authType == "1" || authType == "2" {
-		if strings.TrimSpace(newOptions["i2cp.leaseSetPrivKey"]) == "" {
-			return nil, "i2cp.leaseSetPrivKey is required when LeaseSet authentication type is DH (1) or PSK (2)"
-		}
+	if errMsg := validateLeaseSetAuth(newOptions); errMsg != "" {
+		return nil, errMsg
 	}
 	if host := r.FormValue("host"); host != "" {
 		newOptions["host"] = host
 	}
 	return newOptions, ""
+}
+
+// validateLeaseSetAuth checks that leaseSetPrivKey is provided when auth type requires it.
+func validateLeaseSetAuth(opts map[string]string) string {
+	authType := opts["i2cp.leaseSetAuthType"]
+	if (authType == "1" || authType == "2") && strings.TrimSpace(opts["i2cp.leaseSetPrivKey"]) == "" {
+		return "i2cp.leaseSetPrivKey is required when LeaseSet authentication type is DH (1) or PSK (2)"
+	}
+	return ""
 }
 
 // validateAndSetPort validates the port string and sets it in newOptions.

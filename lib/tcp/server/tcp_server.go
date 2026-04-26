@@ -104,23 +104,7 @@ func (t *TCPServer) Start() error {
 // runAcceptLoop wraps the I2P listener with rate limiting and runs the accept loop.
 func (t *TCPServer) runAcceptLoop(i2pListener net.Listener) error {
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(t.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(t.LimitedConfig.RateLimit))
-	consecutiveErrors := 0
-	for {
-		select {
-		case <-t.done:
-			return nil
-		default:
-			con, err := limitedI2PListener.Accept()
-			if err != nil {
-				if cont, fatal := t.handleAcceptError(err, &consecutiveErrors, t.done); !cont {
-					return fatal
-				}
-				continue
-			}
-			consecutiveErrors = 0
-			go t.handleConnection(con)
-		}
-	}
+	return t.TunnelBase.RunAcceptDispatch(limitedI2PListener, maxConsecutiveErrors, t.done, t.handleConnection)
 }
 
 // handleAcceptError processes an Accept() failure and returns whether to continue.
