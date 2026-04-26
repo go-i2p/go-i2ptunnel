@@ -387,11 +387,18 @@ func TestRunStartError(t *testing.T) {
 	mock := &mockTunnel{startErr: errors.New("SAM connect failed")}
 	tun, _ := Wrap(mock)
 
-	err := tun.Run()
-	if err == nil {
-		t.Fatal("expected error from Run when Start fails")
-	}
-	if !strings.Contains(err.Error(), "SAM connect failed") {
-		t.Errorf("error %q should mention SAM connect failed", err)
+	errCh := make(chan error, 1)
+	go func() { errCh <- tun.Run() }()
+
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Fatal("expected error from Run when Start fails")
+		}
+		if !strings.Contains(err.Error(), "SAM connect failed") {
+			t.Errorf("error %q should mention SAM connect failed", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for Run to return error")
 	}
 }

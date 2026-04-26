@@ -189,7 +189,9 @@ func (t *Tunnel) Run() error {
 			if err != nil {
 				return fmt.Errorf("embedding: tunnel error: %w", err)
 			}
-			return nil
+			// Start() returned nil: the tunnel exited cleanly (e.g. was stopped
+			// by a previous Reload or Stop call). Continue the loop so that any
+			// subsequent signals (e.g. SIGTERM after a SIGHUP reload) are handled.
 		}
 	}
 }
