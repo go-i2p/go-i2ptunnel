@@ -26,39 +26,36 @@ func DefaultIRCServerConfig() ircinspector.Config {
 func DefaultIRCServerConfigWithMetrics(m *metrics.TunnelMetrics) ircinspector.Config {
 	return ircinspector.Config{
 		OnMessage: func(msg *ircinspector.Message) error {
-			command := strings.ToUpper(msg.Command)
-
-			// Block dangerous administrative commands
-			switch command {
-			case "ADMIN", "OPER", "DIE", "RESTART", "REHASH", "KILL":
-				if m != nil {
-					m.RecordFilterBlock()
-				}
-				return fmt.Errorf("administrative command %s not allowed over I2P", command)
-			}
-
-			// Block DCC commands
-			if command == "DCC" {
-				if m != nil {
-					m.RecordFilterBlock()
-				}
-				return fmt.Errorf("DCC commands are not allowed over I2P")
-			}
-
-			// Block DCC in CTCP messages
-			if command == "PRIVMSG" && strings.Contains(strings.ToUpper(msg.Trailing), "DCC") {
-				if m != nil {
-					m.RecordFilterBlock()
-				}
-				return fmt.Errorf("DCC CTCP commands are not allowed over I2P")
-			}
-
-			return nil
+			return checkBlockedCommand(msg, m)
 		},
 		OnNumeric: func(numeric int, msg *ircinspector.Message) error {
 			return nil
 		},
 	}
+}
+
+// checkBlockedCommand returns an error if the message should be blocked.
+func checkBlockedCommand(msg *ircinspector.Message, m *metrics.TunnelMetrics) error {
+	command := strings.ToUpper(msg.Command)
+	switch command {
+	case "ADMIN", "OPER", "DIE", "RESTART", "REHASH", "KILL":
+		if m != nil {
+			m.RecordFilterBlock()
+		}
+		return fmt.Errorf("administrative command %s not allowed over I2P", command)
+	case "DCC":
+		if m != nil {
+			m.RecordFilterBlock()
+		}
+		return fmt.Errorf("DCC commands are not allowed over I2P")
+	}
+	if command == "PRIVMSG" && strings.Contains(strings.ToUpper(msg.Trailing), "DCC") {
+		if m != nil {
+			m.RecordFilterBlock()
+		}
+		return fmt.Errorf("DCC CTCP commands are not allowed over I2P")
+	}
+	return nil
 }
 
 // ApplyIRCServerFilterRules adds hostname-masking filter rules to an existing

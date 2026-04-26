@@ -95,6 +95,11 @@ func (i *IRCServer) Start() error {
 	if i.Metrics != nil {
 		i.Metrics.RecordStart()
 	}
+	return i.runAcceptLoop(i2pListener)
+}
+
+// runAcceptLoop wraps the I2P listener with rate limiting and IRC inspection and runs the accept loop.
+func (i *IRCServer) runAcceptLoop(i2pListener net.Listener) error {
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(i.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(i.LimitedConfig.RateLimit))
 	ircInspectorListener := ircinspector.New(limitedI2PListener, DefaultIRCServerConfigWithMetrics(i.Metrics))
 	ApplyIRCServerFilterRules(ircInspectorListener, i.Address(), i.Metrics)

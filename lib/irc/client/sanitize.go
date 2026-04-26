@@ -43,8 +43,13 @@ func DefaultIRCClientConfig() ircinspector.Config {
 // parameters and replace real hostnames with the I2P address.
 // m may be nil; when non-nil, RecordFilterBlock is incremented on each DCC block.
 func ApplyIRCClientFilterRules(inspector *ircinspector.Inspector, i2pHost string, m *metrics.TunnelMetrics) {
-	// Validate DCC command parameters: block private IPs and invalid ports,
-	// then refuse the command regardless (DCC cannot work over I2P).
+	addDCCFilter(inspector, m)
+	addPingFilter(inspector, i2pHost)
+	addUserhostFilter(inspector, i2pHost)
+}
+
+// addDCCFilter validates DCC parameters and blocks all DCC commands.
+func addDCCFilter(inspector *ircinspector.Inspector, m *metrics.TunnelMetrics) {
 	inspector.AddFilter(ircinspector.Filter{
 		Command: "DCC",
 		Callback: func(msg *ircinspector.Message) error {
@@ -61,8 +66,10 @@ func ApplyIRCClientFilterRules(inspector *ircinspector.Inspector, i2pHost string
 			return fmt.Errorf("DCC commands are not permitted over I2P")
 		},
 	})
+}
 
-	// Replace real hostnames with .i2p addresses in PING responses
+// addPingFilter replaces real hostnames with the I2P address in PING responses.
+func addPingFilter(inspector *ircinspector.Inspector, i2pHost string) {
 	inspector.AddFilter(ircinspector.Filter{
 		Command: "PING",
 		Callback: func(msg *ircinspector.Message) error {
@@ -72,8 +79,10 @@ func ApplyIRCClientFilterRules(inspector *ircinspector.Inspector, i2pHost string
 			return nil
 		},
 	})
+}
 
-	// Mask user@host information to prevent identity leakage
+// addUserhostFilter masks user@host to prevent identity leakage.
+func addUserhostFilter(inspector *ircinspector.Inspector, i2pHost string) {
 	inspector.AddFilter(ircinspector.Filter{
 		Command: "USERHOST",
 		Callback: func(msg *ircinspector.Message) error {

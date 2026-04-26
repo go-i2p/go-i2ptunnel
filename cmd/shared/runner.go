@@ -120,39 +120,49 @@ func startAndWait(tunnel i2ptunnel.I2PTunnel, tunnelType, configPath, samAddr st
 	for {
 		select {
 		case sig := <-sigCh:
-			switch sig {
-			case syscall.SIGHUP:
-				if reloading {
-					fmt.Fprintf(os.Stderr, "Reload already in progress, ignoring SIGHUP\n")
-					continue
-				}
-				reloading = true
-				newTunnel, newErrCh, err := handleSIGHUP(tunnel, tunnelType, configPath, samAddr)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Config reload failed: %v (keeping current config)\n", err)
-					reloading = false
-					continue
-				}
-				errCh = newErrCh
-				tunnel = newTunnel
-				reloading = false
-				fmt.Printf("Tunnel %q reloaded successfully\n", tunnel.Name())
-
-			case syscall.SIGINT, syscall.SIGTERM:
-				fmt.Printf("\nReceived %s, shutting down %s tunnel %q...\n", sig, tunnelType, tunnel.Name())
-				if err := tunnel.Stop(); err != nil {
-					return fmt.Errorf("error during shutdown: %w", err)
-				}
-				fmt.Println("Tunnel stopped cleanly")
+			var err error
+			tunnel, errCh, reloading, err = handleSignal(sig, tunnel, tunnelType, configPath, samAddr, errCh, reloading)
+			if err != nil {
+				return err
+			}
+			if tunnel == nil {
 				return nil
 			}
-
 		case err := <-errCh:
 			if err != nil {
 				return fmt.Errorf("%s tunnel error: %w", tunnelType, err)
 			}
 		}
 	}
+}
+
+// handleSignal processes one OS signal and returns the (possibly new) tunnel state.
+// Returns (nil, nil, false, nil) to indicate clean shutdown.
+// Returns (tunnel, errCh, reloading, err) for continued operation.
+func handleSignal(sig os.Signal, tunnel i2ptunnel.I2PTunnel, tunnelType, configPath, samAddr string, errCh chan error, reloading bool) (i2ptunnel.I2PTunnel, chan error, bool, error) {
+	switch sig {
+	case syscall.SIGHUP:
+		if reloading {
+			fmt.Fprintf(os.Stderr, "Reload already in progress, ignoring SIGHUP\n")
+			return tunnel, errCh, reloading, nil
+		}
+		newTunnel, newErrCh, err := handleSIGHUP(tunnel, tunnelType, configPath, samAddr)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Config reload failed: %v (keeping current config)\n", err)
+			return tunnel, errCh, false, nil
+		}
+		fmt.Printf("Tunnel %q reloaded successfully\n", newTunnel.Name())
+		return newTunnel, newErrCh, false, nil
+
+	case syscall.SIGINT, syscall.SIGTERM:
+		fmt.Printf("\nReceived %s, shutting down %s tunnel %q...\n", sig, tunnelType, tunnel.Name())
+		if err := tunnel.Stop(); err != nil {
+			return nil, nil, false, fmt.Errorf("error during shutdown: %w", err)
+		}
+		fmt.Println("Tunnel stopped cleanly")
+		return nil, nil, false, nil
+	}
+	return tunnel, errCh, reloading, nil
 }
 
 // handleSIGHUP performs the reload cycle and returns the new tunnel and errCh.

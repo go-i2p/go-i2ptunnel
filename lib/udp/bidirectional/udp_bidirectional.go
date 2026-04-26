@@ -145,6 +145,11 @@ func (u *UDPBidirectional) Start() error {
 		return fmt.Errorf("failed to resolve target UDP address: %w", err)
 	}
 
+	return u.runForwardLoop(i2pListener, raddr, done, socksErrCh)
+}
+
+// runForwardLoop runs the main dial-and-forward cycle for outbound I2P datagrams.
+func (u *UDPBidirectional) runForwardLoop(i2pListener net.PacketConn, raddr *net.UDPAddr, done chan struct{}, socksErrCh chan error) error {
 	backoff := udpconst.MinBackoff
 	consecutiveErrors := 0
 	for {
@@ -156,29 +161,36 @@ func (u *UDPBidirectional) Start() error {
 				return fatal
 			}
 		default:
-			lCon, err := net.DialUDP("udp", nil, raddr)
-			if err != nil {
-				if cont, fatal := u.handleDialError(err, &consecutiveErrors, &backoff, done); !cont {
-					return fatal
-				}
-				continue
-			}
-			backoff = udpconst.MinBackoff
-			consecutiveErrors = 0
-			func() {
-				defer lCon.Close()
-				ctx := context.Background()
-				fwdCfg := udpconst.NewDatagramForwardConfig()
-				fwdCfg.ShutdownSignal = done
-				packet.Forward(ctx, i2pListener, metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg)
-			}()
-			select {
-			case <-done:
-				return nil
-			case <-time.After(100 * time.Millisecond):
+			cont, fatal := u.runForwardCycle(i2pListener, raddr, done, &consecutiveErrors, &backoff)
+			if !cont {
+				return fatal
 			}
 		}
 	}
+}
+
+// runForwardCycle dials the target and forwards packets for one session.
+// Returns (true, nil) to continue the loop, (false, nil) for clean stop, (false, err) for fatal.
+func (u *UDPBidirectional) runForwardCycle(i2pListener net.PacketConn, raddr *net.UDPAddr, done chan struct{}, consecutiveErrors *int, backoff *time.Duration) (cont bool, fatal error) {
+	lCon, err := net.DialUDP("udp", nil, raddr)
+	if err != nil {
+		return u.handleDialError(err, consecutiveErrors, backoff, done)
+	}
+	*backoff = udpconst.MinBackoff
+	*consecutiveErrors = 0
+	func() {
+		defer lCon.Close()
+		ctx := context.Background()
+		fwdCfg := udpconst.NewDatagramForwardConfig()
+		fwdCfg.ShutdownSignal = done
+		packet.Forward(ctx, i2pListener, metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg)
+	}()
+	select {
+	case <-done:
+		return false, nil
+	case <-time.After(100 * time.Millisecond):
+	}
+	return true, nil
 }
 
 // startSOCKS5Proxy creates and starts the SOCKS5 proxy goroutine.

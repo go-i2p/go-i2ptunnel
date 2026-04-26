@@ -10,21 +10,27 @@ import (
 )
 
 func handler(r *http.Request) string {
-	if r != nil {
-		dir, file := path.Split(r.URL.Path)
-		if dir == "/" {
-			if file == "home" {
-				return "group"
-			}
-			if file == "new" {
-				return "new"
-			}
-		} else {
-			if file == "config" {
-				return "config"
-			} else if file == "control" {
-				return "control"
-			}
+	if r == nil {
+		return "group"
+	}
+	return routeFromPath(r.URL.Path)
+}
+
+// routeFromPath returns the route name for a URL path.
+func routeFromPath(urlPath string) string {
+	dir, file := path.Split(urlPath)
+	if dir == "/" {
+		if file == "home" {
+			return "group"
+		}
+		if file == "new" {
+			return "new"
+		}
+	} else {
+		if file == "config" {
+			return "config"
+		} else if file == "control" {
+			return "control"
 		}
 	}
 	return "group"

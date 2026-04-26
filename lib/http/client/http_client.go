@@ -240,46 +240,55 @@ func (h *HTTPClient) SetOptions(opts map[string]string) error {
 	if err := i2ptunnel.ApplyCommonOptions(opts, &h.TunnelConfig); err != nil {
 		return err
 	}
+	if outAddr, ok := opts["outproxy"]; ok && outAddr != "" {
+		if !IsI2PAddress(outAddr) {
+			return fmt.Errorf("outproxy address must be an I2P address (.i2p), got %q", outAddr)
+		}
+	}
 	h.fieldsMu.Lock()
 	defer h.fieldsMu.Unlock()
-	// Configure jump service URL for human-readable .i2p hostname resolution
 	if jumpURL, ok := opts["jumpservice"]; ok {
-		if jumpURL == "" {
-			// Disable jump service
-			h.Jump = nil
-		} else {
-			if h.Jump != nil {
-				// Update existing jump service URL by recreating it
-				h.Jump = NewJumpService(h.Jump.client, jumpURL)
-			} else {
-				h.Jump = NewJumpService(nil, jumpURL)
-			}
-		}
+		h.applyJumpOption(jumpURL)
 	}
-	// Configure outproxy for clearnet HTTP access via I2P
 	if outAddr, ok := opts["outproxy"]; ok {
-		if h.Outproxy == nil {
-			h.Outproxy = &Outproxy{}
-		}
-		if outAddr == "" {
-			// Disable outproxy
-			h.Outproxy.Address = ""
-			h.Outproxy.Enabled = false
-		} else {
-			if !IsI2PAddress(outAddr) {
-				return fmt.Errorf("outproxy address must be an I2P address (.i2p), got %q", outAddr)
-			}
-			h.Outproxy.Address = outAddr
-			h.Outproxy.Enabled = true
-		}
+		h.applyOutproxyAddress(outAddr)
 	}
 	if enabledStr, ok := opts["outproxy.enabled"]; ok {
-		if h.Outproxy == nil {
-			h.Outproxy = &Outproxy{}
-		}
-		h.Outproxy.Enabled = enabledStr == "true" || enabledStr == "1" || enabledStr == "yes"
+		h.applyOutproxyEnabled(enabledStr)
 	}
 	return nil
+}
+
+func (h *HTTPClient) applyJumpOption(jumpURL string) {
+	if jumpURL == "" {
+		h.Jump = nil
+		return
+	}
+	if h.Jump != nil {
+		h.Jump = NewJumpService(h.Jump.client, jumpURL)
+	} else {
+		h.Jump = NewJumpService(nil, jumpURL)
+	}
+}
+
+func (h *HTTPClient) applyOutproxyAddress(outAddr string) {
+	if h.Outproxy == nil {
+		h.Outproxy = &Outproxy{}
+	}
+	if outAddr == "" {
+		h.Outproxy.Address = ""
+		h.Outproxy.Enabled = false
+		return
+	}
+	h.Outproxy.Address = outAddr
+	h.Outproxy.Enabled = true
+}
+
+func (h *HTTPClient) applyOutproxyEnabled(enabledStr string) {
+	if h.Outproxy == nil {
+		h.Outproxy = &Outproxy{}
+	}
+	h.Outproxy.Enabled = enabledStr == "true" || enabledStr == "1" || enabledStr == "yes"
 }
 
 // LoadConfig loads tunnel configuration from a file and updates the tunnel settings.

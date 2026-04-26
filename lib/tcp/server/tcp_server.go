@@ -99,6 +99,11 @@ func (t *TCPServer) Start() error {
 	if t.Metrics != nil {
 		t.Metrics.RecordStart()
 	}
+	return t.runAcceptLoop(i2pListener)
+}
+
+// runAcceptLoop wraps the I2P listener with rate limiting and runs the accept loop.
+func (t *TCPServer) runAcceptLoop(i2pListener net.Listener) error {
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(t.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(t.LimitedConfig.RateLimit))
 	consecutiveErrors := 0
 	for {

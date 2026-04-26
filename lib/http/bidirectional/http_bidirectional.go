@@ -116,7 +116,22 @@ func (h *HTTPBidirectional) Start() error {
 	defer i2pListener.Close()
 	defer h.Stop()
 
-	// Client side: create HTTP proxy for outbound I2P connections
+	proxyErrCh, err := h.startHTTPProxy()
+	if err != nil {
+		return err
+	}
+
+	h.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
+	if h.Metrics != nil {
+		h.Metrics.RecordStart()
+	}
+
+	return h.runAcceptLoop(i2pListener, proxyErrCh)
+}
+
+// startHTTPProxy creates and starts the outbound HTTP proxy goroutine.
+// Returns an error channel that delivers the server's exit error.
+func (h *HTTPBidirectional) startHTTPProxy() (chan error, error) {
 	proxy := goproxy.NewProxyHttpServer()
 	h.proxyServer = proxy
 	proxy.Tr.DialContext = h.DialContext
@@ -124,33 +139,20 @@ func (h *HTTPBidirectional) Start() error {
 	proxyAddr := net.JoinHostPort(h.TunnelConfig.Interface, strconv.Itoa(h.TunnelConfig.Port))
 	proxyListener, err := net.Listen("tcp", proxyAddr)
 	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %w", proxyAddr, err)
+		return nil, fmt.Errorf("failed to listen on %s: %w", proxyAddr, err)
 	}
-
-	// Wrap proxy listener with HTTP client-side filtering
 	filteredProxyListener := httpinspector.New(proxyListener, h.ClientConfig)
-
 	h.httpServer = &http.Server{Handler: proxy}
-
-	// Start HTTP proxy in background
 	proxyErrCh := make(chan error, 1)
 	go func() {
 		proxyErrCh <- h.httpServer.Serve(filteredProxyListener)
 	}()
+	return proxyErrCh, nil
+}
 
-	h.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
-	if h.Metrics != nil {
-		h.Metrics.RecordStart()
-	}
-
-	// Server side: wrap I2P listener with filtering and rate limiting
-	filteredI2PListener := httpinspector.New(i2pListener, h.ServerConfig)
-	limitedI2PListener := limitedlistener.NewLimitedListener(
-		filteredI2PListener,
-		limitedlistener.WithMaxConnections(h.LimitedConfig.MaxConns),
-		limitedlistener.WithRateLimit(h.LimitedConfig.RateLimit),
-	)
-
+// runAcceptLoop runs the server-side inbound I2P accept loop.
+func (h *HTTPBidirectional) runAcceptLoop(i2pListener net.Listener, proxyErrCh chan error) error {
+	limitedI2PListener := h.wrapListener(i2pListener)
 	consecutiveErrors := 0
 	for {
 		select {
@@ -174,6 +176,16 @@ func (h *HTTPBidirectional) Start() error {
 			go h.handleServerConnection(con)
 		}
 	}
+}
+
+// wrapListener wraps a raw listener with HTTP inspection and rate/connection limiting.
+func (h *HTTPBidirectional) wrapListener(l net.Listener) net.Listener {
+	filtered := httpinspector.New(l, h.ServerConfig)
+	return limitedlistener.NewLimitedListener(
+		filtered,
+		limitedlistener.WithMaxConnections(h.LimitedConfig.MaxConns),
+		limitedlistener.WithRateLimit(h.LimitedConfig.RateLimit),
+	)
 }
 
 // handleAcceptError processes an Accept() failure and returns whether to continue.
@@ -297,9 +309,12 @@ func (h *HTTPBidirectional) SetOptions(opts map[string]string) error {
 		}
 		h.Addr = addr
 	}
-	// Configure the clearnet outproxy address and enabled flag.
-	// The outproxy must be an I2P destination (*.i2p) that accepts HTTP CONNECT
-	// requests and forwards them to the clearnet internet.
+	h.applyOutproxyOpts(opts)
+	return nil
+}
+
+// applyOutproxyOpts updates the outproxy config from opts if present.
+func (h *HTTPBidirectional) applyOutproxyOpts(opts map[string]string) {
 	if outproxy, ok := opts["outproxy"]; ok {
 		if h.Outproxy == nil {
 			h.Outproxy = &httpclient.Outproxy{}
@@ -312,7 +327,6 @@ func (h *HTTPBidirectional) SetOptions(opts map[string]string) error {
 		}
 		h.Outproxy.Enabled = enabledStr == "true" || enabledStr == "1"
 	}
-	return nil
 }
 
 // LoadConfig loads tunnel configuration from a file. The tunnel must be stopped first.

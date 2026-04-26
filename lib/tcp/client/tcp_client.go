@@ -113,7 +113,7 @@ func (t *TCPClient) Start() error {
 	t.lifeMu.Lock()
 	t.done = make(chan struct{})
 	t.stopOnce = sync.Once{}
-	done := t.done // capture local ref before unlock to avoid data race with restart
+	done := t.done
 	t.SetStatus(i2ptunnel.I2PTunnelStatusStarting)
 	listener, err := net.Listen("tcp", net.JoinHostPort(t.Interface, strconv.Itoa(t.Port)))
 	if err != nil {
@@ -128,6 +128,11 @@ func (t *TCPClient) Start() error {
 	if t.Metrics != nil {
 		t.Metrics.RecordStart()
 	}
+	return t.runAcceptLoop(listener, done)
+}
+
+// runAcceptLoop runs the main TCP accept loop until done is closed or a fatal error occurs.
+func (t *TCPClient) runAcceptLoop(listener net.Listener, done <-chan struct{}) error {
 	consecutiveAcceptErrors := 0
 	for {
 		select {
@@ -136,48 +141,57 @@ func (t *TCPClient) Start() error {
 		default:
 			con, err := listener.Accept()
 			if err != nil {
-				// Check if tunnel is shutting down
-				select {
-				case <-done:
+				cont, fatal := t.handleAcceptError(err, &consecutiveAcceptErrors, done)
+				if fatal != nil {
+					return fatal
+				}
+				if !cont {
 					return nil
-				default:
 				}
-				// Record the error and transition to Failed after too many consecutive
-				// errors so operators see I2PTunnelStatusFailed rather than a silently
-				// looping tunnel that claims to be running.
-				consecutiveAcceptErrors++
-				t.RecordError(fmt.Errorf("listener.Accept error (%d consecutive): %w", consecutiveAcceptErrors, err))
-				if consecutiveAcceptErrors >= maxConsecutiveAcceptErrors {
-					t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-					return fmt.Errorf("listener failed after %d consecutive accept errors", consecutiveAcceptErrors)
-				}
-				// Backoff to prevent CPU-burning tight loop on persistent errors
-				time.Sleep(50 * time.Millisecond)
 				continue
 			}
-			consecutiveAcceptErrors = 0 // reset on successful accept
-			// Snapshot the semaphore before spawning: each goroutine holds a reference
-			// to the channel it acquired from, so a SetOptions rebuild is safe.
-			sem := t.snapshotConnSem()
-			if sem != nil {
-				select {
-				case sem <- struct{}{}:
-					// Acquired a slot; the goroutine releases it on exit.
-				default:
-					// At capacity — reject immediately so the local client gets a fast error.
-					t.RecordError(fmt.Errorf("connection rejected: at capacity (%d max concurrent)", cap(sem)))
-					con.Close()
-					continue
-				}
-			}
-			go func() {
-				if sem != nil {
-					defer func() { <-sem }()
-				}
-				t.handleConnection(con)
-			}()
+			consecutiveAcceptErrors = 0
+			t.spawnConnection(con)
 		}
 	}
+}
+
+// handleAcceptError processes a listener.Accept() error and returns (cont, fatal).
+// cont=false means the accept loop should exit cleanly; fatal!=nil means exit with error.
+func (t *TCPClient) handleAcceptError(err error, consecutiveErrors *int, done <-chan struct{}) (cont bool, fatal error) {
+	select {
+	case <-done:
+		return false, nil
+	default:
+	}
+	*consecutiveErrors++
+	t.RecordError(fmt.Errorf("listener.Accept error (%d consecutive): %w", *consecutiveErrors, err))
+	if *consecutiveErrors >= maxConsecutiveAcceptErrors {
+		t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
+		return false, fmt.Errorf("listener failed after %d consecutive accept errors", *consecutiveErrors)
+	}
+	time.Sleep(50 * time.Millisecond)
+	return true, nil
+}
+
+// spawnConnection acquires a semaphore slot (if any) and dispatches handleConnection in a goroutine.
+func (t *TCPClient) spawnConnection(con net.Conn) {
+	sem := t.snapshotConnSem()
+	if sem != nil {
+		select {
+		case sem <- struct{}{}:
+		default:
+			t.RecordError(fmt.Errorf("connection rejected: at capacity (%d max concurrent)", cap(sem)))
+			con.Close()
+			return
+		}
+	}
+	go func() {
+		if sem != nil {
+			defer func() { <-sem }()
+		}
+		t.handleConnection(con)
+	}()
 }
 
 // handleConnection forwards a single local connection over its own I2P stream.
@@ -194,17 +208,7 @@ func (t *TCPClient) handleConnection(con net.Conn) {
 		t.RecordError(err)
 		return
 	}
-	target := t.Target()
-	if target == "" {
-		t.RecordError(fmt.Errorf("handleConnection: no target I2P address configured"))
-		if t.Metrics != nil {
-			t.Metrics.RecordConnectionFailed()
-		}
-		return
-	}
-	dialCtx, dialCancel := t.dialContext()
-	defer dialCancel()
-	i2pConn, err := t.Garlic.DialContext(dialCtx, "tcp", target)
+	i2pConn, err := t.dialI2P()
 	if err != nil {
 		t.RecordError(err)
 		if t.Metrics != nil {
@@ -213,8 +217,23 @@ func (t *TCPClient) handleConnection(con net.Conn) {
 		return
 	}
 	defer i2pConn.Close()
-	// Derive a context from the tunnel's done channel so that forwarding is
-	// cancelled when the tunnel stops, preventing indefinitely stalled goroutines.
+	t.forwardStream(filtered, i2pConn)
+}
+
+// dialI2P dials the configured I2P target address with an optional timeout.
+func (t *TCPClient) dialI2P() (net.Conn, error) {
+	target := t.Target()
+	if target == "" {
+		return nil, fmt.Errorf("handleConnection: no target I2P address configured")
+	}
+	dialCtx, dialCancel := t.dialContext()
+	defer dialCancel()
+	return t.Garlic.DialContext(dialCtx, "tcp", target)
+}
+
+// forwardStream forwards between filtered local conn and an I2P connection,
+// cancelling on tunnel stop.
+func (t *TCPClient) forwardStream(filtered, i2pConn net.Conn) {
 	fwdCtx, fwdCancel := context.WithCancel(context.Background())
 	defer fwdCancel()
 	go func() {
@@ -297,55 +316,75 @@ func (t *TCPClient) Options() map[string]string {
 
 // Set the tunnel's options
 //
-// Design: All values are validated first without holding any lock, since i2pkeys.Lookup
-// may perform network I/O. Only after all validation passes are the writes applied under
-// lifeMu to prevent a data race with Start() reading Interface/Port to bind the listener.
-func (t *TCPClient) SetOptions(opts map[string]string) error {
-	// Phase 1 — validate everything before acquiring the mutex.
-	var (
-		newName                             string
-		newIface                            string
-		newPort                             int
-		newAddr                             *i2pkeys.I2PAddr
-		i2cpOpts                            map[string]interface{}
-		setName, setIface, setPort, setAddr bool
-	)
+// tcpClientOpts holds the validated (but not yet applied) option values from SetOptions Phase 1.
+type tcpClientOpts struct {
+	newName                             string
+	newIface                            string
+	newPort                             int
+	newAddr                             *i2pkeys.I2PAddr
+	i2cpOpts                            map[string]interface{}
+	newMaxConns                         int
+	newDialTimeout                      time.Duration
+	setName, setIface, setPort, setAddr bool
+	setMaxConns, setDialTimeout         bool
+}
+
+// validateTCPClientOptions performs Phase 1 of SetOptions: validate all values
+// before acquiring any lock. Returns a populated tcpClientOpts or an error.
+func validateTCPClientOptions(opts map[string]string) (tcpClientOpts, error) {
+	var o tcpClientOpts
+	if err := validateCommonFields(opts, &o); err != nil {
+		return o, err
+	}
+	if err := validateTCPSpecificFields(opts, &o); err != nil {
+		return o, err
+	}
+	o.i2cpOpts = i2ptunnel.ExtractI2CPOptions(opts)
+	return o, nil
+}
+
+// validateCommonFields validates name, interface, port, and target options.
+func validateCommonFields(opts map[string]string, o *tcpClientOpts) error {
 	if v, ok := opts["name"]; ok {
 		if err := validate.RequiredString("name", v); err != nil {
 			return err
 		}
-		newName, setName = v, true
+		o.newName, o.setName = v, true
 	}
 	if v, ok := opts["interface"]; ok {
 		if err := validate.Interface(v); err != nil {
 			return err
 		}
-		newIface, setIface = v, true
+		o.newIface, o.setIface = v, true
 	}
 	if v, ok := opts["port"]; ok {
 		port, err := validate.PortString(v)
 		if err != nil {
 			return err
 		}
-		newPort, setPort = port, true
+		o.newPort, o.setPort = port, true
 	}
 	if v, ok := opts["target"]; ok {
-		if err := validate.I2PAddress(v); err != nil {
-			return err
-		}
-		addr, err := i2pkeys.Lookup(v)
-		if err != nil {
-			return fmt.Errorf("invalid target address: %w", err)
-		}
-		newAddr, setAddr = addr, true
+		return validateTarget(v, o)
 	}
-	i2cpOpts = i2ptunnel.ExtractI2CPOptions(opts)
-	var (
-		newMaxConns    int
-		newDialTimeout time.Duration
-		setMaxConns    bool
-		setDialTimeout bool
-	)
+	return nil
+}
+
+// validateTarget validates an I2P target address and resolves it to a destination.
+func validateTarget(v string, o *tcpClientOpts) error {
+	if err := validate.I2PAddress(v); err != nil {
+		return err
+	}
+	addr, err := i2pkeys.Lookup(v)
+	if err != nil {
+		return fmt.Errorf("invalid target address: %w", err)
+	}
+	o.newAddr, o.setAddr = addr, true
+	return nil
+}
+
+// validateTCPSpecificFields validates maxconns and dialtimeout options.
+func validateTCPSpecificFields(opts map[string]string, o *tcpClientOpts) error {
 	if v, ok := opts["maxconns"]; ok {
 		mc, err := strconv.Atoi(v)
 		if err != nil {
@@ -354,57 +393,64 @@ func (t *TCPClient) SetOptions(opts map[string]string) error {
 		if err := validate.MaxConnections(mc); err != nil {
 			return err
 		}
-		newMaxConns, setMaxConns = mc, true
+		o.newMaxConns, o.setMaxConns = mc, true
 	}
 	if v, ok := opts["dialtimeout"]; ok {
 		d, err := time.ParseDuration(v)
 		if err != nil || d < 0 {
 			return fmt.Errorf("invalid dialtimeout %q: must be a non-negative duration (e.g. 30s, 1m30s)", v)
 		}
-		newDialTimeout, setDialTimeout = d, true
+		o.newDialTimeout, o.setDialTimeout = d, true
 	}
+	return nil
+}
 
-	// Phase 2 — apply validated values under lifeMu to prevent races with Start().
+// Design: All values are validated first without holding any lock, since i2pkeys.Lookup
+// may perform network I/O. Only after all validation passes are the writes applied under
+// lifeMu to prevent a data race with Start() reading Interface/Port to bind the listener.
+func (t *TCPClient) SetOptions(opts map[string]string) error {
+	o, err := validateTCPClientOptions(opts)
+	if err != nil {
+		return err
+	}
 	t.lifeMu.Lock()
 	defer t.lifeMu.Unlock()
-	if setName {
-		t.TunnelConfig.Name = newName
+	t.applyTCPClientOpts(&o)
+	return nil
+}
+
+// applyTCPClientOpts applies validated option values under the caller's lifeMu.
+func (t *TCPClient) applyTCPClientOpts(o *tcpClientOpts) {
+	if o.setName {
+		t.TunnelConfig.Name = o.newName
 	}
-	if setIface {
-		t.TunnelConfig.Interface = newIface
+	if o.setIface {
+		t.TunnelConfig.Interface = o.newIface
 	}
-	if setPort {
-		t.TunnelConfig.Port = newPort
+	if o.setPort {
+		t.TunnelConfig.Port = o.newPort
 	}
-	if setAddr {
-		t.I2PAddr = newAddr
+	if o.setAddr {
+		t.I2PAddr = o.newAddr
 	}
-	if i2cpOpts != nil {
+	if o.i2cpOpts != nil {
 		if t.TunnelConfig.I2CP == nil {
 			t.TunnelConfig.I2CP = make(map[string]interface{})
 		}
-		for k, v := range i2cpOpts {
+		for k, v := range o.i2cpOpts {
 			t.TunnelConfig.I2CP[k] = v
 		}
 	}
-	if setMaxConns {
-		// Note: replacing connSem orphans the old channel. In-flight goroutines
-		// hold snapshots of the old channel (via snapshotConnSem at line 193),
-		// so they will correctly release their slots to the old channel when done.
-		// During the transition window, cap(t.connSem) may not reflect the true
-		// in-flight count. This is acceptable because the snapshot pattern
-		// guarantees no mismatched acquire/release, and the old channel is GC'd
-		// once all in-flight goroutines complete.
-		if newMaxConns > 0 {
-			t.connSem = make(chan struct{}, newMaxConns)
+	if o.setMaxConns {
+		if o.newMaxConns > 0 {
+			t.connSem = make(chan struct{}, o.newMaxConns)
 		} else {
-			t.connSem = nil // 0 means unlimited
+			t.connSem = nil
 		}
 	}
-	if setDialTimeout {
-		t.dialTimeout = newDialTimeout
+	if o.setDialTimeout {
+		t.dialTimeout = o.newDialTimeout
 	}
-	return nil
 }
 
 // LoadConfig loads tunnel configuration from a file and updates the tunnel settings.

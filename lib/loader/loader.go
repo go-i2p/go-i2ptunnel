@@ -69,31 +69,36 @@ func Load(path string, samAddr ...string) (i2ptunnel.I2PTunnel, error) {
 	if err != nil {
 		return nil, err
 	}
+	return newTunnel(*tunnel, samhost)
+}
+
+// newTunnel creates the appropriate tunnel implementation for the given config.
+func newTunnel(tunnel i2pconv.TunnelConfig, samhost string) (i2ptunnel.I2PTunnel, error) {
 	switch tunnel.Type {
 	case "tcpclient":
-		return tcpclient.NewTCPClient(*tunnel, samhost)
+		return tcpclient.NewTCPClient(tunnel, samhost)
 	case "tcpserver":
-		return tcpserver.NewTCPServer(*tunnel, samhost)
+		return tcpserver.NewTCPServer(tunnel, samhost)
 	case "udpclient":
-		return udpclient.NewUDPClient(*tunnel, samhost)
+		return udpclient.NewUDPClient(tunnel, samhost)
 	case "udpserver":
-		return udpserver.NewUDPServer(*tunnel, samhost)
+		return udpserver.NewUDPServer(tunnel, samhost)
 	case "socks", "socksclient":
-		return socks.NewSocksClient(*tunnel, samhost)
+		return socks.NewSocksClient(tunnel, samhost)
 	case "httpclient":
-		return httpclient.NewHTTPClient(*tunnel, samhost)
+		return httpclient.NewHTTPClient(tunnel, samhost)
 	case "httpserver":
-		return httpserver.NewHTTPServer(*tunnel, samhost)
+		return httpserver.NewHTTPServer(tunnel, samhost)
 	case "ircclient":
-		return ircclient.NewIRCClient(*tunnel, samhost)
+		return ircclient.NewIRCClient(tunnel, samhost)
 	case "ircserver":
-		return ircserver.NewIRCServer(*tunnel, samhost)
+		return ircserver.NewIRCServer(tunnel, samhost)
 	case "tcpbidirectional":
-		return tcpbidirectional.NewTCPBidirectional(*tunnel, samhost)
+		return tcpbidirectional.NewTCPBidirectional(tunnel, samhost)
 	case "udpbidirectional":
-		return udpbidirectional.NewUDPBidirectional(*tunnel, samhost)
+		return udpbidirectional.NewUDPBidirectional(tunnel, samhost)
 	case "httpbidirectional":
-		return httpbidirectional.NewHTTPBidirectional(*tunnel, samhost)
+		return httpbidirectional.NewHTTPBidirectional(tunnel, samhost)
 	default:
 		return nil, fmt.Errorf("unknown tunnel type: %s", tunnel.Type)
 	}

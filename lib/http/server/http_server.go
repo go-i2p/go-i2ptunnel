@@ -107,6 +107,11 @@ func (h *HTTPServer) Start() error {
 	if h.Metrics != nil {
 		h.Metrics.RecordStart()
 	}
+	return h.runAcceptLoop(i2pListener)
+}
+
+// runAcceptLoop wraps the I2P listener and runs the inbound connection accept loop.
+func (h *HTTPServer) runAcceptLoop(i2pListener net.Listener) error {
 	limitedI2PListener := limitedlistener.NewLimitedListener(i2pListener, limitedlistener.WithMaxConnections(h.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(h.LimitedConfig.RateLimit))
 	httpInspectorListener := httpinspector.New(limitedI2PListener, h.Config)
 	consecutiveErrors := 0

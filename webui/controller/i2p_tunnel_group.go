@@ -26,36 +26,22 @@ type ControllerGroup struct {
 
 // ServeHTTP dispatches requests to the appropriate handler based on URL path.
 func (cg *ControllerGroup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Reject cross-origin state-changing requests (CSRF protection).
 	if cg.csrfProtection != nil {
 		if err := cg.csrfProtection.Check(r); err != nil {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 	}
-
-	// Operational endpoints: /metrics, /healthz, and /api/status are intentionally
-	// served without authentication. This follows the standard Prometheus scraping
-	// pattern where metrics endpoints must be accessible to monitoring infrastructure.
-	// These endpoints are protected by CSRF checks above, but do not require login.
-	// Operators who need to restrict access should use network-level controls
-	// (e.g., bind to localhost, firewall rules, or a reverse proxy with auth).
-	if cg.metricsHandler != nil {
-		switch r.URL.Path {
-		case "/metrics":
-			cg.metricsHandler.HandleMetrics(w, r)
-			return
-		case "/healthz":
-			cg.metricsHandler.HandleHealth(w, r)
-			return
-		case "/api/status":
-			cg.metricsHandler.HandleStatus(w, r)
-			return
-		}
+	if cg.handleMetricsRoute(w, r) {
+		return
 	}
-
 	cg.HandleHTMLHeader(r, w)
 	defer cg.HandleHTMLFooter(r, w)
+	cg.routeRequest(w, r)
+}
+
+// routeRequest dispatches the request to the correct handler after headers are written.
+func (cg *ControllerGroup) routeRequest(w http.ResponseWriter, r *http.Request) {
 	switch handler(r) {
 	case "group":
 		cg.HandleGroup(r, w)
@@ -80,6 +66,26 @@ func (cg *ControllerGroup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		cg.HandleGroup(r, w)
 	}
+}
+
+// handleMetricsRoute serves /metrics, /healthz, and /api/status without auth.
+// Returns true if the request was handled.
+func (cg *ControllerGroup) handleMetricsRoute(w http.ResponseWriter, r *http.Request) bool {
+	if cg.metricsHandler == nil {
+		return false
+	}
+	switch r.URL.Path {
+	case "/metrics":
+		cg.metricsHandler.HandleMetrics(w, r)
+		return true
+	case "/healthz":
+		cg.metricsHandler.HandleHealth(w, r)
+		return true
+	case "/api/status":
+		cg.metricsHandler.HandleStatus(w, r)
+		return true
+	}
+	return false
 }
 
 // HandleHTMLHeader writes the HTML header template to the response.
@@ -190,22 +196,48 @@ func validateNewTunnelForm(r *http.Request, tunnels []Controller) (name, tunnelT
 
 // writeTunnelConfigYAML builds the tunnel config map from form values and writes it to path.
 func writeTunnelConfigYAML(r *http.Request, name, tunnelType, configPath string) error {
-	tunnelConfig := map[string]interface{}{
+	tunnelConfig, err := buildTunnelConfigMap(r, name, tunnelType)
+	if err != nil {
+		return err
+	}
+	config := map[string]interface{}{
+		"tunnels": map[string]interface{}{name: tunnelConfig},
+	}
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("Failed to generate config: %v", err)
+	}
+	if err := os.WriteFile(configPath, data, 0o644); err != nil {
+		return fmt.Errorf("Failed to save config: %v", err)
+	}
+	return nil
+}
+
+// buildTunnelConfigMap assembles the tunnel config map from a POST form.
+func buildTunnelConfigMap(r *http.Request, name, tunnelType string) (map[string]interface{}, error) {
+	cfg := map[string]interface{}{
 		"name": name,
 		"type": tunnelType,
 	}
 	if target := r.FormValue("destination"); target != "" {
-		tunnelConfig["target"] = target
+		cfg["target"] = target
 	}
 	if portStr := r.FormValue("port"); portStr != "" {
 		if p, err := strconv.Atoi(portStr); err == nil && p > 0 && p <= 65535 {
-			tunnelConfig["port"] = p
+			cfg["port"] = p
 		}
 	}
 	if iface := r.FormValue("interface"); iface != "" {
-		tunnelConfig["interface"] = iface
+		cfg["interface"] = iface
 	}
+	if err := applyI2CPConfig(r, cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
 
+// applyI2CPConfig extracts i2cp.* form fields, validates auth, and adds the result to cfg.
+func applyI2CPConfig(r *http.Request, cfg map[string]interface{}) error {
 	i2cpForm := make(map[string]string)
 	for key := range r.Form {
 		if strings.HasPrefix(key, "i2cp.") && r.FormValue(key) != "" {
@@ -219,20 +251,7 @@ func writeTunnelConfigYAML(r *http.Request, name, tunnelType, configPath string)
 		}
 	}
 	if extracted := i2ptunnel.ExtractI2CPOptions(i2cpForm); extracted != nil {
-		tunnelConfig["i2cp"] = extracted
-	}
-
-	config := map[string]interface{}{
-		"tunnels": map[string]interface{}{
-			name: tunnelConfig,
-		},
-	}
-	data, err := yaml.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("Failed to generate config: %v", err)
-	}
-	if err := os.WriteFile(configPath, data, 0o644); err != nil {
-		return fmt.Errorf("Failed to save config: %v", err)
+		cfg["i2cp"] = extracted
 	}
 	return nil
 }

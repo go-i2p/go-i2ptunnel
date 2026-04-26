@@ -109,6 +109,11 @@ func (u *UDPServer) Start() error {
 	if u.Metrics != nil {
 		u.Metrics.RecordStart()
 	}
+	return u.runForwardLoop(i2pListener, raddr, done)
+}
+
+// runForwardLoop runs the main dial-and-forward cycle for inbound I2P datagrams.
+func (u *UDPServer) runForwardLoop(i2pListener net.PacketConn, raddr *net.UDPAddr, done chan struct{}) error {
 	backoff := udpconst.MinBackoff
 	consecutiveErrors := 0
 	for {
@@ -116,28 +121,32 @@ func (u *UDPServer) Start() error {
 		case <-done:
 			return nil
 		default:
-			lCon, err := net.DialUDP("udp", nil, raddr)
-			if err != nil {
-				if cont, fatal := u.handleDialError(err, &consecutiveErrors, &backoff, done); !cont {
-					return fatal
-				}
-				continue
-			}
-			backoff = udpconst.MinBackoff
-			consecutiveErrors = 0
-			func() {
-				defer lCon.Close()
-				ctx := context.Background()
-				fwdCfg := udpconst.NewDatagramForwardConfig()
-				fwdCfg.ShutdownSignal = done
-				packet.Forward(ctx, i2pListener, metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg)
-			}()
-			select {
-			case <-done:
-				return nil
-			case <-time.After(100 * time.Millisecond):
+			if cont, fatal := u.dialAndForward(i2pListener, raddr, done, &consecutiveErrors, &backoff); !cont {
+				return fatal
 			}
 		}
+	}
+}
+
+// dialAndForward dials the upstream UDP target and forwards one session of packets.
+func (u *UDPServer) dialAndForward(i2pListener net.PacketConn, raddr *net.UDPAddr, done chan struct{}, consecutiveErrors *int, backoff *time.Duration) (cont bool, fatal error) {
+	lCon, err := net.DialUDP("udp", nil, raddr)
+	if err != nil {
+		return u.handleDialError(err, consecutiveErrors, backoff, done)
+	}
+	*backoff = udpconst.MinBackoff
+	*consecutiveErrors = 0
+	func() {
+		defer lCon.Close()
+		fwdCfg := udpconst.NewDatagramForwardConfig()
+		fwdCfg.ShutdownSignal = done
+		packet.Forward(context.Background(), i2pListener, metrics.WrapPacketConn(lCon, u.Metrics), fwdCfg)
+	}()
+	select {
+	case <-done:
+		return false, nil
+	case <-time.After(100 * time.Millisecond):
+		return true, nil
 	}
 }
 

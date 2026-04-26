@@ -95,14 +95,19 @@ func (i *IRCClient) Start() error {
 	i.lifeMu.Unlock()
 	defer listener.Close()
 	defer i.Stop()
-	limitedL := limitedlistener.NewLimitedListener(listener, limitedlistener.WithMaxConnections(i.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(i.LimitedConfig.RateLimit))
-	filteredListener := ircinspector.New(limitedL, i.Config)
-	ApplyIRCClientFilterRules(filteredListener, i.Address(), i.Metrics)
-	defer filteredListener.Close()
 	i.SetStatus(i2ptunnel.I2PTunnelStatusRunning)
 	if i.Metrics != nil {
 		i.Metrics.RecordStart()
 	}
+	return i.runAcceptLoop(listener)
+}
+
+// runAcceptLoop wraps the listener with rate limiting and IRC inspection and runs the accept loop.
+func (i *IRCClient) runAcceptLoop(listener net.Listener) error {
+	limitedL := limitedlistener.NewLimitedListener(listener, limitedlistener.WithMaxConnections(i.LimitedConfig.MaxConns), limitedlistener.WithRateLimit(i.LimitedConfig.RateLimit))
+	filteredListener := ircinspector.New(limitedL, i.Config)
+	ApplyIRCClientFilterRules(filteredListener, i.Address(), i.Metrics)
+	defer filteredListener.Close()
 	consecutiveErrors := 0
 	for {
 		select {

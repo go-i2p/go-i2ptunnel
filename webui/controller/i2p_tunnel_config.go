@@ -108,14 +108,9 @@ func buildConfigOptions(r *http.Request) (map[string]string, string) {
 		newOptions[key] = r.FormValue(key)
 	}
 	if portStr := r.FormValue("port"); portStr != "" {
-		port, err := strconv.Atoi(portStr)
-		if err != nil {
-			return nil, "Invalid port number"
+		if errMsg := validateAndSetPort(portStr, newOptions); errMsg != "" {
+			return nil, errMsg
 		}
-		if port < 1 || port > 65535 {
-			return nil, "Port must be between 1 and 65535"
-		}
-		newOptions["port"] = portStr
 	}
 	authType := newOptions["i2cp.leaseSetAuthType"]
 	if authType == "1" || authType == "2" {
@@ -127,6 +122,20 @@ func buildConfigOptions(r *http.Request) (map[string]string, string) {
 		newOptions["host"] = host
 	}
 	return newOptions, ""
+}
+
+// validateAndSetPort validates the port string and sets it in newOptions.
+// Returns an error message if invalid, or empty string on success.
+func validateAndSetPort(portStr string, newOptions map[string]string) string {
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return "Invalid port number"
+	}
+	if port < 1 || port > 65535 {
+		return "Port must be between 1 and 65535"
+	}
+	newOptions["port"] = portStr
+	return ""
 }
 
 // renderConfigWithError displays the config form with an error message

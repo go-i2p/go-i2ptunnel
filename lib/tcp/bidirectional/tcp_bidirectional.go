@@ -107,7 +107,11 @@ func (t *TCPBidirectional) Start() error {
 		t.Metrics.RecordStart()
 	}
 
-	// Server-side accept loop with rate limiting
+	return t.runAcceptLoop(i2pListener, socksErrCh)
+}
+
+// runAcceptLoop wraps the I2P listener and runs the server-side accept loop.
+func (t *TCPBidirectional) runAcceptLoop(i2pListener net.Listener, socksErrCh <-chan error) error {
 	limitedI2PListener := limitedlistener.NewLimitedListener(
 		i2pListener,
 		limitedlistener.WithMaxConnections(t.LimitedConfig.MaxConns),

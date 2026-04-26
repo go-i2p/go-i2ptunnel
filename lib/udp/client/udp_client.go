@@ -96,13 +96,9 @@ func (u *UDPClient) Start() error {
 	defer i2pConnection.Close()
 	defer u.Stop()
 
-	raddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port)))
+	lCon, err := u.listenLocalUDP()
 	if err != nil {
-		return fmt.Errorf("failed to resolve local UDP address: %w", err)
-	}
-	lCon, err := net.ListenUDP("udp", raddr)
-	if err != nil {
-		return fmt.Errorf("failed to listen on local UDP address: %w", err)
+		return err
 	}
 	defer lCon.Close()
 
@@ -110,6 +106,11 @@ func (u *UDPClient) Start() error {
 	if u.Metrics != nil {
 		u.Metrics.RecordStart()
 	}
+	return u.runForwardLoop(i2pConnection, lCon, done)
+}
+
+// runForwardLoop runs the main packet forwarding loop until done is closed.
+func (u *UDPClient) runForwardLoop(i2pConnection net.Conn, lCon *net.UDPConn, done chan struct{}) error {
 	consecutiveErrors := 0
 	for {
 		select {
@@ -121,6 +122,19 @@ func (u *UDPClient) Start() error {
 			}
 		}
 	}
+}
+
+// listenLocalUDP binds the local UDP port for inbound packet forwarding.
+func (u *UDPClient) listenLocalUDP() (*net.UDPConn, error) {
+	raddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(u.TunnelConfig.Interface, strconv.Itoa(u.TunnelConfig.Port)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve local UDP address: %w", err)
+	}
+	lCon, err := net.ListenUDP("udp", raddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to listen on local UDP address: %w", err)
+	}
+	return lCon, nil
 }
 
 // forwardOnce runs one iteration of packet forwarding and handles errors.
