@@ -339,6 +339,11 @@ func validateNameIFacePort(opts map[string]string, o *tcpClientOpts) error {
 		}
 		o.newIface, o.setIface = v, true
 	}
+	return validatePortOpt(opts, o)
+}
+
+// validatePortOpt validates the port option if present.
+func validatePortOpt(opts map[string]string, o *tcpClientOpts) error {
 	if v, ok := opts["port"]; ok {
 		port, err := validate.PortString(v)
 		if err != nil {

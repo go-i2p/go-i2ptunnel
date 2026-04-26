@@ -48,24 +48,34 @@ func (cg *ControllerGroup) routeRequest(w http.ResponseWriter, r *http.Request) 
 	case "new":
 		cg.HandleNew(r, w)
 	case "control":
-		for _, controller := range cg.I2PTunnels {
-			if i2ptunnel.Clean(controller.Name()) == tunnel(r) {
-				controller.ServeHTTP(w, r)
-				return
-			}
-		}
-		cg.HandleError(r, w)
+		cg.routeTunnelControl(w, r)
 	case "config":
-		for _, controller := range cg.I2PTunnels {
-			if i2ptunnel.Clean(controller.Name()) == tunnel(r) {
-				controller.Config.ServeHTTP(w, r)
-				return
-			}
-		}
-		cg.HandleError(r, w)
+		cg.routeTunnelConfig(w, r)
 	default:
 		cg.HandleGroup(r, w)
 	}
+}
+
+// routeTunnelControl dispatches to the matching tunnel's ServeHTTP.
+func (cg *ControllerGroup) routeTunnelControl(w http.ResponseWriter, r *http.Request) {
+	for _, controller := range cg.I2PTunnels {
+		if i2ptunnel.Clean(controller.Name()) == tunnel(r) {
+			controller.ServeHTTP(w, r)
+			return
+		}
+	}
+	cg.HandleError(r, w)
+}
+
+// routeTunnelConfig dispatches to the matching tunnel's Config.ServeHTTP.
+func (cg *ControllerGroup) routeTunnelConfig(w http.ResponseWriter, r *http.Request) {
+	for _, controller := range cg.I2PTunnels {
+		if i2ptunnel.Clean(controller.Name()) == tunnel(r) {
+			controller.Config.ServeHTTP(w, r)
+			return
+		}
+	}
+	cg.HandleError(r, w)
 }
 
 // handleMetricsRoute serves /metrics, /healthz, and /api/status without auth.

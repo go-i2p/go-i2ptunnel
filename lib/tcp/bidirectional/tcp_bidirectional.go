@@ -127,23 +127,33 @@ func (t *TCPBidirectional) runBidirectionalAcceptLoop(l net.Listener, socksErrCh
 		case <-t.done:
 			return nil
 		case err := <-socksErrCh:
-			if err != nil {
-				t.RecordError(err)
-				t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-			}
-			return err
+			return t.handleSocksError(err)
 		default:
-			con, err := l.Accept()
-			if err != nil {
-				if cont, fatal := t.handleAcceptError(err, &consecutiveErrors, t.done); !cont {
-					return fatal
-				}
-				continue
+			if cont, fatal := t.acceptOne(l, &consecutiveErrors); !cont {
+				return fatal
 			}
-			consecutiveErrors = 0
-			go t.handleServerConnection(con)
 		}
 	}
+}
+
+// handleSocksError records a non-nil SOCKS error and transitions to failed status.
+func (t *TCPBidirectional) handleSocksError(err error) error {
+	if err != nil {
+		t.RecordError(err)
+		t.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
+	}
+	return err
+}
+
+// acceptOne accepts one connection and dispatches it, returning (cont, fatal).
+func (t *TCPBidirectional) acceptOne(l net.Listener, consecutiveErrors *int) (cont bool, fatal error) {
+	con, err := l.Accept()
+	if err != nil {
+		return t.handleAcceptError(err, consecutiveErrors, t.done)
+	}
+	*consecutiveErrors = 0
+	go t.handleServerConnection(con)
+	return true, nil
 }
 
 // startSOCKS5Proxy creates and starts the outbound SOCKS5 proxy goroutine.

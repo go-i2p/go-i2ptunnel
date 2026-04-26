@@ -105,13 +105,7 @@ func (c *Config) saveAndRedirect(w http.ResponseWriter, r *http.Request) {
 // buildConfigOptions extracts and validates config options from a POST form.
 // Returns (options, errorMessage). errorMessage is empty on success.
 func buildConfigOptions(r *http.Request) (map[string]string, string) {
-	newOptions := make(map[string]string)
-	for key := range r.Form {
-		if key == "name" || key == "id" || key == "type" || key == "destination" {
-			continue
-		}
-		newOptions[key] = r.FormValue(key)
-	}
+	newOptions := collectFormFields(r)
 	if portStr := r.FormValue("port"); portStr != "" {
 		if errMsg := validateAndSetPort(portStr, newOptions); errMsg != "" {
 			return nil, errMsg
@@ -124,6 +118,18 @@ func buildConfigOptions(r *http.Request) (map[string]string, string) {
 		newOptions["host"] = host
 	}
 	return newOptions, ""
+}
+
+// collectFormFields copies all non-reserved form fields into a map.
+func collectFormFields(r *http.Request) map[string]string {
+	reserved := map[string]bool{"name": true, "id": true, "type": true, "destination": true}
+	newOptions := make(map[string]string)
+	for key := range r.Form {
+		if !reserved[key] {
+			newOptions[key] = r.FormValue(key)
+		}
+	}
+	return newOptions
 }
 
 // validateLeaseSetAuth checks that leaseSetPrivKey is provided when auth type requires it.

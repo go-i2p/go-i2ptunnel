@@ -107,22 +107,36 @@ func (b *TunnelBase) SetOptions(opts map[string]string) error {
 // ErrRateLimitExceeded) are recorded as metrics hits but do not count toward
 // the consecutive-error limit.
 func (b *TunnelBase) HandleAcceptError(err error, consecutiveErrors *int, maxErrors int, done <-chan struct{}) (cont bool, fatal error) {
-	isRateLimit := err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded
-	if isRateLimit && b.Metrics != nil {
-		b.Metrics.RecordRateLimitHit()
+	if b.handleRateLimitError(err) {
+		time.Sleep(50 * time.Millisecond)
+		return true, nil
 	}
 	select {
 	case <-done:
 		return false, nil
 	default:
 	}
-	if !isRateLimit {
-		*consecutiveErrors++
-		b.RecordError(fmt.Errorf("accept error (%d consecutive): %w", *consecutiveErrors, err))
-		if *consecutiveErrors >= maxErrors {
-			b.SetStatus(I2PTunnelStatusFailed)
-			return false, fmt.Errorf("listener failed after %d consecutive accept errors", *consecutiveErrors)
+	return b.handleConsecutiveError(err, consecutiveErrors, maxErrors)
+}
+
+// handleRateLimitError records a rate-limit metric hit and returns true if err is a rate-limit error.
+func (b *TunnelBase) handleRateLimitError(err error) bool {
+	if err == limitedlistener.ErrMaxConnsReached || err == limitedlistener.ErrRateLimitExceeded {
+		if b.Metrics != nil {
+			b.Metrics.RecordRateLimitHit()
 		}
+		return true
+	}
+	return false
+}
+
+// handleConsecutiveError increments the counter, records the error, and returns (false, fatal) at limit.
+func (b *TunnelBase) handleConsecutiveError(err error, consecutiveErrors *int, maxErrors int) (cont bool, fatal error) {
+	*consecutiveErrors++
+	b.RecordError(fmt.Errorf("accept error (%d consecutive): %w", *consecutiveErrors, err))
+	if *consecutiveErrors >= maxErrors {
+		b.SetStatus(I2PTunnelStatusFailed)
+		return false, fmt.Errorf("listener failed after %d consecutive accept errors", *consecutiveErrors)
 	}
 	time.Sleep(50 * time.Millisecond)
 	return true, nil
@@ -138,15 +152,20 @@ func (b *TunnelBase) RunAcceptDispatch(l net.Listener, maxErrors int, done <-cha
 		case <-done:
 			return nil
 		default:
-			con, err := l.Accept()
-			if err != nil {
-				if cont, fatal := b.HandleAcceptError(err, &consecutiveErrors, maxErrors, done); !cont {
-					return fatal
-				}
-				continue
+			if cont, fatal := b.acceptAndDispatch(l, &consecutiveErrors, maxErrors, done, handleConn); !cont {
+				return fatal
 			}
-			consecutiveErrors = 0
-			go handleConn(con)
 		}
 	}
+}
+
+// acceptAndDispatch accepts one connection, dispatches it, and handles errors.
+func (b *TunnelBase) acceptAndDispatch(l net.Listener, consecutiveErrors *int, maxErrors int, done <-chan struct{}, handleConn func(net.Conn)) (cont bool, fatal error) {
+	con, err := l.Accept()
+	if err != nil {
+		return b.HandleAcceptError(err, consecutiveErrors, maxErrors, done)
+	}
+	*consecutiveErrors = 0
+	go handleConn(con)
+	return true, nil
 }

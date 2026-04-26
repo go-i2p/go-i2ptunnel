@@ -20,20 +20,30 @@ func handler(r *http.Request) string {
 func routeFromPath(urlPath string) string {
 	dir, file := path.Split(urlPath)
 	if dir == "/" {
-		if file == "home" {
-			return "group"
-		}
-		if file == "new" {
-			return "new"
-		}
-	} else {
-		if file == "config" {
-			return "config"
-		} else if file == "control" {
-			return "control"
-		}
+		return routeRootPath(file)
+	}
+	return routeSubPath(file)
+}
+
+func routeRootPath(file string) string {
+	if file == "home" {
+		return "group"
+	}
+	if file == "new" {
+		return "new"
 	}
 	return "group"
+}
+
+func routeSubPath(file string) string {
+	switch file {
+	case "config":
+		return "config"
+	case "control":
+		return "control"
+	default:
+		return "group"
+	}
 }
 
 func tunnel(r *http.Request) string {

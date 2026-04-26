@@ -45,6 +45,14 @@ func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Reque
 // For connSem, it only acquires the semaphore slot; the caller is responsible
 // for releasing it (via defer <-s.connSem) at connection end.
 func (s *SOCKS) admitConnection() error {
+	if err := s.checkRateLimit(); err != nil {
+		return err
+	}
+	return s.checkConcurrencyLimit()
+}
+
+// checkRateLimit rejects the connection if the rate limiter is saturated.
+func (s *SOCKS) checkRateLimit() error {
 	if s.rateLimiter != nil && !s.rateLimiter.Allow() {
 		if s.Metrics != nil {
 			s.Metrics.RecordRateLimitHit()
@@ -52,6 +60,11 @@ func (s *SOCKS) admitConnection() error {
 		s.recordError(fmt.Errorf("connection rejected: rate limit exceeded"))
 		return fmt.Errorf("rate limit exceeded")
 	}
+	return nil
+}
+
+// checkConcurrencyLimit rejects the connection if the semaphore is full.
+func (s *SOCKS) checkConcurrencyLimit() error {
 	if s.connSem != nil {
 		select {
 		case s.connSem <- struct{}{}:

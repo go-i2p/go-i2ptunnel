@@ -127,11 +127,8 @@ func startAndWait(tunnel i2ptunnel.I2PTunnel, tunnelType, configPath, samAddr st
 		case sig := <-sigCh:
 			var err error
 			tunnel, errCh, reloading, err = handleSignal(sig, tunnel, tunnelType, configPath, samAddr, errCh, reloading)
-			if err != nil {
+			if err != nil || tunnel == nil {
 				return err
-			}
-			if tunnel == nil {
-				return nil
 			}
 		case err := <-errCh:
 			if err != nil {

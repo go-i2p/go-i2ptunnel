@@ -164,23 +164,33 @@ func (h *HTTPBidirectional) runBidirectionalAcceptLoop(l net.Listener, proxyErrC
 		case <-h.done:
 			return nil
 		case err := <-proxyErrCh:
-			if err != nil && err != http.ErrServerClosed {
-				h.RecordError(err)
-				h.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
-			}
-			return err
+			return h.handleProxyError(err)
 		default:
-			con, err := l.Accept()
-			if err != nil {
-				if cont, fatal := h.handleAcceptError(err, &consecutiveErrors, h.done); !cont {
-					return fatal
-				}
-				continue
+			if cont, fatal := h.acceptOne(l, &consecutiveErrors); !cont {
+				return fatal
 			}
-			consecutiveErrors = 0
-			go h.handleServerConnection(con)
 		}
 	}
+}
+
+// handleProxyError records a non-nil proxy error that is not ErrServerClosed.
+func (h *HTTPBidirectional) handleProxyError(err error) error {
+	if err != nil && err != http.ErrServerClosed {
+		h.RecordError(err)
+		h.SetStatus(i2ptunnel.I2PTunnelStatusFailed)
+	}
+	return err
+}
+
+// acceptOne accepts one connection and dispatches it, returning (cont, fatal).
+func (h *HTTPBidirectional) acceptOne(l net.Listener, consecutiveErrors *int) (cont bool, fatal error) {
+	con, err := l.Accept()
+	if err != nil {
+		return h.handleAcceptError(err, consecutiveErrors, h.done)
+	}
+	*consecutiveErrors = 0
+	go h.handleServerConnection(con)
+	return true, nil
 }
 
 // wrapListener wraps a raw listener with HTTP inspection and rate/connection limiting.
