@@ -18,6 +18,28 @@ var socksHandler socks5.Handler = &SOCKS{}
 
 // TCPHandle implements socks5.Handler.
 func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Request) error {
+	if err := s.admitConnection(); err != nil {
+		return err
+	}
+	if s.Metrics != nil {
+		s.Metrics.RecordConnection()
+		defer s.Metrics.RecordDisconnection()
+	}
+	i2pConn, err := s.Garlic.Dial("tcp", req.Address())
+	if err != nil {
+		if s.Metrics != nil {
+			s.Metrics.RecordConnectionFailed()
+		}
+		return err
+	}
+	defer i2pConn.Close()
+	ctx := context.Background()
+	wrapped := metrics.WrapConn(conn, s.Metrics)
+	return stream.Forward(ctx, wrapped, i2pConn, udpconst.NewDatagramForwardConfig())
+}
+
+// admitConnection enforces rate limiting and concurrency limits.
+func (s *SOCKS) admitConnection() error {
 	if s.rateLimiter != nil && !s.rateLimiter.Allow() {
 		if s.Metrics != nil {
 			s.Metrics.RecordRateLimitHit()
@@ -34,24 +56,7 @@ func (s *SOCKS) TCPHandle(_ *socks5.Server, conn *net.TCPConn, req *socks5.Reque
 			return fmt.Errorf("connection limit reached")
 		}
 	}
-	if s.Metrics != nil {
-		s.Metrics.RecordConnection()
-		defer s.Metrics.RecordDisconnection()
-	}
-	// Connect to destination through I2P
-	i2pConn, err := s.Garlic.Dial("tcp", req.Address())
-	if err != nil {
-		if s.Metrics != nil {
-			s.Metrics.RecordConnectionFailed()
-		}
-		return err
-	}
-	defer i2pConn.Close()
-
-	ctx := context.Background()
-	wrapped := metrics.WrapConn(conn, s.Metrics)
-	err = stream.Forward(ctx, wrapped, i2pConn, udpconst.NewDatagramForwardConfig())
-	return err
+	return nil
 }
 
 // UDPHandle implements socks5.Handler.

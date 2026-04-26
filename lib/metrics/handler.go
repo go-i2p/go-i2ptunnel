@@ -164,28 +164,16 @@ var gaugeMetrics = []prometheusMetric{
 }
 
 func writePrometheusMetrics(w io.Writer, snapshots []MetricSnapshot) error {
-	// Write integer-valued metrics (counters and gauges).
-	// Pre-allocate a fresh slice to avoid mutating the package-level
-	// counterMetrics or gaugeMetrics slices via append side effects.
 	allMetrics := make([]prometheusMetric, 0, len(counterMetrics)+len(gaugeMetrics))
 	allMetrics = append(allMetrics, counterMetrics...)
 	allMetrics = append(allMetrics, gaugeMetrics...)
 	for _, m := range allMetrics {
-		if _, err := fmt.Fprintf(w, "# HELP %s %s\n", m.name, m.help); err != nil {
+		if err := writeMetricFamily(w, m, snapshots); err != nil {
 			return err
-		}
-		if _, err := fmt.Fprintf(w, "# TYPE %s %s\n", m.name, m.typ); err != nil {
-			return err
-		}
-		for _, s := range snapshots {
-			labels := formatLabels(s.Name, s.ID, s.Type)
-			if _, err := fmt.Fprintf(w, "%s{%s} %d\n", m.name, labels, m.val(s)); err != nil {
-				return err
-			}
 		}
 	}
 
-	// Write uptime gauge (float64).
+	// Uptime gauge (float64 — handled separately).
 	if _, err := fmt.Fprintf(w, "# HELP i2ptunnel_uptime_seconds Tunnel uptime in seconds\n"); err != nil {
 		return err
 	}
@@ -198,7 +186,23 @@ func writePrometheusMetrics(w io.Writer, snapshots []MetricSnapshot) error {
 			return err
 		}
 	}
+	return nil
+}
 
+// writeMetricFamily writes the HELP, TYPE, and per-tunnel sample lines for one metric.
+func writeMetricFamily(w io.Writer, m prometheusMetric, snapshots []MetricSnapshot) error {
+	if _, err := fmt.Fprintf(w, "# HELP %s %s\n", m.name, m.help); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "# TYPE %s %s\n", m.name, m.typ); err != nil {
+		return err
+	}
+	for _, s := range snapshots {
+		labels := formatLabels(s.Name, s.ID, s.Type)
+		if _, err := fmt.Fprintf(w, "%s{%s} %d\n", m.name, labels, m.val(s)); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

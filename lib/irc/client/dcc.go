@@ -34,12 +34,7 @@ func validateDCCPort(port int) error {
 	return nil
 }
 
-// filterDCCRequest validates the parameters in a DCC CTCP message body. The
-// body is the text following the "\x01DCC " prefix (and before any trailing
-// "\x01"). It returns nil when the parameters are technically valid (public IP,
-// safe port) and a descriptive error when they violate the private-IP or
-// port-range rules. A nil return does NOT mean the message should be forwarded;
-// the caller is responsible for deciding whether DCC is permitted at all.
+// filterDCCRequest validates the parameters in a DCC CTCP message body.
 func filterDCCRequest(body string) error {
 	body = strings.TrimSpace(body)
 	if end := strings.IndexByte(body, '\x01'); end >= 0 {
@@ -47,34 +42,26 @@ func filterDCCRequest(body string) error {
 	}
 
 	if m := reDCCSend.FindStringSubmatch(body); m != nil {
-		ipInt, err := strconv.ParseUint(m[2], 10, 32)
-		if err != nil {
-			return fmt.Errorf("DCC SEND: cannot parse IP %q", m[2])
-		}
-		port, err := strconv.Atoi(m[3])
-		if err != nil {
-			return fmt.Errorf("DCC SEND: cannot parse port %q", m[3])
-		}
-		if isPrivateIP(uint32(ipInt)) {
-			return fmt.Errorf("DCC SEND blocked: private IP address")
-		}
-		return validateDCCPort(port)
+		return validateDCCIPPort("DCC SEND", m[2], m[3])
 	}
-
 	if m := reDCCChat.FindStringSubmatch(body); m != nil {
-		ipInt, err := strconv.ParseUint(m[1], 10, 32)
-		if err != nil {
-			return fmt.Errorf("DCC CHAT: cannot parse IP %q", m[1])
-		}
-		port, err := strconv.Atoi(m[2])
-		if err != nil {
-			return fmt.Errorf("DCC CHAT: cannot parse port %q", m[2])
-		}
-		if isPrivateIP(uint32(ipInt)) {
-			return fmt.Errorf("DCC CHAT blocked: private IP address")
-		}
-		return validateDCCPort(port)
+		return validateDCCIPPort("DCC CHAT", m[1], m[2])
 	}
-
 	return nil
+}
+
+// validateDCCIPPort checks that the ip integer and port string from a DCC message are safe.
+func validateDCCIPPort(kind, ipStr, portStr string) error {
+	ipInt, err := strconv.ParseUint(ipStr, 10, 32)
+	if err != nil {
+		return fmt.Errorf("%s: cannot parse IP %q", kind, ipStr)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return fmt.Errorf("%s: cannot parse port %q", kind, portStr)
+	}
+	if isPrivateIP(uint32(ipInt)) {
+		return fmt.Errorf("%s blocked: private IP address", kind)
+	}
+	return validateDCCPort(port)
 }
